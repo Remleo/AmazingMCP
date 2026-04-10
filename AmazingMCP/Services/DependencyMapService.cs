@@ -251,13 +251,52 @@ public class DependencyMapService(
         string typeName,
         IReadOnlyList<(string ProjectName, Compilation Compilation)> compilations)
     {
+        var symbol = FindExternalSymbol(typeName, compilations);
+        if (symbol is not null) return symbol;
+
+        // GetTypeByMetadataName doesn't work for closed generic types like ITracer<Foo>.
+        // Extract the open generic name (e.g. ITracer<Foo> → ITracer`1) and resolve that instead.
+        var openGenericName = ToOpenGenericMetadataName(typeName);
+        return openGenericName is not null ? FindExternalSymbol(openGenericName, compilations) : null;
+    }
+
+    static INamedTypeSymbol? FindExternalSymbol(
+        string metadataName,
+        IReadOnlyList<(string ProjectName, Compilation Compilation)> compilations)
+    {
         foreach (var (_, compilation) in compilations)
         {
-            var symbol = compilation.GetTypeByMetadataName(typeName);
+            var symbol = compilation.GetTypeByMetadataName(metadataName);
             if (symbol is not null && symbol.DeclaringSyntaxReferences.Length == 0)
                 return symbol;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Converts a display-form closed generic name to an open generic metadata name.
+    /// E.g. "Ns.ITracer&lt;Ns.Foo&gt;" → "Ns.ITracer`1"
+    ///      "Ns.IRepo&lt;Ns.A, Ns.B&gt;" → "Ns.IRepo`2"
+    /// Returns null if the name is not a generic type.
+    /// </summary>
+    static string? ToOpenGenericMetadataName(string typeName)
+    {
+        var angleIdx = typeName.IndexOf('<');
+        if (angleIdx < 0) return null;
+
+        var baseName = typeName[..angleIdx];
+        // Count top-level commas inside <...> to determine arity
+        var inner = typeName[(angleIdx + 1)..^1];
+        var depth = 0;
+        var arity = 1;
+        foreach (var c in inner)
+        {
+            if (c == '<') depth++;
+            else if (c == '>') depth--;
+            else if (c == ',' && depth == 0) arity++;
+        }
+
+        return $"{baseName}`{arity}";
     }
 
     static string? GetSourcePath(INamedTypeSymbol symbol) =>
