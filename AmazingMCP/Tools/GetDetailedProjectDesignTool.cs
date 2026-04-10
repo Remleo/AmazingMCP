@@ -10,30 +10,25 @@ namespace AmazingMCP.Tools;
 [McpServerToolType]
 public static class GetDetailedProjectDesignTool
 {
-    const int MaxOutputLength = 10000;
+    const int MaxOutputLength = 30000;
     const string TruncationSuffix =
         "\n\n<<... truncated output ...>> Please try to use more specific namespaces, `includeDependencyUsage: false` or `includeImplementations: false`";
 
     [McpServerTool(Name = "get_detailed_project_design", ReadOnly = true), Description(
         "Returns a detailed view of abstractions and their implementations for the specified namespace groups. " +
-        "An abstraction is an interface or standalone class that can be injected via DI. " +
-        "Each abstraction entry shows its implementations, their constructor dependencies, and (optionally) which members are called on each dependency. " +
-        "To drill into a single type in full detail, use `get_type_deps_and_usage`. " +
-        "Use `get_project_design` first to discover available groups and their namespaces, " +
-        "then pass those namespaces here. Output is Markdown.")]
+        "Each abstraction entry shows its implementations, their dependencies, and (optionally) which members are called on each dependency. " +
+        "Use `get_project_design` first to discover available groups and their namespaces. Output is Markdown.")]
     public static async Task<string> GetDetailedProjectDesign(
         DependencyMapService dependencyMapService,
+        IDependencyAggregator dependencyAggregator,
         SolutionResolver solutionResolver,
         [Description("Absolute path to the workspace (project root) directory")] string workspacePath,
         [Description(
-            "Namespaces to include. Each entry is matched against abstraction namespaces. " +
-            "Supports exact match (e.g. 'MyApp.Services') and '*' wildcard anywhere " +
-            "(e.g. 'MyApp.*', '*.Services', 'MyApp.*.Handlers'). " +
-            "At least one entry is required.")]
+            "Namespaces to include. Supports exact match and '*' wildcard anywhere. At least one entry is required.")]
         string[] forNamespaces,
         [Description("When true (default), shows which methods and properties are called on each dependency.")]
         bool includeDependencyUsage = true,
-        [Description("When true (default), shows the list of implementations for each abstraction. Set to false to show only dependencies — useful for large namespaces.")]
+        [Description("When true (default), shows the list of implementations for each abstraction.")]
         bool includeImplementations = true,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")] string? solutionPath = null,
         CancellationToken ct = default)
@@ -42,18 +37,18 @@ public static class GetDetailedProjectDesignTool
             return "Error: `forNamespaces` must contain at least one namespace pattern.";
 
         var (resolved, error) = solutionResolver.Resolve(workspacePath, solutionPath);
-        if (resolved is null)
-            return error!;
+        if (resolved is null) return error!;
 
         var depMap = await dependencyMapService.BuildMapAsync(resolved, ct);
-        return FormatMarkdown(depMap, forNamespaces, includeDependencyUsage, includeImplementations);
+        return FormatMarkdown(depMap, forNamespaces, includeDependencyUsage, includeImplementations, dependencyAggregator);
     }
 
     internal static string FormatMarkdown(
         DependencyMapResult depMap,
         string[] forNamespaces,
         bool includeDependencyUsage,
-        bool includeImplementations = true)
+        bool includeImplementations = true,
+        IDependencyAggregator? aggregator = null)
     {
         var patterns = forNamespaces.Select(WildcardToRegex).ToList();
 
@@ -88,37 +83,40 @@ public static class GetDetailedProjectDesignTool
                     sb.AppendLine($"- {implName}");
             }
 
-            if (includeDependencyUsage || abstraction.Implementations.Any(i => depMap.Implementations.TryGetValue(i, out var im) && im.Dependencies.Count > 0))
+            // Collect all deps across implementations using aggregator
+            var hasDeps = abstraction.Implementations.Any(i =>
+                depMap.Implementations.TryGetValue(i, out var im) && im.Dependencies.Count > 0);
+
+            if (includeDependencyUsage || hasDeps)
             {
                 sb.AppendLine();
                 sb.AppendLine("### Depends on");
 
-                // Collect unique deps across all implementations
                 var shownDeps = new HashSet<string>();
                 foreach (var implName in abstraction.Implementations)
                 {
-                    if (!depMap.Implementations.TryGetValue(implName, out var impl))
-                        continue;
+                    if (!depMap.Implementations.TryGetValue(implName, out _)) continue;
 
-                    foreach (var dep in impl.Dependencies)
+                    var allUsages = aggregator is not null
+                        ? aggregator.GetAllUsages(implName, depMap)
+                        : depMap.Implementations[implName].Dependencies;
+
+                    foreach (var dep in allUsages)
                     {
-                        var depLabel = dep.IsOptions ? $"IOptions<{dep.TypeFullName}>"
-                            : dep.IsEnumerable ? $"IEnumerable<{dep.TypeFullName}>"
-                            : dep.TypeFullName;
+                        if (!shownDeps.Add(dep.AbstractionFullName)) continue;
 
-                        if (!shownDeps.Add(depLabel)) continue;
+                        sb.AppendLine($"- {dep.AbstractionFullName}");
 
-                        sb.AppendLine($"- {depLabel}");
-
-                        if (includeDependencyUsage &&
-                            impl.DependencyMemberUsages.TryGetValue(dep.TypeFullName, out var usages))
+                        if (includeDependencyUsage && dep.Usages.Count > 0)
                         {
-                            foreach (var usage in usages)
+                            foreach (var usage in dep.Usages)
                             {
                                 var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
-                                var label = usage.Kind == MemberUsageKind.PropertyGet ? $"{usage.MemberName} {{get}}"
-                                    : usage.Kind == MemberUsageKind.PropertySet ? $"{usage.MemberName} {{set}}"
-                                    : $"{usage.MemberName}()";
+                                var label = usage.Kind == MemberUsageKind.PropertyGet
+                                    ? $"{usage.MemberName} {{get}}"
+                                    : usage.Kind == MemberUsageKind.PropertySet
+                                        ? $"{usage.MemberName} {{set}}"
+                                        : $"{usage.MemberName}()";
                                 sb.AppendLine($"  --- [{kind}] {label}");
                             }
                         }
@@ -130,7 +128,6 @@ public static class GetDetailedProjectDesignTool
         }
 
         var result = sb.ToString().TrimEnd();
-
         if (result.Length > MaxOutputLength)
             return result[..MaxOutputLength] + TruncationSuffix;
 

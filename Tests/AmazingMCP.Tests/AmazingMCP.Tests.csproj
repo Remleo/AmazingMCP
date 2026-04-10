@@ -22,6 +22,27 @@
   <ItemGroup>
     <Compile Remove="TestData\**\*.cs" />
     <Content Include="TestData\**\*" CopyToOutputDirectory="Never" />
+    <Compile Update="DependencyMapServiceTests.Abstractions.cs">
+      <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="DependencyMapServiceTests.Dependencies.cs">
+      <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="DependencyMapServiceTests.Generics.cs">
+      <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="DependencyMapServiceTests.IEnumerableNonGeneric.cs">
+      <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="DependencyMapServiceTests.Implementations.cs">
+      <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="DependencyMapServiceTests.MemberUsages.cs">
+      <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="DependencyMapServiceTests.StandaloneWithDeps.cs">
+      <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>

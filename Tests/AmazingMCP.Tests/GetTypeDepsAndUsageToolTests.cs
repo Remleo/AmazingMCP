@@ -1,5 +1,6 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services;
+using AmazingMCP.Services.Scanning;
 using AmazingMCP.Tests.Helpers;
 using AmazingMCP.Tools;
 using FluentAssertions;
@@ -19,11 +20,11 @@ public class GetTypeDepsAndUsageToolTests
     {
         _cachedSolution = await CompilationHelper.LoadTestSolutionAsync();
         _cache = new MemoryCache(new MemoryCacheOptions());
+        var typeFilter = new TypeFilter();
         var depMapService = new DependencyMapService(
             new TestWorkspaceProvider(_cachedSolution),
-            new TypeCollector(),
-            new ConstructorAnalyzer(),
-            new MemberUsageAnalyzer(),
+            new TypeCollector(typeFilter),
+            new MemberUsageAnalyzer(new InvocationAnalyzer(), new MemberAccessAnalyzer(), typeFilter),
             new AbstractionExtractor(),
             _cache);
         _depMap = await depMapService.BuildMapAsync(CompilationHelper.SolutionPath);
@@ -37,7 +38,7 @@ public class GetTypeDepsAndUsageToolTests
     }
 
     string Act(string typeQuery) =>
-        GetTypeDepsAndUsageTool.FormatMarkdown(_depMap, typeQuery);
+        GetTypeDepsAndUsageTool.FormatMarkdown(_depMap, typeQuery, new DependencyAggregator());
 
     #region Exact match
 
@@ -79,7 +80,8 @@ public class GetTypeDepsAndUsageToolTests
             ProjectName: "MyApp",
             SourceFilePath: "/src/IOrphan.cs",
             IsInterface: true,
-            DeclaredMembers: [],
+            IsAbstractClass: false,
+            IsStaticClass: false,
             Implementations: []);
 
         var depMap = new DependencyMapResult(
@@ -116,11 +118,11 @@ public class GetTypeDepsAndUsageToolTests
     public void FormatMarkdown_UsedBy_OnlyShowsUsagesOfQueriedAbstraction()
     {
         var iDepA = new AbstractionInfo("MyApp.IDepA", "MyApp", "MyApp", "/src/IDepA.cs",
-            true, [], ["MyApp.ImplA"]);
+            true, false, false, ["MyApp.ImplA"]);
         var iDepB = new AbstractionInfo("MyApp.IDepB", "MyApp", "MyApp", "/src/IDepB.cs",
-            true, [], ["MyApp.ImplA"]);
+            true, false, false, ["MyApp.ImplA"]);
         var iConsumer = new AbstractionInfo("MyApp.IConsumer", "MyApp", "MyApp", "/src/IConsumer.cs",
-            true, [], ["MyApp.ConsumerImpl"]);
+            true, false, false, ["MyApp.ConsumerImpl"]);
 
         var consumerImpl = new ImplementationInfo(
             FullName: "MyApp.ConsumerImpl",
@@ -130,14 +132,9 @@ public class GetTypeDepsAndUsageToolTests
             ImplementedAbstractions: ["MyApp.IConsumer"],
             BaseClasses: [],
             Dependencies: [
-                new ConstructorDependency("MyApp.IDepA", false, false),
-                new ConstructorDependency("MyApp.IDepB", false, false)
-            ],
-            DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>
-            {
-                ["MyApp.IDepA"] = [new MemberUsage("DoA", MemberUsageKind.MethodCall)],
-                ["MyApp.IDepB"] = [new MemberUsage("DoB", MemberUsageKind.MethodCall)]
-            });
+                new AbstractionUsage("MyApp.IDepA", false, [new MemberUsage("DoA", MemberUsageKind.MethodCall)]),
+                new AbstractionUsage("MyApp.IDepB", false, [new MemberUsage("DoB", MemberUsageKind.MethodCall)])
+            ]);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>
@@ -152,7 +149,6 @@ public class GetTypeDepsAndUsageToolTests
             });
 
         var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "MyApp.IDepA");
-
         md.Should().Contain("DoA()");
         md.Should().NotContain("DoB()");
     }
@@ -161,9 +157,9 @@ public class GetTypeDepsAndUsageToolTests
     public void FormatMarkdown_UsedBy_ImplWithNoUsagesOfQueried_NotShown()
     {
         var iDepA = new AbstractionInfo("MyApp.IDepA", "MyApp", "MyApp", "/src/IDepA.cs",
-            true, [], ["MyApp.ImplA"]);
+            true, false, false, ["MyApp.ImplA"]);
         var iConsumer = new AbstractionInfo("MyApp.IConsumer", "MyApp", "MyApp", "/src/IConsumer.cs",
-            true, [], ["MyApp.ConsumerImpl"]);
+            true, false, false, ["MyApp.ConsumerImpl"]);
 
         var consumerImpl = new ImplementationInfo(
             FullName: "MyApp.ConsumerImpl",
@@ -172,8 +168,7 @@ public class GetTypeDepsAndUsageToolTests
             SourceFilePath: "/src/ConsumerImpl.cs",
             ImplementedAbstractions: ["MyApp.IConsumer"],
             BaseClasses: [],
-            Dependencies: [new ConstructorDependency("MyApp.IDepA", false, false)],
-            DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>());
+            Dependencies: [new AbstractionUsage("MyApp.IDepA", false, [])]);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>
@@ -203,11 +198,12 @@ public class GetTypeDepsAndUsageToolTests
             ProjectName: "Acme",
             SourceFilePath: null,
             IsInterface: true,
-            DeclaredMembers: [],
+            IsAbstractClass: false,
+            IsStaticClass: false,
             Implementations: []);
 
         var consumer = new AbstractionInfo("MyApp.IConsumer", "MyApp", "MyApp", "/src/IConsumer.cs",
-            true, [], ["MyApp.ConsumerImpl"]);
+            true, false, false, ["MyApp.ConsumerImpl"]);
 
         var consumerImpl = new ImplementationInfo(
             FullName: "MyApp.ConsumerImpl",
@@ -216,11 +212,8 @@ public class GetTypeDepsAndUsageToolTests
             SourceFilePath: "/src/ConsumerImpl.cs",
             ImplementedAbstractions: ["MyApp.IConsumer"],
             BaseClasses: [],
-            Dependencies: [new ConstructorDependency("Acme.IExternalService", false, false)],
-            DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>
-            {
-                ["Acme.IExternalService"] = [new MemberUsage("Execute", MemberUsageKind.MethodCall)]
-            });
+            Dependencies: [new AbstractionUsage("Acme.IExternalService", false,
+                [new MemberUsage("Execute", MemberUsageKind.MethodCall)])]);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>
@@ -234,7 +227,6 @@ public class GetTypeDepsAndUsageToolTests
             });
 
         var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "Acme.IExternalService");
-
         md.Should().NotContain("## Implementations");
         md.Should().Contain("## Used by");
         md.Should().Contain("Execute()");
@@ -248,9 +240,9 @@ public class GetTypeDepsAndUsageToolTests
     public void FormatMarkdown_WildcardQuery_MatchesMultipleAbstractions()
     {
         var iA = new AbstractionInfo("MyApp.IServiceA", "MyApp", "MyApp", "/src/IServiceA.cs",
-            true, [], []);
+            true, false, false, []);
         var iB = new AbstractionInfo("MyApp.IServiceB", "MyApp", "MyApp", "/src/IServiceB.cs",
-            true, [], []);
+            true, false, false, []);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>
@@ -285,7 +277,7 @@ public class GetTypeDepsAndUsageToolTests
     public void FormatMarkdown_NoExactMatch_FallbackFindsAbstractions()
     {
         var iService = new AbstractionInfo("MyApp.Services.IAnimalService", "MyApp.Services", "MyApp",
-            "/src/IAnimalService.cs", true, [], []);
+            "/src/IAnimalService.cs", true, false, false, []);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>
@@ -309,8 +301,7 @@ public class GetTypeDepsAndUsageToolTests
             SourceFilePath: "/src/AnimalService.cs",
             ImplementedAbstractions: ["MyApp.Services.IAnimalService"],
             BaseClasses: [],
-            Dependencies: [],
-            DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>());
+            Dependencies: []);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>(),
@@ -343,7 +334,7 @@ public class GetTypeDepsAndUsageToolTests
     {
         var iRepo = new AbstractionInfo(
             "MyApp.IRepo<MyApp.Models.Animal>", "MyApp", "MyApp",
-            "/src/IRepo.cs", true, [], []);
+            "/src/IRepo.cs", true, false, false, []);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>
@@ -352,7 +343,6 @@ public class GetTypeDepsAndUsageToolTests
             },
             Implementations: new Dictionary<string, ImplementationInfo>());
 
-        // Query with specific generic param that doesn't match exactly
         var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "IRepo<SomeOtherType>");
         md.Should().Contain("No exact match found");
         md.Should().Contain("*IRepo<*>*");
@@ -364,7 +354,7 @@ public class GetTypeDepsAndUsageToolTests
     {
         var iMapper = new AbstractionInfo(
             "MyApp.IMapper<MyApp.Dto, MyApp.Entity>", "MyApp", "MyApp",
-            "/src/IMapper.cs", true, [], []);
+            "/src/IMapper.cs", true, false, false, []);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>

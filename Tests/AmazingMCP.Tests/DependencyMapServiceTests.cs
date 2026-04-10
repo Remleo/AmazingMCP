@@ -1,5 +1,6 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services;
+using AmazingMCP.Services.Scanning;
 using AmazingMCP.Tests.Helpers;
 using Microsoft.Extensions.Caching.Memory;
 using NSubstitute;
@@ -34,11 +35,12 @@ public partial class DependencyMapServiceTests
             .ReturnsForAnyArgs(_cachedSolution);
 
         _cache = new MemoryCache(new MemoryCacheOptions());
+
+        var typeFilter = new TypeFilter();
         _sut = new DependencyMapService(
             _workspaceProvider,
-            new TypeCollector(),
-            new ConstructorAnalyzer(),
-            new MemberUsageAnalyzer(),
+            new TypeCollector(typeFilter),
+            new MemberUsageAnalyzer(new InvocationAnalyzer(), new MemberAccessAnalyzer(), typeFilter),
             new AbstractionExtractor(),
             _cache);
     }

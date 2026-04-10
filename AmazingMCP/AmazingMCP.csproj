@@ -18,4 +18,28 @@
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Update="Services\Scanning\IMemberUsageAnalyzer.cs">
+      <DependentUpon>MemberUsageAnalyzer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\Scanning\IMemberAccessAnalyzer.cs">
+      <DependentUpon>MemberAccessAnalyzer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\Scanning\IInvocationAnalyzer.cs">
+      <DependentUpon>InvocationAnalyzer.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\IAbstractionExtractor.cs">
+      <DependentUpon>AbstractionExtractor.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\ITypeCollector.cs">
+      <DependentUpon>TypeCollector.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\IDependencyAggregator.cs">
+      <DependentUpon>DependencyAggregator.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\IWorkspaceProvider.cs">
+      <DependentUpon>WorkspaceProvider.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
 </Project>

@@ -1,33 +1,15 @@
 using AmazingMCP.Models;
+using AmazingMCP.Services.Scanning;
 using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services;
 
-public class TypeCollector : ITypeCollector
+public class TypeCollector(ITypeFilter typeFilter) : ITypeCollector
 {
-    static readonly HashSet<string> ExcludedInterfaceNames =
+    static readonly HashSet<string> ExcludedNamespaces =
     [
-        "System.IDisposable",
-        "System.IAsyncDisposable",
-        "System.ICloneable",
-        "System.IComparable",
-        "System.IFormattable",
-        "System.IConvertible",
-        "System.IEquatable",
-        "System.IObservable",
-        "System.IObserver",
-        "System.IServiceProvider"
+        "AspNetCoreGeneratedDocument" // Razor auto-generated code
     ];
-
-    static readonly HashSet<string> ExcludedInterfacePrefixes =
-    [
-        "System.Collections.",
-        "System.Collections.Generic.",
-        "System.Threading.",
-        "System.Runtime.",
-        "System.ComponentModel."
-    ];
-
     public List<SourceType> CollectSourceTypes(
         IReadOnlyList<(string ProjectName, Compilation Compilation)> compilations)
     {
@@ -35,24 +17,6 @@ public class TypeCollector : ITypeCollector
         foreach (var (projectName, compilation) in compilations)
             CollectFromNamespace(compilation.GlobalNamespace, projectName, compilation, result);
         return result;
-    }
-
-    public bool IsExcludedInterface(string fullName)
-    {
-        var nameWithoutGenerics = fullName;
-        var idx = fullName.IndexOf('<');
-        if (idx >= 0) nameWithoutGenerics = fullName[..idx];
-
-        if (ExcludedInterfaceNames.Contains(nameWithoutGenerics))
-            return true;
-
-        foreach (var prefix in ExcludedInterfacePrefixes)
-        {
-            if (fullName.StartsWith(prefix, StringComparison.Ordinal))
-                return true;
-        }
-
-        return false;
     }
 
     public List<string> GetAllImplementedAbstractions(INamedTypeSymbol cls)
@@ -87,11 +51,13 @@ public class TypeCollector : ITypeCollector
         {
             switch (member)
             {
-                case INamedTypeSymbol type when type.DeclaringSyntaxReferences.Length > 0
+                case INamedTypeSymbol type
+                    when type.DeclaringSyntaxReferences.Length > 0
                     && type.DeclaringSyntaxReferences.Any(r => compilation.ContainsSyntaxTree(r.SyntaxTree)):
                     result.Add(new SourceType(type, projectName, compilation));
                     break;
                 case INamespaceSymbol childNs:
+                    if (ExcludedNamespaces.Contains(childNs.Name)) break;
                     CollectFromNamespace(childNs, projectName, compilation, result);
                     break;
             }
@@ -106,10 +72,8 @@ public class TypeCollector : ITypeCollector
         foreach (var iface in type.Interfaces)
         {
             var ifaceName = iface.ToDisplayString();
-            if (!IsExcludedInterface(ifaceName) && !result.Contains(ifaceName))
+            if (!typeFilter.ShouldExcludeByName(ifaceName) && !result.Contains(ifaceName))
                 result.Add(ifaceName);
-
-            // Also collect base interfaces (e.g. IMessageHandler from IMessageHandler<T>)
             CollectAbstractionsFromHierarchy(iface, result, visited);
         }
 

@@ -10,10 +10,8 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_InterfaceWithImplementation_AppearsInAbstractions()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Abstractions.Should().ContainKey("TestProject.Core.Services.IAnimalService");
         result.Abstractions["TestProject.Core.Services.IAnimalService"].Should().BeEquivalentTo(new
         {
@@ -24,26 +22,10 @@ public partial class DependencyMapServiceTests
     }
 
     [Test]
-    public async Task BuildMapAsync_InterfaceAbstraction_DeclaredMembersCollected()
-    {
-        // act
-        var result = await Act();
-
-        // assert
-        var abstraction = result.Abstractions["TestProject.Core.Services.IAnimalService"];
-        abstraction.DeclaredMembers.Should().BeEquivalentTo(new[]
-        {
-            "GetById()", "GetByKind()", "Add()"
-        });
-    }
-
-    [Test]
     public async Task BuildMapAsync_InterfaceAbstraction_ListsAllImplementations()
     {
-        // act
         var result = await Act();
 
-        // assert
         var abstraction = result.Abstractions["TestProject.Core.Services.IAnimalService"];
         abstraction.Implementations.Should().Contain("TestProject.App.Services.AnimalService");
         abstraction.Implementations.Should().Contain("TestProject.App.Services.AdvancedAnimalService");
@@ -57,77 +39,23 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_SystemInterfaces_ExcludedFromAbstractions()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Abstractions.Keys.Should().NotContain(k =>
             k.StartsWith("System.") || k.StartsWith("Microsoft.Extensions.Options."));
     }
 
     #endregion
 
-    #region Standalone class — no interface, no complex deps → not in map
+    #region Standalone class — no interface, no usages → not in map
 
     [Test]
     public async Task BuildMapAsync_StandaloneClass_NotInAbstractions()
     {
-        // act
         var result = await Act();
 
-        // assert — StandaloneHelper has no interfaces and no constructor deps,
-        // so it's not an abstraction or implementation under the new algorithm
         result.Abstractions.Should().NotContainKey("TestProject.App.Helpers.StandaloneHelper");
         result.Implementations.Should().NotContainKey("TestProject.App.Helpers.StandaloneHelper");
-    }
-
-    #endregion
-
-    #region Abstractions — IOptions<T> unwrap
-
-    [Test]
-    public async Task BuildMapAsync_IOptionsType_AppearsAsAbstraction()
-    {
-        // act
-        var result = await Act();
-
-        // assert
-        result.Abstractions.Should().ContainKey("TestProject.Core.Configuration.AnimalSettings");
-        result.Abstractions["TestProject.Core.Configuration.AnimalSettings"].Should().BeEquivalentTo(new
-        {
-            FullName = "TestProject.Core.Configuration.AnimalSettings",
-            IsInterface = false
-        }, options => options.ExcludingMissingMembers());
-    }
-
-    [Test]
-    public async Task BuildMapAsync_IOptionsType_DeclaredMembersContainProperties()
-    {
-        // act
-        var result = await Act();
-
-        // assert
-        var abstraction = result.Abstractions["TestProject.Core.Configuration.AnimalSettings"];
-        abstraction.DeclaredMembers.Should().Contain(m => m.Contains("MaxAnimals"));
-        abstraction.DeclaredMembers.Should().Contain(m => m.Contains("DefaultName"));
-    }
-
-    #endregion
-
-    #region Abstractions — IAnimalRepository members
-
-    [Test]
-    public async Task BuildMapAsync_RepositoryAbstraction_DeclaredMembersIncludePropertyAndMethods()
-    {
-        // act
-        var result = await Act();
-
-        // assert
-        var abstraction = result.Abstractions["TestProject.Core.Persistence.IAnimalRepository"];
-        abstraction.DeclaredMembers.Should().Contain("FindById()");
-        abstraction.DeclaredMembers.Should().Contain("FindByKind()");
-        abstraction.DeclaredMembers.Should().Contain("Save()");
-        abstraction.DeclaredMembers.Should().Contain(m => m.Contains("Count"));
     }
 
     #endregion
@@ -135,13 +63,11 @@ public partial class DependencyMapServiceTests
     #region Abstract classes excluded from implementations
 
     [Test]
-    public async Task BuildMapAsync_AbstractClass_NotInImplementations()
+    public async Task BuildMapAsync_AbstractClass_AppearsAsAbstraction()
     {
-        // act
         var result = await Act();
 
-        // assert — abstract classes are abstractions, not implementations
-        result.Implementations.Should().NotContainKey("TestProject.App.Services.AnimalServiceBase");
+        result.Abstractions.Should().ContainKey("TestProject.App.Services.AnimalServiceBase");
     }
 
     #endregion
@@ -151,11 +77,8 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_TestProjectTypes_ExcludedFromMap()
     {
-        // act
         var result = await Act();
 
-        // assert — TestProject.Tests is a test project (has Microsoft.NET.Test.Sdk),
-        // so its types must not appear in the dependency map
         result.Abstractions.Keys.Should().NotContain(k => k.StartsWith("TestProject.Tests."));
         result.Implementations.Keys.Should().NotContain(k => k.StartsWith("TestProject.Tests."));
     }
@@ -167,34 +90,33 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_AutoMapperAnimalMapper_AppearsInImplementations()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Implementations.Should().ContainKey("TestProject.App.Mapping.AutoMapperAnimalMapper");
     }
 
     [Test]
     public async Task BuildMapAsync_AutoMapperAnimalMapper_HasIMapperDependency()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.App.Mapping.AutoMapperAnimalMapper"];
+        // AutoMapper.IMapper.Map<T>() is declared on IMapperBase — Roslyn resolves ContainingType to IMapperBase
         impl.Dependencies.Should().Contain(d =>
-            d.TypeFullName == "AutoMapper.IMapper" && !d.IsOptions && !d.IsEnumerable);
+            d.AbstractionFullName.StartsWith("AutoMapper."));
     }
 
     [Test]
     public async Task BuildMapAsync_AutoMapperIMapper_HasNoSourceFile()
     {
-        // act
         var result = await Act();
 
-        // assert — IMapper comes from NuGet, so SourceFilePath must be null
-        result.Abstractions.Should().ContainKey("AutoMapper.IMapper");
-        result.Abstractions["AutoMapper.IMapper"].SourceFilePath.Should().BeNull();
+        // AutoMapper types come from NuGet, so SourceFilePath must be null
+        var autoMapperAbstractions = result.Abstractions.Values
+            .Where(a => a.FullName.StartsWith("AutoMapper."))
+            .ToList();
+        autoMapperAbstractions.Should().NotBeEmpty();
+        autoMapperAbstractions.Should().AllSatisfy(a => a.SourceFilePath.Should().BeNull());
     }
 
     #endregion

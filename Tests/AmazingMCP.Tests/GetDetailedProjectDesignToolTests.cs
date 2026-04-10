@@ -1,5 +1,6 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services;
+using AmazingMCP.Services.Scanning;
 using AmazingMCP.Tests.Helpers;
 using AmazingMCP.Tools;
 using FluentAssertions;
@@ -20,11 +21,11 @@ public class GetDetailedProjectDesignToolTests
         _cachedSolution = await CompilationHelper.LoadTestSolutionAsync();
 
         _cache = new MemoryCache(new MemoryCacheOptions());
+        var typeFilter = new TypeFilter();
         var depMapService = new DependencyMapService(
             new TestWorkspaceProvider(_cachedSolution),
-            new TypeCollector(),
-            new ConstructorAnalyzer(),
-            new MemberUsageAnalyzer(),
+            new TypeCollector(typeFilter),
+            new MemberUsageAnalyzer(new InvocationAnalyzer(), new MemberAccessAnalyzer(), typeFilter),
             new AbstractionExtractor(),
             _cache);
 
@@ -39,17 +40,16 @@ public class GetDetailedProjectDesignToolTests
     }
 
     string Act(string[] forNamespaces, bool includeDependencyUsage = true, bool includeImplementations = true) =>
-        GetDetailedProjectDesignTool.FormatMarkdown(_depMap, forNamespaces, includeDependencyUsage, includeImplementations);
+        GetDetailedProjectDesignTool.FormatMarkdown(
+            _depMap, forNamespaces, includeDependencyUsage, includeImplementations, new DependencyAggregator());
 
     #region Namespace filtering — exact match
 
     [Test]
     public void FormatMarkdown_ExactMatch_ReturnsOnlyMatchingNamespace()
     {
-        // act
         var md = Act(["TestProject.App.Mapping"]);
 
-        // assert
         md.Should().Contain("TestProject.App.Mapping");
         md.Should().NotContain("TestProject.Core.Services");
         md.Should().NotContain("TestProject.App.Messaging");
@@ -58,20 +58,14 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_ExactMatch_CaseInsensitive()
     {
-        // act
         var md = Act(["testproject.app.mapping"]);
-
-        // assert
         md.Should().Contain("TestProject.App.Mapping");
     }
 
     [Test]
     public void FormatMarkdown_NoMatch_ReturnsErrorMessage()
     {
-        // act
         var md = Act(["NonExistent.Namespace"]);
-
-        // assert
         md.Should().Contain("No abstractions found");
         md.Should().Contain("NonExistent.Namespace");
     }
@@ -83,10 +77,7 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_WildcardSuffix_MatchesAllChildNamespaces()
     {
-        // act
         var md = Act(["TestProject.App.*"]);
-
-        // assert — should match App.Mapping, App.Messaging, App.Services, etc.
         md.Should().Contain("TestProject.App.Mapping");
         md.Should().Contain("TestProject.App.Messaging");
     }
@@ -94,35 +85,24 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_WildcardSuffix_DoesNotMatchParent()
     {
-        // act — TestProject.App.* should NOT match TestProject.App itself (if it existed)
         var md = Act(["TestProject.Core.*"]);
-
-        // assert — matches children
         md.Should().Contain("TestProject.Core.Services");
         md.Should().Contain("TestProject.Core.Persistence");
-        // but not something outside Core
         md.Should().NotContain("TestProject.App.Mapping");
     }
 
     [Test]
     public void FormatMarkdown_WildcardPrefix_MatchesByNamespaceSuffix()
     {
-        // act
         var md = Act(["*.Mapping"]);
-
-        // assert
         md.Should().Contain("TestProject.App.Mapping");
-        // sub-namespaces like Mapping.Tv2 should NOT match *.Mapping (exact segment)
         md.Should().NotContain("TestProject.App.Mapping.Tv2");
     }
 
     [Test]
     public void FormatMarkdown_WildcardMiddle_MatchesCorrectly()
     {
-        // act
         var md = Act(["TestProject.*.Mapping"]);
-
-        // assert
         md.Should().Contain("TestProject.App.Mapping");
         md.Should().NotContain("TestProject.App.Mapping.Tv2");
         md.Should().NotContain("TestProject.Core.Services");
@@ -131,10 +111,7 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_MultiplePatterns_UnionOfMatches()
     {
-        // act
         var md = Act(["TestProject.App.Mapping", "TestProject.Core.Services"]);
-
-        // assert
         md.Should().Contain("TestProject.App.Mapping");
         md.Should().Contain("TestProject.Core.Services");
         md.Should().NotContain("TestProject.App.Messaging");
@@ -147,20 +124,14 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_ContainsHeader()
     {
-        // act
         var md = Act(["TestProject.App.Mapping"]);
-
-        // assert
         md.Should().StartWith("# Detailed Project Design");
     }
 
     [Test]
     public void FormatMarkdown_AbstractionsAsH2Headers()
     {
-        // act
         var md = Act(["TestProject.App.Mapping"]);
-
-        // assert — abstractions shown as ## headers
         var lines = md.Split('\n').Select(l => l.Trim()).ToList();
         lines.Should().Contain(l => l.StartsWith("## ") && l.Contains("TestProject.App.Mapping"));
     }
@@ -168,30 +139,21 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_ImplementationsListed()
     {
-        // act
         var md = Act(["TestProject.App.Mapping"]);
-
-        // assert
         md.Should().Contain("### Implementations");
     }
 
     [Test]
     public void FormatMarkdown_DependenciesListed()
     {
-        // act
         var md = Act(["TestProject.App.Messaging"]);
-
-        // assert
         md.Should().Contain("### Depends on");
     }
 
     [Test]
     public void FormatMarkdown_NuGetAbstractions_NotIncluded()
     {
-        // act — NuGet types have SourceFilePath = null, should be excluded
         var md = Act(["AutoMapper"]);
-
-        // assert
         md.Should().Contain("No abstractions found");
     }
 
@@ -202,20 +164,14 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_IncludeDependencyUsage_True_ShowsUsages()
     {
-        // act
         var md = Act(["TestProject.App.Messaging"], includeDependencyUsage: true);
-
-        // assert
         md.Should().MatchRegex(@"\[call\]|\[prop\]");
     }
 
     [Test]
     public void FormatMarkdown_IncludeDependencyUsage_False_HidesUsages()
     {
-        // act
         var md = Act(["TestProject.App.Messaging"], includeDependencyUsage: false);
-
-        // assert
         md.Should().NotContain("[call]");
         md.Should().NotContain("[prop]");
         md.Should().Contain("### Depends on");
@@ -228,20 +184,14 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_IncludeImplementations_True_ShowsImplementationsSection()
     {
-        // act
         var md = Act(["TestProject.App.Mapping"], includeImplementations: true);
-
-        // assert
         md.Should().Contain("### Implementations");
     }
 
     [Test]
     public void FormatMarkdown_IncludeImplementations_False_HidesImplementationsSection()
     {
-        // act
         var md = Act(["TestProject.App.Mapping"], includeImplementations: false);
-
-        // assert
         md.Should().NotContain("### Implementations");
         md.Should().Contain("### Depends on");
     }
@@ -249,10 +199,7 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_IncludeImplementations_False_StillShowsDependencies()
     {
-        // act
         var md = Act(["TestProject.App.Messaging"], includeImplementations: false, includeDependencyUsage: true);
-
-        // assert
         md.Should().Contain("### Depends on");
         md.Should().MatchRegex(@"\[call\]|\[prop\]");
     }
@@ -264,24 +211,18 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_LargeOutput_IsTruncated()
     {
-        // act — use wildcard to get a large result
         var md = Act(["TestProject.*"], includeDependencyUsage: true);
-
-        // assert
-        if (md.Length >= 10000)
+        if (md.Length >= 30000)
         {
             md.Should().Contain("<<... truncated output ...>>");
-            md.Length.Should().BeLessThan(10000 + 300);
+            md.Length.Should().BeLessThan(30000 + 300);
         }
     }
 
     [Test]
     public void FormatMarkdown_SmallOutput_NotTruncated()
     {
-        // act — single specific namespace should be small
         var md = Act(["TestProject.Core.Configuration"]);
-
-        // assert
         md.Should().NotContain("<<... truncated output ...>>");
     }
 
@@ -344,46 +285,43 @@ public class GetDetailedProjectDesignToolTests
     public void FormatMarkdown_EmptyNamespaces_ReturnsError()
     {
         var md = GetDetailedProjectDesignTool.FormatMarkdown(_depMap, [], true);
-        // empty array — no patterns, no matches
         md.Should().Contain("No abstractions found");
     }
 
     [Test]
     public void FormatMarkdown_AbstractionWithNoImplementations_ShowsNoImplNote()
     {
-        // arrange — synthetic depMap with abstraction that has no implementations
         var abstraction = new AbstractionInfo(
             FullName: "MyApp.Services.IOrphanService",
             Namespace: "MyApp.Services",
             ProjectName: "MyApp",
             SourceFilePath: "/src/IOrphanService.cs",
             IsInterface: true,
-            DeclaredMembers: [],
+            IsAbstractClass: false,
+            IsStaticClass: false,
             Implementations: []);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo> { [abstraction.FullName] = abstraction },
             Implementations: new Dictionary<string, ImplementationInfo>());
 
-        // act
         var md = GetDetailedProjectDesignTool.FormatMarkdown(depMap, ["MyApp.Services"], true);
 
-        // assert — no implementations section, no error text
         md.Should().NotContain("### Implementations");
         md.Should().Contain("## MyApp.Services.IOrphanService");
     }
 
     [Test]
-    public void FormatMarkdown_IOptionsDepLabel_FormattedCorrectly()
+    public void FormatMarkdown_DepLabel_ShowsTypeFullName()
     {
-        // arrange
         var abstraction = new AbstractionInfo(
             FullName: "MyApp.Services.IMyService",
             Namespace: "MyApp.Services",
             ProjectName: "MyApp",
             SourceFilePath: "/src/IMyService.cs",
             IsInterface: true,
-            DeclaredMembers: [],
+            IsAbstractClass: false,
+            IsStaticClass: false,
             Implementations: ["MyApp.Services.MyService"]);
 
         var impl = new ImplementationInfo(
@@ -393,62 +331,24 @@ public class GetDetailedProjectDesignToolTests
             SourceFilePath: "/src/MyService.cs",
             ImplementedAbstractions: ["MyApp.Services.IMyService"],
             BaseClasses: [],
-            Dependencies: [new ConstructorDependency("MyApp.Config.AppSettings", IsOptions: true, IsEnumerable: false)],
-            DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>());
+            Dependencies: [new AbstractionUsage("MyApp.Config.AppSettings", false, [])]);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo> { [abstraction.FullName] = abstraction },
             Implementations: new Dictionary<string, ImplementationInfo> { [impl.FullName] = impl });
 
-        // act
         var md = GetDetailedProjectDesignTool.FormatMarkdown(depMap, ["MyApp.Services"], true);
 
-        // assert
-        md.Should().Contain("IOptions<MyApp.Config.AppSettings>");
-    }
-
-    [Test]
-    public void FormatMarkdown_IEnumerableDepLabel_FormattedCorrectly()
-    {
-        // arrange
-        var abstraction = new AbstractionInfo(
-            FullName: "MyApp.Services.IMyService",
-            Namespace: "MyApp.Services",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/IMyService.cs",
-            IsInterface: true,
-            DeclaredMembers: [],
-            Implementations: ["MyApp.Services.MyService"]);
-
-        var impl = new ImplementationInfo(
-            FullName: "MyApp.Services.MyService",
-            Namespace: "MyApp.Services",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/MyService.cs",
-            ImplementedAbstractions: ["MyApp.Services.IMyService"],
-            BaseClasses: [],
-            Dependencies: [new ConstructorDependency("MyApp.Handlers.IHandler", IsOptions: false, IsEnumerable: true)],
-            DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>());
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo> { [abstraction.FullName] = abstraction },
-            Implementations: new Dictionary<string, ImplementationInfo> { [impl.FullName] = impl });
-
-        // act
-        var md = GetDetailedProjectDesignTool.FormatMarkdown(depMap, ["MyApp.Services"], true);
-
-        // assert
-        md.Should().Contain("IEnumerable<MyApp.Handlers.IHandler>");
+        md.Should().Contain("MyApp.Config.AppSettings");
     }
 
     [Test]
     public void FormatMarkdown_Truncation_AppliedAtCorrectLength()
     {
-        // arrange — generate a depMap large enough to trigger truncation
         var abstractions = new Dictionary<string, AbstractionInfo>();
         var implementations = new Dictionary<string, ImplementationInfo>();
 
-        for (var i = 0; i < 100; i++)
+        for (var i = 0; i < 300; i++)
         {
             var ns = "MyApp.Services";
             var ifaceName = $"MyApp.Services.IService{i:D3}";
@@ -457,27 +357,22 @@ public class GetDetailedProjectDesignToolTests
             abstractions[ifaceName] = new AbstractionInfo(
                 FullName: ifaceName, Namespace: ns, ProjectName: "MyApp",
                 SourceFilePath: $"/src/IService{i}.cs", IsInterface: true,
-                DeclaredMembers: [], Implementations: [implName]);
+                IsAbstractClass: false, IsStaticClass: false,
+                Implementations: [implName]);
 
             implementations[implName] = new ImplementationInfo(
                 FullName: implName, Namespace: ns, ProjectName: "MyApp",
                 SourceFilePath: $"/src/Service{i}.cs",
                 ImplementedAbstractions: [ifaceName], BaseClasses: [],
-                Dependencies: [new ConstructorDependency($"MyApp.Deps.IDep{i}", false, false)],
-                DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>
-                {
-                    [$"MyApp.Deps.IDep{i}"] = [new MemberUsage($"DoSomething{i}", MemberUsageKind.MethodCall)]
-                });
+                Dependencies: [new AbstractionUsage($"MyApp.Deps.IDep{i}", false,
+                    [new MemberUsage($"DoSomething{i}", MemberUsageKind.MethodCall)])]);
         }
 
         var depMap = new DependencyMapResult(abstractions, implementations);
-
-        // act
         var md = GetDetailedProjectDesignTool.FormatMarkdown(depMap, ["MyApp.Services"], true);
 
-        // assert
         md.Should().Contain("<<... truncated output ...>>");
-        md.Length.Should().BeLessThanOrEqualTo(10000 + 300);
+        md.Length.Should().BeLessThanOrEqualTo(30000 + 300);
     }
 
     #endregion
@@ -487,13 +382,10 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void GetProjectDesignTool_FormatMarkdown_ContainsIntroBlock()
     {
-        // arrange
-        var result = ProjectDesignService.BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath);
-
-        // act
+        var result = ProjectDesignService.BuildFromDependencyMap(
+            _depMap, CompilationHelper.SolutionPath, new DependencyAggregator());
         var md = GetProjectDesignTool.FormatMarkdown(result);
 
-        // assert
         md.Should().Contain("get_detailed_project_design");
         md.Should().Contain("forNamespaces");
         md.Should().Contain("FullNamespace");

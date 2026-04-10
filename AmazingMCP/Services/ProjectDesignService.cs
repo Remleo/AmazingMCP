@@ -4,72 +4,59 @@ namespace AmazingMCP.Services;
 
 /// <summary>
 /// Builds a high-level project design: groups of abstractions and their inter-group dependencies.
-/// Groups are formed by namespace hierarchy. For each group, external dependencies are resolved
-/// to target group references by walking all implementations and their base class chains.
 /// </summary>
-public class ProjectDesignService(DependencyMapService dependencyMapService)
+public class ProjectDesignService(
+    DependencyMapService dependencyMapService,
+    IDependencyAggregator dependencyAggregator)
 {
     public async Task<ProjectDesignResult> BuildAsync(
         string solutionPath, CancellationToken ct = default)
     {
         var depMap = await dependencyMapService.BuildMapAsync(solutionPath, ct);
-        return BuildFromDependencyMap(depMap, solutionPath);
+        return BuildFromDependencyMap(depMap, solutionPath, dependencyAggregator);
     }
 
     internal static ProjectDesignResult BuildFromDependencyMap(
-        DependencyMapResult depMap, string solutionPath)
+        DependencyMapResult depMap,
+        string solutionPath,
+        IDependencyAggregator aggregator)
     {
         var rootNamespaces = ResolveRootNamespaces(solutionPath);
-
         var sortedRoots = rootNamespaces.Values
             .Distinct()
             .OrderByDescending(r => r.Length)
             .ThenBy(r => r)
             .ToList();
 
-        // Phase 1: assign each abstraction to a namespace group (flat, no project split).
-        // Abstractions without a source file (NuGet-only types) are excluded from the main
-        // group list but still participate in dependency resolution (Phase 2 lookup).
+        // Phase 1: group source abstractions by namespace (exclude external/NuGet)
         var groups = new Dictionary<string, List<AbstractionInfo>>();
-
         foreach (var abstraction in depMap.Abstractions.Values)
         {
-            if (abstraction.SourceFilePath is null) continue; // NuGet type — skip from groups
-
+            if (abstraction.SourceFilePath is null) continue;
             var ns = abstraction.Namespace;
+            if (string.IsNullOrEmpty(ns)) continue; // global namespace (top-level statements etc.)
             if (!groups.TryGetValue(ns, out var list))
-            {
-                list = [];
-                groups[ns] = list;
-            }
+                groups[ns] = list = [];
             list.Add(abstraction);
         }
 
-        // Phase 2: build a lookup: abstraction full name → namespace group.
-        // Includes ALL abstractions (including NuGet ones) so that dependencies on them
-        // are resolved to the correct target group namespace.
-        var abstractionToGroup = new Dictionary<string, string>();
-        foreach (var abstraction in depMap.Abstractions.Values)
-            abstractionToGroup[abstraction.FullName] = abstraction.Namespace;
+        // Phase 2: abstraction full name → namespace (includes NuGet for dep resolution)
+        var abstractionToGroup = depMap.Abstractions.Values
+            .ToDictionary(a => a.FullName, a => a.Namespace);
 
-        // Phase 3: build result with group-level dependencies
+        // Phase 3: build result
         var result = new List<AbstractionGroup>();
-
         foreach (var (ns, abstractions) in groups.OrderBy(kv => kv.Key))
         {
             var abstractionSet = abstractions.Select(a => a.FullName).ToHashSet();
+            var rawExternalDeps = CollectExternalDependencies(
+                abstractions, depMap, abstractionSet, aggregator);
 
-            var rawExternalDeps = CollectExternalDependencies(abstractions, depMap, abstractionSet);
-
-            // Resolve raw dep full names to target group full namespaces
             var depGroups = new HashSet<string>();
             foreach (var dep in rawExternalDeps)
-            {
                 if (abstractionToGroup.TryGetValue(dep, out var targetNs))
                     depGroups.Add(targetNs);
-            }
 
-            // Compute short name relative to owning project root namespace
             var (_, rootNs) = ResolveOwningProject(ns, rootNamespaces, sortedRoots);
             var shortName = GetRelativeNamespace(ns, rootNs);
 
@@ -86,19 +73,19 @@ public class ProjectDesignService(DependencyMapService dependencyMapService)
     static HashSet<string> CollectExternalDependencies(
         List<AbstractionInfo> abstractions,
         DependencyMapResult depMap,
-        HashSet<string> groupAbstractionSet)
+        HashSet<string> groupAbstractionSet,
+        IDependencyAggregator aggregator)
     {
         var externalDeps = new HashSet<string>();
 
         foreach (var abstraction in abstractions)
         {
-            // Walk implementations listed under this abstraction
             foreach (var implName in abstraction.Implementations)
-                CollectDepsFromImplChain(implName, depMap, groupAbstractionSet, externalDeps);
+                CollectDepsFromImplChain(implName, depMap, groupAbstractionSet, externalDeps, aggregator);
 
-            // Standalone classes: the abstraction itself may be in Implementations
-            if (!abstraction.IsInterface)
-                CollectDepsFromImplChain(abstraction.FullName, depMap, groupAbstractionSet, externalDeps);
+            // Standalone: abstraction is its own implementation
+            if (!abstraction.IsInterface && !abstraction.IsAbstractClass)
+                CollectDepsFromImplChain(abstraction.FullName, depMap, groupAbstractionSet, externalDeps, aggregator);
         }
 
         return externalDeps;
@@ -108,31 +95,16 @@ public class ProjectDesignService(DependencyMapService dependencyMapService)
         string implName,
         DependencyMapResult depMap,
         HashSet<string> groupAbstractionSet,
-        HashSet<string> externalDeps)
+        HashSet<string> externalDeps,
+        IDependencyAggregator aggregator)
     {
-        if (!depMap.Implementations.TryGetValue(implName, out var impl))
-            return;
-
-        AddExternalDeps(impl, depMap, groupAbstractionSet, externalDeps);
-
-        foreach (var baseClass in impl.BaseClasses)
+        // Use aggregator to get all usages including base class chain
+        var allUsages = aggregator.GetAllUsages(implName, depMap);
+        foreach (var usage in allUsages)
         {
-            if (depMap.Implementations.TryGetValue(baseClass, out var baseImpl))
-                AddExternalDeps(baseImpl, depMap, groupAbstractionSet, externalDeps);
-        }
-    }
-
-    static void AddExternalDeps(
-        ImplementationInfo impl,
-        DependencyMapResult depMap,
-        HashSet<string> groupAbstractionSet,
-        HashSet<string> externalDeps)
-    {
-        foreach (var dep in impl.Dependencies)
-        {
-            if (!groupAbstractionSet.Contains(dep.TypeFullName) &&
-                depMap.Abstractions.ContainsKey(dep.TypeFullName))
-                externalDeps.Add(dep.TypeFullName);
+            if (!groupAbstractionSet.Contains(usage.AbstractionFullName) &&
+                depMap.Abstractions.ContainsKey(usage.AbstractionFullName))
+                externalDeps.Add(usage.AbstractionFullName);
         }
     }
 
@@ -145,27 +117,19 @@ public class ProjectDesignService(DependencyMapService dependencyMapService)
         {
             if (ns == rootNs || ns.StartsWith(rootNs + "."))
             {
-                var projectName = rootNamespaces
-                    .FirstOrDefault(kv => kv.Value == rootNs).Key;
+                var projectName = rootNamespaces.FirstOrDefault(kv => kv.Value == rootNs).Key;
                 if (projectName is not null)
                     return (projectName, rootNs);
             }
         }
-
         return (ns, ns);
     }
 
     internal static string GetRelativeNamespace(string ns, string rootNs)
     {
-        if (string.IsNullOrEmpty(rootNs))
-            return ns;
-
-        if (ns == rootNs)
-            return "";
-
-        if (ns.StartsWith(rootNs + "."))
-            return ns[(rootNs.Length + 1)..];
-
+        if (string.IsNullOrEmpty(rootNs)) return ns;
+        if (ns == rootNs) return "";
+        if (ns.StartsWith(rootNs + ".")) return ns[(rootNs.Length + 1)..];
         return ns;
     }
 
@@ -194,17 +158,14 @@ public class ProjectDesignService(DependencyMapService dependencyMapService)
 
             var startIdx = content.IndexOf(startTag, StringComparison.OrdinalIgnoreCase);
             if (startIdx < 0) return null;
-
             startIdx += startTag.Length;
+
             var endIdx = content.IndexOf(endTag, startIdx, StringComparison.OrdinalIgnoreCase);
             if (endIdx < 0) return null;
 
             var value = content[startIdx..endIdx].Trim();
             return string.IsNullOrEmpty(value) ? null : value;
         }
-        catch
-        {
-            return null;
-        }
+        catch { return null; }
     }
 }

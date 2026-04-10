@@ -5,5 +5,5 @@ public record SymbolResult(
     string FullName,
     string Kind,
     string? ContainingAssembly,
-    string? SourceFilePath = null,
-    int? DefinitionLine = null);
+    string? SourceFilePath,
+    int? DefinitionLine);

@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 namespace AmazingMCP.Services;
 
 /// <summary>
-/// Collects source-defined types from compilations and filters system interfaces.
+/// Collects source-defined types from compilations.
 /// </summary>
 public interface ITypeCollector
 {
@@ -15,12 +15,8 @@ public interface ITypeCollector
         IReadOnlyList<(string ProjectName, Compilation Compilation)> compilations);
 
     /// <summary>
-    /// Returns true if the interface should be excluded from the dependency map (system types).
-    /// </summary>
-    bool IsExcludedInterface(string fullName);
-
-    /// <summary>
-    /// Gets all non-excluded interfaces implemented by a class, including those from base classes.
+    /// Gets all non-excluded interfaces and base classes implemented by a type,
+    /// walking the full hierarchy.
     /// </summary>
     List<string> GetAllImplementedAbstractions(INamedTypeSymbol cls);
 

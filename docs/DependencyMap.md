@@ -1,135 +1,218 @@
-﻿# DependencyMap — карта зависимостей решения
+﻿# DependencyMap — Solution Dependency Map
 
-## Назначение
+## Purpose
 
-`DependencyMapService` строит полную карту зависимостей C#-решения через Roslyn-анализ. Результат — два словаря: абстракции и их имплементации с деталями о constructor injection и использовании членов зависимостей.
+`DependencyMapService` builds a complete dependency map of a C# solution via Roslyn analysis. The result is two dictionaries: abstractions and their implementations with details about dependency usage (method calls, property access, static calls).
 
-MCP tool: `get_dependency_map`
+The map is used as a data source for `ProjectDesignService`, `GetDetailedProjectDesignTool`, and `GetTypeDepsAndUsageTool`.
 
-## Что попадает в карту
+## What Goes Into the Map
 
-### Абстракции (`Abstractions`)
+### Abstractions (`Abstractions`)
 
-Абстракция — это тип, который может быть зарегистрирован в DI-контейнере и инжектирован в другие классы.
+An abstraction is a type that serves as a dependency target in the solution's dependency graph.
 
-| Категория | Условие попадания |
+| Category | Inclusion criteria |
 |---|---|
-| Интерфейс | Есть хотя бы один source-defined конкретный класс-имплементор |
-| Closed generic интерфейс | `IRepository<Animal>` — отдельная запись для каждой закрытой комбинации |
-| Open generic интерфейс | `IRepository<T>` — если есть open generic имплементация |
-| Abstract класс | Всегда, если определён в исходном коде решения |
-| Конкретный класс без интерфейсов | Только если: не реализует ни один интерфейс (даже через цепочку базовых классов) И имеет конструктор хотя бы с одной сложной зависимостью |
-| IOptions-тип | Класс `T` из `IOptions<T>` в конструкторе — добавляется через Phase 4 |
-| Внешний (NuGet) тип | Добавляется с `SourceFilePath = null` если на него есть зависимость |
+| Interface | Has at least one source-defined concrete class implementor |
+| Closed generic interface | `IRepository<Animal>` — a separate entry for each closed combination |
+| Abstract class | Always, if defined in the solution's source code |
+| Base class | If it appears in the inheritance chain of a concrete class |
+| Concrete class without interfaces | If discovered as a dependency of another class (via `EnsureAbstraction`), or has dependencies itself and is not an implementor of anything (standalone) |
+| External (NuGet) type | Added with `SourceFilePath = null` if there is a dependency on it |
 
-Исключаются:
-- Системные интерфейсы (`System.*`, `Microsoft.Extensions.Options.*`, `IDisposable`, `IEnumerable<T>` и т.д.)
-- Типы из тест-проектов (проекты с `Microsoft.NET.Test.Sdk` в `.csproj`)
-- Partial-классы дедуплицируются по полному имени
+Excluded (via `ITypeFilter`):
+- System types (`System.*`, `Microsoft.Extensions.Options.*`, `Microsoft.Extensions.Logging.*`, `Microsoft.AspNetCore.*`, `Microsoft.EntityFrameworkCore.*`)
+- Specific types: `IDisposable`, `IAsyncDisposable`, `ICloneable`, `IComparable`, `IFormattable`, `IConvertible`, `IEquatable`, `IObservable`, `IObserver`, `IServiceProvider`, `System.Object`
+- Enum, struct, primitives
+- Types from test projects (projects with `Microsoft.NET.Test.Sdk` in `.csproj`)
+- Partial classes are deduplicated by full name (the compilation owning the syntax tree is preferred)
 
-### Имплементации (`Implementations`)
+### Implementations (`Implementations`)
 
-Конкретный (не abstract, не static) класс попадает в `Implementations` если:
-- является имплементором хотя бы одной известной абстракции, ИЛИ
-- сам является standalone-абстракцией (класс без интерфейсов с зависимостями)
+A concrete or abstract (non-static) class is included in `Implementations` if at least one of the following conditions is met:
+- Has at least one discovered dependency (usages > 0), OR
+- Is an implementor of a known abstraction (via interfaces, base classes, or via `abstractionImplementors`), OR
+- Is already registered as an abstraction in Phase 2
 
-Для каждой имплементации собирается:
-- Реализуемые абстракции (включая из базовых классов)
-- Цепочка базовых классов
-- Constructor-injected зависимости
-- Использование членов зависимостей (method calls, property get/set)
+Classes with no usages that are not implementors and are not registered as abstractions are skipped.
 
-## Алгоритм построения
+For each implementation, the following is collected:
+- Implemented abstractions (including those from base classes)
+- Base class chain
+- Direct dependencies (discovered by scanning the class body) — `List<AbstractionUsage>`
 
-Построение идёт в 4 фазы:
+Each `AbstractionUsage` contains:
+- Full name of the dependency type
+- `IsStatic` flag (dependency via a static call)
+- List of `MemberUsage` (specific method calls and property accesses)
 
-**Phase 1 — сбор типов**
-Собираются все source-defined типы из компиляций, исключая тест-проекты. Partial-классы дедуплицируются.
+## Build Algorithm
 
-**Phase 2 — начальный набор абстракций**
-- Интерфейсы с source-defined имплементорами
-- Closed/open generic интерфейсы
-- Abstract классы
-- Конкретные классы без интерфейсов и с конструктором с зависимостями
+The build proceeds in 3 phases + a final synchronization step:
 
-**Phase 3 — анализ имплементаций**
-Для каждого конкретного класса, являющегося имплементором или standalone-абстракцией: анализируются конструктор, базовые классы, member usages. Зависимости, которых нет в известных абстракциях, попадают в `missingAbstractions`.
+**Phase 1 — type collection**
+All source-defined types are collected from compilations, excluding test projects. Partial classes are deduplicated — when a type appears in multiple compilations (via project references), the compilation owning the syntax tree is preferred. A `typeIndex` (dictionary by full name) is built for fast lookup.
 
-**Phase 4 — итеративное дополнение**
-Цикл по `missingAbstractions`:
-- Если тип есть в исходном коде → добавляется как абстракция с полным анализом зависимостей, новые missing deps уходят в следующую итерацию
-- Если тип из NuGet/внешней сборки → добавляется с `SourceFilePath = null`, без рекурсии
+**Phase 2 — initial abstraction set**
 
-## Анализ конструкторов
+First, `abstractionImplementors` is built — a mapping of "abstraction → list of concrete class implementors" based on `GetAllImplementedAbstractions()` (interfaces + base classes across the full hierarchy).
 
-Выбирается public конструктор с наибольшим числом параметров. Для каждого параметра:
+Then the following are added to `abstractions`:
+1. Interfaces with at least one source-defined implementor
+2. Closed generic interfaces — those present in `abstractionImplementors` but not found among source-defined types (resolved via `AllInterfaces` of concrete classes)
+3. Abstract classes — all source-defined, regardless of whether they have implementors
+4. Base classes — from the inheritance chain of concrete classes (source-defined only, via `typeIndex`)
 
-- `IOptions<T>` / `IOptionsSnapshot<T>` / `IOptionsMonitor<T>` → разворачивается в `T` с флагом `IsOptions = true`
-- `IEnumerable<T>` → разворачивается в `T` с флагом `IsEnumerable = true`
-- Примитивы, enum, struct → пропускаются
-- Остальное → записывается как зависимость
+**Phase 3 — class body scanning**
 
-## Анализ использования членов
+All classes (concrete + abstract, excluding static) are scanned. For each:
 
-Для каждой имплементации анализируется тело класса и всех базовых классов. Обнаруживаются:
+1. `IMemberUsageAnalyzer.AnalyzeAsync()` scans the class body → `List<AbstractionUsage>`
+2. It is determined whether the class is an implementor of anything:
+   - via `GetAllImplementedAbstractions()` (interfaces/base classes), OR
+   - via `abstractionImplementors` (the class may have been registered as an implementor of a base class)
+3. **Skip**: if there are no usages, the class is not an implementor, and it is not registered as an abstraction — the class is skipped
+4. Each discovered dependency is registered via `EnsureAbstraction()`:
+   - Source-defined type → added with full information from `typeIndex`
+   - NuGet/external type → resolved via `compilation.GetTypeByMetadataName()`, added with `SourceFilePath = null`
+5. The class is written to `implementations` with direct dependencies (from its own body only)
+6. **Standalone classes** (not an implementor of anything, but has dependencies):
+   - If not yet in `abstractions` → registered as its own abstraction with `Implementations = [self]`
+   - If already in `abstractions` (pre-registered via `EnsureAbstraction` by another class) with empty `Implementations` → fixed to `[self]`
 
-- Вызовы методов на зависимостях (`MemberUsageKind.MethodCall`)
-- Чтение свойств (`MemberUsageKind.PropertyGet`)
-- Запись свойств (`MemberUsageKind.PropertySet`)
+**Final synchronization**
 
-## Фильтрация тест-проектов
+After Phase 3, implementation lists from `abstractionImplementors` are synchronized back into `abstractions`. This is needed because `abstractionImplementors` was built in Phase 2 from concrete classes, while `abstractions` may have been supplemented in Phase 3 via `EnsureAbstraction` — their `Implementations` may be empty or incomplete.
 
-`TestProjectFilter.ExcludeTestProjects()` исключает компиляции проектов, в `.csproj` которых есть `Microsoft.NET.Test.Sdk`. Применяется в `DependencyMapService` перед анализом типов. `WorkspaceProvider` загружает все проекты без фильтрации — фильтрация происходит только там, где нужна.
+## Scanning Services
 
-## Кеширование
+Class body scanning is performed by a set of services from `Services/Scanning/`. Each is responsible for its own type of syntax node.
 
-Результат `BuildMapAsync` кешируется в `IMemoryCache` по полному пути к solution-файлу. Sliding expiration — 2 часа.
+### MemberUsageAnalyzer (scanning orchestrator)
 
-## Архитектура сервисов
+`MemberUsageAnalyzer` analyzes only the direct body of a class (no base class traversal). For aggregating dependencies across the inheritance chain, `IDependencyAggregator` is used.
 
-`DependencyMapService` — оркестратор, делегирующий работу через DI:
+Algorithm:
+1. A **self-type set** is built — a `HashSet` of the class's full name and all its base classes (up to `System.Object`). Used to filter self-calls.
+2. For each `DeclaringSyntaxReference` of the class (partial class support):
+   - `compilation.ContainsSyntaxTree()` is checked — syntax trees from other compilations are skipped
+   - All `DescendantNodes()` are walked and three node types are processed:
+     - `InvocationExpressionSyntax` → delegated to `IInvocationAnalyzer`
+     - `MemberAccessExpressionSyntax` → delegated to `IMemberAccessAnalyzer.AnalyzeAccess()`
+     - `AssignmentExpressionSyntax` → delegated to `IMemberAccessAnalyzer.AnalyzeAssignment()`
+3. Results are grouped in `usageMap` by the dependency type's full name. `HashSet<MemberUsage>` ensures deduplication of identical usages.
+4. For each result from the analyzers, common filters are applied:
+   - `ITypeFilter.ShouldExclude()` — exclusion of system types
+   - `selfTypes.Contains()` — exclusion of self-calls
+   - For property access/set — additionally: interfaces only (POCO/DTO property reads create noise)
 
-| Сервис | Ответственность |
+### InvocationAnalyzer
+
+Analyzes `InvocationExpressionSyntax` — method calls. Returns `(ContainingType, MemberName, IsStatic)`.
+
+Skipped `MethodKind` values:
+- `Constructor`, `StaticConstructor`
+- `PropertyGet`, `PropertySet` (handled by `MemberAccessAnalyzer`)
+- `EventAdd`, `EventRemove`
+- `UserDefinedOperator`, `Conversion`
+
+Three processing branches:
+1. **Extension method** (`ReducedExtension` or `ReducedFrom is not null`): returns the receiver type (the type of the expression before the dot), not the static class declaring the extension. `IsStatic = false`.
+2. **Static call** (`method.IsStatic`): returns `ContainingType` (the static class). `IsStatic = true`.
+3. **Instance call**: returns `ContainingType` (the interface or class where the method is declared). `IsStatic = false`.
+
+### MemberAccessAnalyzer
+
+Analyzes property accesses. Two methods:
+
+**`AnalyzeAccess()`** — property reads (`PropertyGet`):
+- Skips if parent is `InvocationExpressionSyntax` (already handled by `InvocationAnalyzer`)
+- Skips if this is the left side of an `AssignmentExpression` (will be handled by `AnalyzeAssignment`)
+- Resolves the symbol — works only with `IPropertySymbol`
+
+**`AnalyzeAssignment()`** — property writes (`PropertySet`):
+- Works only if the left side of the assignment is a `MemberAccessExpressionSyntax`
+- Resolves the symbol — works only with `IPropertySymbol`
+
+### TypeFilter
+
+Determines which types are excluded from the dependency map. Two methods:
+
+**`ShouldExclude(INamedTypeSymbol)`** — full check:
+- `SpecialType != None` (primitives: `int`, `string`, `bool`, etc.)
+- `TypeKind` — `Enum` or `Struct`
+- Then delegates to `ShouldExcludeByName()`
+
+**`ShouldExcludeByName(string)`** — name-based check (fast path without a symbol):
+- Strips generic parameters before checking (`IOptions<T>` → `IOptions`)
+- Checks by exact name: `IDisposable`, `IAsyncDisposable`, `ICloneable`, `IComparable`, `IFormattable`, `IConvertible`, `IEquatable`, `IObservable`, `IObserver`, `IServiceProvider`, `System.Object`
+- Checks by prefix: `System.*`, `Microsoft.Extensions.Options.*`, `Microsoft.Extensions.Logging.*`, `Microsoft.AspNetCore.*`, `Microsoft.EntityFrameworkCore.*`
+
+## Dependency Aggregation (DependencyAggregator)
+
+`IDependencyAggregator.GetAllUsages()` recursively collects dependencies of an implementation and all its base classes. Usages for the same abstraction are merged (deduplicated by `MemberName` + `Kind`). Used in `ProjectDesignService` and MCP tools to get the full dependency picture.
+
+## Test Project Filtering
+
+`TestProjectFilter.ExcludeTestProjects()` excludes compilations of projects whose `.csproj` contains `Microsoft.NET.Test.Sdk`. Applied in `DependencyMapService` before type analysis. `WorkspaceProvider` loads all projects without filtering — filtering only happens in `DependencyMapService`.
+
+## Caching
+
+The `BuildMapAsync` result is cached in `IMemoryCache` by the full path to the solution file. Sliding expiration — 2 hours.
+
+## Service Architecture
+
+`DependencyMapService` is the orchestrator, delegating work via DI:
+
+| Service | Responsibility |
 |---|---|
-| `ITypeCollector` | Сбор source-defined типов, фильтрация системных интерфейсов, цепочка базовых классов, дедупликация partial-классов |
-| `IConstructorAnalyzer` | Анализ конструкторов, unwrap IOptions/IEnumerable |
-| `IMemberUsageAnalyzer` | Поиск вызовов методов и обращений к свойствам на зависимостях |
-| `IAbstractionExtractor` | Построение `AbstractionInfo`, резолв closed generic интерфейсов, сбор declared members |
-| `TestProjectFilter` | Статический хелпер — исключает тест-проекты из списка компиляций |
+| `IWorkspaceProvider` | Loading and caching MSBuild workspace, incremental recompilation on file changes |
+| `ITypeCollector` | Collecting source-defined types, base class chain, list of implemented abstractions |
+| `ITypeFilter` | Determines which types are excluded from the map (system, enum, struct, etc.) |
+| `IMemberUsageAnalyzer` | Class body scanning orchestrator: syntax node traversal, delegation to analyzers, grouping and deduplication of results |
+| `IInvocationAnalyzer` | `InvocationExpression` analysis — regular, extension (receiver type), and static calls, `MethodKind` filtering |
+| `IMemberAccessAnalyzer` | `MemberAccessExpression` (property get) and `AssignmentExpression` (property set) analysis, coordination with `InvocationAnalyzer` |
+| `IAbstractionExtractor` | Building `AbstractionInfo`, resolving closed generic interfaces |
+| `IDependencyAggregator` | Recursive dependency aggregation across base class chains |
+| `TestProjectFilter` | Static helper — excludes test projects from the compilation list |
 
-## Модели
+## Models
 
 ```
 DependencyMapResult
-├── Abstractions: Dictionary<string, AbstractionInfo>
+├── Abstractions: IReadOnlyDictionary<string, AbstractionInfo>
 │   ├── FullName, Namespace, ProjectName
-│   ├── SourceFilePath  (null для NuGet-типов)
-│   ├── IsInterface
-│   ├── DeclaredMembers: List<string>
-│   └── Implementations: List<string>
-└── Implementations: Dictionary<string, ImplementationInfo>
+│   ├── SourceFilePath  (null for NuGet types)
+│   ├── IsInterface, IsAbstractClass, IsStaticClass
+│   └── Implementations: IReadOnlyList<string>
+└── Implementations: IReadOnlyDictionary<string, ImplementationInfo>
     ├── FullName, Namespace, ProjectName, SourceFilePath
-    ├── ImplementedAbstractions: List<string>
-    ├── BaseClasses: List<string>
-    ├── Dependencies: List<ConstructorDependency>
-    │   ├── TypeFullName
-    │   ├── IsOptions
-    │   └── IsEnumerable
-    └── DependencyMemberUsages: List<MemberUsage>
-        ├── MemberName
-        └── Kind: MethodCall | PropertyGet | PropertySet
+    ├── ImplementedAbstractions: IReadOnlyList<string>
+    ├── BaseClasses: IReadOnlyList<string>
+    └── Dependencies: IReadOnlyList<AbstractionUsage>
+        ├── AbstractionFullName
+        ├── IsStatic
+        └── Usages: IReadOnlyList<MemberUsage>
+            ├── MemberName
+            └── Kind: MethodCall | PropertyGet | PropertySet
 ```
 
-## Тесты
+## Tests
 
-Тесты расположены в `Tests/AmazingMCP.Tests/` как partial-класс `DependencyMapServiceTests`:
+Tests are located in `Tests/AmazingMCP.Tests/` as a partial class `DependencyMapServiceTests`:
 
-| Файл | Покрытие |
+| File | Coverage |
 |---|---|
 | `DependencyMapServiceTests.cs` | Fixture setup, `Act()` |
-| `DependencyMapServiceTests.Abstractions.cs` | Интерфейсы, IOptions, excluded system, abstract classes, NuGet-зависимости, фильтрация тест-проектов |
-| `DependencyMapServiceTests.Implementations.cs` | Базовые имплементации, base class chain, multi-interface |
-| `DependencyMapServiceTests.ConstructorDeps.cs` | Interface deps, IOptions unwrap, IEnumerable unwrap |
+| `DependencyMapServiceTests.Abstractions.cs` | Interfaces, excluded system, abstract classes, NuGet dependencies, test project filtering |
+| `DependencyMapServiceTests.Implementations.cs` | Basic implementations, base class chain, multi-interface |
+| `DependencyMapServiceTests.Dependencies.cs` | Interface deps, NuGet deps, IEnumerable element type detection |
 | `DependencyMapServiceTests.MemberUsages.cs` | Method call, property get, base class inheritance |
-| `DependencyMapServiceTests.Generics.cs` | Closed/open generics, constructor deps на generics, member usages |
-| `DependencyMapServiceTests.IEnumerableNonGeneric.cs` | IEnumerable<IMessageHandler>, IEnumerable<IAsyncEventHandler> |
+| `DependencyMapServiceTests.Generics.cs` | Closed/open generics, constructor deps on generics, member usages |
+| `DependencyMapServiceTests.IEnumerableNonGeneric.cs` | IEnumerable\<IMessageHandler\>, IEnumerable\<IAsyncEventHandler\> |
+| `DependencyMapServiceTests.StandaloneWithDeps.cs` | Standalone classes without interfaces with dependencies, EnsureAbstraction ordering |
+
+Additional tests:
+- `GetDetailedProjectDesignToolTests.cs` — detailed view formatting
+- `GetTypeDepsAndUsageToolTests.cs` — type search, wildcard, fuzzy search

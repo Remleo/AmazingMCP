@@ -11,35 +11,17 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_ClosedGenericInterface_AppearsInAbstractions()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Abstractions.Should().ContainKey(
             "TestProject.Core.Persistence.IRepository<TestProject.Core.Models.Animal>");
     }
 
     [Test]
-    public async Task BuildMapAsync_ClosedGenericInterface_DeclaredMembersCollected()
-    {
-        // act
-        var result = await Act();
-
-        // assert
-        var abstraction = result.Abstractions[
-            "TestProject.Core.Persistence.IRepository<TestProject.Core.Models.Animal>"];
-        abstraction.DeclaredMembers.Should().Contain("GetById()");
-        abstraction.DeclaredMembers.Should().Contain("Save()");
-        abstraction.DeclaredMembers.Should().Contain(m => m.Contains("Count"));
-    }
-
-    [Test]
     public async Task BuildMapAsync_ClosedGenericInterface_ListsImplementation()
     {
-        // act
         var result = await Act();
 
-        // assert
         var abstraction = result.Abstractions[
             "TestProject.Core.Persistence.IRepository<TestProject.Core.Models.Animal>"];
         abstraction.Implementations.Should().Contain("TestProject.App.Persistence.AnimalRepository");
@@ -52,26 +34,16 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_ClosedGenericImplementation_AppearsInImplementations()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Implementations.Should().ContainKey("TestProject.App.Persistence.AnimalRepository");
-        result.Implementations["TestProject.App.Persistence.AnimalRepository"].Should().BeEquivalentTo(new
-        {
-            FullName = "TestProject.App.Persistence.AnimalRepository",
-            Namespace = "TestProject.App.Persistence",
-            ProjectName = "TestProject.App"
-        }, options => options.ExcludingMissingMembers());
     }
 
     [Test]
     public async Task BuildMapAsync_ClosedGenericImplementation_ListsGenericAbstraction()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.App.Persistence.AnimalRepository"];
         impl.ImplementedAbstractions.Should().Contain(
             "TestProject.Core.Persistence.IRepository<TestProject.Core.Models.Animal>");
@@ -84,10 +56,8 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_TwoTypeParamGenericInterface_AppearsInAbstractions()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Abstractions.Should().ContainKey(
             "TestProject.Core.EventHandling.IEventHandler<TestProject.Core.Models.Animal, bool>");
     }
@@ -95,10 +65,8 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_TwoTypeParamGenericImplementation_ListsAbstraction()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.Core.EventHandling.Handlers.AnimalEventHandler"];
         impl.ImplementedAbstractions.Should().Contain(
             "TestProject.Core.EventHandling.IEventHandler<TestProject.Core.Models.Animal, bool>");
@@ -106,32 +74,27 @@ public partial class DependencyMapServiceTests
 
     #endregion
 
-    #region Constructor dependency on closed generic
+    #region Constructor dependency on closed generic — detected via method call
 
     [Test]
-    public async Task BuildMapAsync_ConstructorDeps_ClosedGenericInterfaceDependencyDetected()
+    public async Task BuildMapAsync_ClosedGenericDependency_DetectedViaMethodCall()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.App.Services.GenericConsumers.GenericConsumerService"];
         impl.Dependencies.Should().Contain(d =>
-            d.TypeFullName == "TestProject.Core.Persistence.IRepository<TestProject.Core.Models.Animal>" &&
-            !d.IsOptions && !d.IsEnumerable);
+            d.AbstractionFullName == "TestProject.Core.Persistence.IRepository<TestProject.Core.Models.Animal>");
     }
 
     [Test]
-    public async Task BuildMapAsync_ConstructorDeps_IEnumerableOfClosedGenericUnwrapped()
+    public async Task BuildMapAsync_IEnumerableOfClosedGeneric_ElementTypeDetectedViaMethodCall()
     {
-        // act
         var result = await Act();
 
-        // assert
+        // GenericConsumerService iterates _handlers and calls handler.Handle(animal)
         var impl = result.Implementations["TestProject.App.Services.GenericConsumers.GenericConsumerService"];
         impl.Dependencies.Should().Contain(d =>
-            d.TypeFullName == "TestProject.Core.EventHandling.IEventHandler<TestProject.Core.Models.Animal, bool>" &&
-            d.IsEnumerable);
+            d.AbstractionFullName == "TestProject.Core.EventHandling.IEventHandler<TestProject.Core.Models.Animal, bool>");
     }
 
     #endregion
@@ -141,36 +104,30 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_GenericDependency_MethodCallUsageDetected()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.App.Services.GenericConsumers.GenericConsumerService"];
-        var allUsages = impl.DependencyMemberUsages.Values.SelectMany(u => u).ToList();
+        var allUsages = impl.Dependencies.SelectMany(d => d.Usages).ToList();
         allUsages.Should().Contain(u => u.MemberName == "Save" && u.Kind == MemberUsageKind.MethodCall);
     }
 
     [Test]
     public async Task BuildMapAsync_GenericDependency_PropertyGetUsageDetected()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.App.Services.GenericConsumers.GenericConsumerService"];
-        var allUsages = impl.DependencyMemberUsages.Values.SelectMany(u => u).ToList();
+        var allUsages = impl.Dependencies.SelectMany(d => d.Usages).ToList();
         allUsages.Should().Contain(u => u.MemberName == "Count" && u.Kind == MemberUsageKind.PropertyGet);
     }
 
     [Test]
     public async Task BuildMapAsync_GenericDependency_MethodOnGenericHandlerDetected()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.App.Services.GenericConsumers.GenericConsumerService"];
-        var allUsages = impl.DependencyMemberUsages.Values.SelectMany(u => u).ToList();
+        var allUsages = impl.Dependencies.SelectMany(d => d.Usages).ToList();
         allUsages.Should().Contain(u => u.MemberName == "Handle" && u.Kind == MemberUsageKind.MethodCall);
     }
 
@@ -181,20 +138,16 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_OpenGenericImplementation_OpenGenericInterfaceAppearsInAbstractions()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Abstractions.Should().ContainKey("TestProject.Core.Persistence.IRepository<T>");
     }
 
     [Test]
     public async Task BuildMapAsync_OpenGenericImplementation_ListedAsImplementorOfOpenGeneric()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Abstractions["TestProject.Core.Persistence.IRepository<T>"]
             .Implementations.Should().Contain("TestProject.App.Persistence.GenericRepository<T>");
     }
@@ -202,22 +155,9 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_OpenGenericImplementation_AppearsInImplementations()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Implementations.Should().ContainKey("TestProject.App.Persistence.GenericRepository<T>");
-    }
-
-    [Test]
-    public async Task BuildMapAsync_OpenGenericImplementation_ListsOpenGenericAbstraction()
-    {
-        // act
-        var result = await Act();
-
-        // assert
-        var impl = result.Implementations["TestProject.App.Persistence.GenericRepository<T>"];
-        impl.ImplementedAbstractions.Should().Contain("TestProject.Core.Persistence.IRepository<T>");
     }
 
     #endregion

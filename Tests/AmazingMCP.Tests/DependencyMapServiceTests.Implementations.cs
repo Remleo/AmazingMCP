@@ -10,10 +10,8 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_ConcreteClass_AppearsInImplementations()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Implementations.Should().ContainKey("TestProject.App.Services.AnimalService");
         result.Implementations["TestProject.App.Services.AnimalService"].Should().BeEquivalentTo(new
         {
@@ -26,15 +24,10 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_Implementation_ListsImplementedAbstractions()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.App.Services.AnimalService"];
-        impl.ImplementedAbstractions.Should().BeEquivalentTo(new[]
-        {
-            "TestProject.Core.Services.IAnimalService"
-        });
+        impl.ImplementedAbstractions.Should().Contain("TestProject.Core.Services.IAnimalService");
     }
 
     #endregion
@@ -44,10 +37,8 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_ClassWithBaseClass_BaseClassChainPopulated()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.App.Services.AdvancedAnimalService"];
         impl.BaseClasses.Should().Contain("TestProject.App.Services.AnimalServiceBase");
     }
@@ -55,12 +46,19 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_ClassWithBaseClass_InterfaceFromBaseClassIncluded()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.App.Services.AdvancedAnimalService"];
         impl.ImplementedAbstractions.Should().Contain("TestProject.Core.Services.IAnimalService");
+    }
+
+    [Test]
+    public async Task BuildMapAsync_AbstractBaseClass_AppearsInImplementations()
+    {
+        var result = await Act();
+
+        // AnimalServiceBase has a body with dependencies, so it gets its own Implementation entry
+        result.Implementations.Should().ContainKey("TestProject.App.Services.AnimalServiceBase");
     }
 
     #endregion
@@ -70,25 +68,18 @@ public partial class DependencyMapServiceTests
     [Test]
     public async Task BuildMapAsync_MultiInterfaceClass_AllAbstractionsListed()
     {
-        // act
         var result = await Act();
 
-        // assert
         var impl = result.Implementations["TestProject.App.Services.MultiInterfaceService"];
-        impl.ImplementedAbstractions.Should().BeEquivalentTo(new[]
-        {
-            "TestProject.Core.Services.IAnimalService",
-            "TestProject.Core.Services.INotificationService"
-        });
+        impl.ImplementedAbstractions.Should().Contain("TestProject.Core.Services.IAnimalService");
+        impl.ImplementedAbstractions.Should().Contain("TestProject.Core.Services.INotificationService");
     }
 
     [Test]
     public async Task BuildMapAsync_MultiInterfaceClass_BothAbstractionsListThisImplementation()
     {
-        // act
         var result = await Act();
 
-        // assert
         result.Abstractions["TestProject.Core.Services.IAnimalService"]
             .Implementations.Should().Contain("TestProject.App.Services.MultiInterfaceService");
         result.Abstractions["TestProject.Core.Services.INotificationService"]

@@ -12,50 +12,46 @@ public static class GetTypeDepsAndUsageTool
 {
     [McpServerTool(Name = "get_type_deps_and_usage", ReadOnly = true), Description(
         "Returns full dependency and usage details for types matching the query. " +
-        "Supports exact full name, partial name, and '*' wildcard patterns (e.g. '*.IMyService', 'MyApp.Services.*'). " +
-        "For each matched abstraction shows: (1) its implementations with all constructor dependencies and member usages; " +
-        "(2) which other implementations use this abstraction as a dependency, grouped by their abstraction, " +
-        "showing only usages of the queried abstraction. " +
-        "If no exact match is found and the query has no wildcards, performs a fuzzy search " +
-        "across both abstractions and implementations. Output is Markdown.")]
+        "Supports exact full name, partial name, and '*' wildcard patterns. " +
+        "For each matched abstraction shows: implementations with all dependencies and member usages; " +
+        "and which other implementations use this abstraction. Output is Markdown.")]
     public static async Task<string> GetTypeDepsAndUsage(
         DependencyMapService dependencyMapService,
+        IDependencyAggregator dependencyAggregator,
         SolutionResolver solutionResolver,
         [Description("Absolute path to the workspace (project root) directory")] string workspacePath,
-        [Description(
-            "Type query to search for. Supports: full name (e.g. 'MyApp.Services.IMyService'), " +
-            "partial name, or '*' wildcard patterns (e.g. '*.IMyService', 'MyApp.*.Handler'). " +
-            "When no exact match is found and no wildcards are present, a fuzzy search is performed automatically.")]
-        string typeQuery,
+        [Description("Type query: full name, partial name, or '*' wildcard patterns.")] string typeQuery,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")] string? solutionPath = null,
         CancellationToken ct = default)
     {
         var (resolved, error) = solutionResolver.Resolve(workspacePath, solutionPath);
-        if (resolved is null)
-            return error!;
+        if (resolved is null) return error!;
 
         var depMap = await dependencyMapService.BuildMapAsync(resolved, ct);
-        return FormatMarkdown(depMap, typeQuery);
+        return FormatMarkdown(depMap, typeQuery, dependencyAggregator);
     }
 
-    internal static string FormatMarkdown(DependencyMapResult depMap, string typeQuery)
+    internal static string FormatMarkdown(
+        DependencyMapResult depMap,
+        string typeQuery,
+        IDependencyAggregator? aggregator = null)
     {
-        // Step 1: Try exact match in abstractions
-        if (!typeQuery.Contains('*') && depMap.Abstractions.ContainsKey(typeQuery))
-            return FormatAbstractionResults(depMap, [typeQuery]);
-
-        // Step 2: If query contains wildcards, do wildcard search only
         if (typeQuery.Contains('*'))
         {
             var wildcardMatches = FindByWildcard(depMap.Abstractions.Keys, typeQuery);
-            if (wildcardMatches.Count > 0)
-                return FormatAbstractionResults(depMap, wildcardMatches);
-
-            return $"No types found matching pattern `{typeQuery}`.";
+            return wildcardMatches.Count > 0
+                ? FormatAbstractionResults(depMap, wildcardMatches, aggregator)
+                : $"No types found matching pattern `{typeQuery}`.";
         }
 
-        // Step 3: No wildcards, no exact match — fallback fuzzy search
-        return PerformFallbackSearch(depMap, typeQuery);
+        // Exact match — check abstractions first, then implementations
+        if (depMap.Abstractions.ContainsKey(typeQuery))
+            return FormatAbstractionResults(depMap, [typeQuery], aggregator);
+
+        if (depMap.Implementations.ContainsKey(typeQuery))
+            return FormatImplementationResult(depMap, typeQuery, aggregator);
+
+        return PerformFallbackSearch(depMap, typeQuery, aggregator);
     }
 
     internal static List<string> FindByWildcard(IEnumerable<string> keys, string pattern)
@@ -64,20 +60,17 @@ public static class GetTypeDepsAndUsageTool
         return keys.Where(k => regex.IsMatch(k)).OrderBy(k => k).ToList();
     }
 
-    internal static string PerformFallbackSearch(DependencyMapResult depMap, string typeQuery)
+    internal static string PerformFallbackSearch(
+        DependencyMapResult depMap, string typeQuery, IDependencyAggregator? aggregator)
     {
         var fuzzyQuery = NormalizeForFuzzySearch(typeQuery);
         var regex = WildcardToRegex(fuzzyQuery);
 
         var matchedAbstractions = depMap.Abstractions.Keys
-            .Where(k => regex.IsMatch(k))
-            .OrderBy(k => k)
-            .ToList();
-
+            .Where(k => regex.IsMatch(k)).OrderBy(k => k).ToList();
         var matchedImplementations = depMap.Implementations.Keys
             .Where(k => regex.IsMatch(k) && !matchedAbstractions.Contains(k))
-            .OrderBy(k => k)
-            .ToList();
+            .OrderBy(k => k).ToList();
 
         if (matchedAbstractions.Count == 0 && matchedImplementations.Count == 0)
             return $"No exact match found for `{typeQuery}`. " +
@@ -89,13 +82,11 @@ public static class GetTypeDepsAndUsageTool
         sb.AppendLine();
 
         if (matchedAbstractions.Count > 0)
-            sb.Append(FormatAbstractionResults(depMap, matchedAbstractions));
+            sb.Append(FormatAbstractionResults(depMap, matchedAbstractions, aggregator));
 
         if (matchedImplementations.Count > 0)
         {
-            if (matchedAbstractions.Count > 0)
-                sb.AppendLine();
-
+            if (matchedAbstractions.Count > 0) sb.AppendLine();
             sb.AppendLine("---");
             sb.AppendLine();
             sb.AppendLine("## Matched implementations");
@@ -103,8 +94,7 @@ public static class GetTypeDepsAndUsageTool
 
             foreach (var implName in matchedImplementations)
             {
-                if (!depMap.Implementations.TryGetValue(implName, out var impl))
-                    continue;
+                if (!depMap.Implementations.TryGetValue(implName, out var impl)) continue;
 
                 sb.AppendLine($"### {implName}");
 
@@ -115,16 +105,15 @@ public static class GetTypeDepsAndUsageTool
                         sb.AppendLine($"- {abs}");
                 }
 
-                if (impl.Dependencies.Count > 0)
+                var allUsages = aggregator is not null
+                    ? aggregator.GetAllUsages(implName, depMap)
+                    : impl.Dependencies;
+
+                if (allUsages.Count > 0)
                 {
                     sb.AppendLine("Depends on:");
-                    foreach (var dep in impl.Dependencies)
-                    {
-                        var depLabel = dep.IsOptions ? $"IOptions<{dep.TypeFullName}>"
-                            : dep.IsEnumerable ? $"IEnumerable<{dep.TypeFullName}>"
-                            : dep.TypeFullName;
-                        sb.AppendLine($"- {depLabel}");
-                    }
+                    foreach (var dep in allUsages)
+                        sb.AppendLine($"- {dep.AbstractionFullName}");
                 }
 
                 sb.AppendLine();
@@ -138,7 +127,6 @@ public static class GetTypeDepsAndUsageTool
     {
         var normalized = query;
 
-        // If generic (contains < >), replace generic params with wildcards
         if (normalized.Contains('<') && normalized.Contains('>'))
         {
             var openIdx = normalized.IndexOf('<');
@@ -147,29 +135,105 @@ public static class GetTypeDepsAndUsageTool
             {
                 var genericPart = normalized.Substring(openIdx + 1, closeIdx - openIdx - 1);
                 var commaCount = genericPart.Count(c => c == ',');
-                // Each empty slot becomes * to match any type param
                 var wildcardParams = string.Join(", ", Enumerable.Repeat("*", commaCount + 1));
                 normalized = normalized[..openIdx] + "<" + wildcardParams + ">";
             }
         }
 
-        // Wrap with * at start and end
-        if (!normalized.StartsWith("*"))
-            normalized = "*" + normalized;
-        if (!normalized.EndsWith("*"))
-            normalized = normalized + "*";
-
+        if (!normalized.StartsWith("*")) normalized = "*" + normalized;
+        if (!normalized.EndsWith("*")) normalized = normalized + "*";
         return normalized;
     }
 
-    static string FormatAbstractionResults(DependencyMapResult depMap, List<string> abstractionNames)
+    static string FormatImplementationResult(
+        DependencyMapResult depMap,
+        string implFullName,
+        IDependencyAggregator? aggregator)
+    {
+        if (!depMap.Implementations.TryGetValue(implFullName, out var impl))
+            return $"No type found for `{implFullName}`.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"# {implFullName}");
+        sb.AppendLine();
+
+        if (impl.ImplementedAbstractions.Count > 0)
+        {
+            sb.AppendLine("Implements:");
+            foreach (var abs in impl.ImplementedAbstractions)
+                sb.AppendLine($"- {abs}");
+            sb.AppendLine();
+        }
+
+        var allUsages = aggregator is not null
+            ? aggregator.GetAllUsages(implFullName, depMap)
+            : impl.Dependencies;
+
+        if (allUsages.Count > 0)
+        {
+            sb.AppendLine("## Depends on");
+            sb.AppendLine();
+            foreach (var dep in allUsages)
+            {
+                sb.AppendLine($"- {dep.AbstractionFullName}");
+                foreach (var usage in dep.Usages)
+                {
+                    var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
+                    var label = usage.Kind == MemberUsageKind.PropertyGet
+                        ? $"{usage.MemberName} {{get}}"
+                        : usage.Kind == MemberUsageKind.PropertySet
+                            ? $"{usage.MemberName} {{set}}"
+                            : $"{usage.MemberName}()";
+                    sb.AppendLine($"  --- [{kind}] {label}");
+                }
+            }
+            sb.AppendLine();
+        }
+
+        // Used by
+        var usedBy = depMap.Implementations.Values
+            .Where(i => i.Dependencies.Any(d =>
+                d.AbstractionFullName == implFullName && d.Usages.Count > 0))
+            .ToList();
+
+        if (usedBy.Count > 0)
+        {
+            sb.AppendLine("## Used by");
+            sb.AppendLine();
+            var byAbstraction = usedBy
+                .SelectMany(i => i.ImplementedAbstractions.Select(a => (Abstraction: a, Impl: i)))
+                .GroupBy(x => x.Abstraction)
+                .OrderBy(g => g.Key);
+            var standalone = usedBy.Where(i => i.ImplementedAbstractions.Count == 0).ToList();
+
+            foreach (var group in byAbstraction)
+            {
+                sb.AppendLine($"### {group.Key}");
+                foreach (var (_, i) in group.OrderBy(x => x.Impl.FullName))
+                    AppendImplUsages(sb, i, implFullName);
+                sb.AppendLine();
+            }
+            if (standalone.Count > 0)
+            {
+                sb.AppendLine("### (standalone)");
+                foreach (var i in standalone.OrderBy(x => x.FullName))
+                    AppendImplUsages(sb, i, implFullName);
+            }
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    static string FormatAbstractionResults(
+        DependencyMapResult depMap,
+        List<string> abstractionNames,
+        IDependencyAggregator? aggregator)
     {
         var sb = new StringBuilder();
 
         foreach (var abstractionFullName in abstractionNames)
         {
-            if (!depMap.Abstractions.TryGetValue(abstractionFullName, out var abstraction))
-                continue;
+            if (!depMap.Abstractions.TryGetValue(abstractionFullName, out var abstraction)) continue;
 
             sb.AppendLine($"# {abstractionFullName}");
             sb.AppendLine();
@@ -183,34 +247,35 @@ public static class GetTypeDepsAndUsageTool
                 {
                     sb.AppendLine($"### {implName}");
 
-                    if (!depMap.Implementations.TryGetValue(implName, out var impl) ||
-                        impl.Dependencies.Count == 0)
+                    if (!depMap.Implementations.TryGetValue(implName, out var impl))
+                    {
+                        sb.AppendLine();
+                        continue;
+                    }
+
+                    var allUsages = aggregator is not null
+                        ? aggregator.GetAllUsages(implName, depMap)
+                        : impl.Dependencies;
+
+                    if (allUsages.Count == 0)
                     {
                         sb.AppendLine();
                         continue;
                     }
 
                     sb.AppendLine("Depends on:");
-                    foreach (var dep in impl.Dependencies)
+                    foreach (var dep in allUsages)
                     {
-                        var depLabel = dep.IsOptions ? $"IOptions<{dep.TypeFullName}>"
-                            : dep.IsEnumerable ? $"IEnumerable<{dep.TypeFullName}>"
-                            : dep.TypeFullName;
-
-                        sb.AppendLine($"- {depLabel}");
-
-                        if (impl.DependencyMemberUsages.TryGetValue(dep.TypeFullName, out var usages))
+                        sb.AppendLine($"- {dep.AbstractionFullName}");
+                        foreach (var usage in dep.Usages)
                         {
-                            foreach (var usage in usages)
-                            {
-                                var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
-                                var label = usage.Kind == MemberUsageKind.PropertyGet
-                                    ? $"{usage.MemberName} {{get}}"
-                                    : usage.Kind == MemberUsageKind.PropertySet
-                                        ? $"{usage.MemberName} {{set}}"
-                                        : $"{usage.MemberName}()";
-                                sb.AppendLine($"  --- [{kind}] {label}");
-                            }
+                            var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
+                            var label = usage.Kind == MemberUsageKind.PropertyGet
+                                ? $"{usage.MemberName} {{get}}"
+                                : usage.Kind == MemberUsageKind.PropertySet
+                                    ? $"{usage.MemberName} {{set}}"
+                                    : $"{usage.MemberName}()";
+                            sb.AppendLine($"  --- [{kind}] {label}");
                         }
                     }
 
@@ -218,10 +283,13 @@ public static class GetTypeDepsAndUsageTool
                 }
             }
 
+            // Used by section
             var usedBy = depMap.Implementations.Values
                 .Where(impl =>
-                    impl.Dependencies.Any(d => d.TypeFullName == abstractionFullName) &&
-                    impl.DependencyMemberUsages.ContainsKey(abstractionFullName))
+                {
+                    var dep = impl.Dependencies.FirstOrDefault(d => d.AbstractionFullName == abstractionFullName);
+                    return dep is not null && dep.Usages.Count > 0;
+                })
                 .ToList();
 
             if (usedBy.Count > 0)
@@ -243,23 +311,7 @@ public static class GetTypeDepsAndUsageTool
                 {
                     sb.AppendLine($"### {group.Key}");
                     foreach (var (_, impl) in group.OrderBy(x => x.Impl.FullName))
-                    {
-                        sb.AppendLine($"- {impl.FullName}");
-                        if (impl.DependencyMemberUsages.TryGetValue(abstractionFullName, out var usages))
-                        {
-                            foreach (var usage in usages)
-                            {
-                                var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
-                                var label = usage.Kind == MemberUsageKind.PropertyGet
-                                    ? $"{usage.MemberName} {{get}}"
-                                    : usage.Kind == MemberUsageKind.PropertySet
-                                        ? $"{usage.MemberName} {{set}}"
-                                        : $"{usage.MemberName}()";
-                                sb.AppendLine($"  --- [{kind}] {label}");
-                            }
-                        }
-                    }
-
+                        AppendImplUsages(sb, impl, abstractionFullName);
                     sb.AppendLine();
                 }
 
@@ -267,22 +319,7 @@ public static class GetTypeDepsAndUsageTool
                 {
                     sb.AppendLine("### (standalone)");
                     foreach (var impl in standalone.OrderBy(i => i.FullName))
-                    {
-                        sb.AppendLine($"- {impl.FullName}");
-                        if (impl.DependencyMemberUsages.TryGetValue(abstractionFullName, out var usages))
-                        {
-                            foreach (var usage in usages)
-                            {
-                                var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
-                                var label = usage.Kind == MemberUsageKind.PropertyGet
-                                    ? $"{usage.MemberName} {{get}}"
-                                    : usage.Kind == MemberUsageKind.PropertySet
-                                        ? $"{usage.MemberName} {{set}}"
-                                        : $"{usage.MemberName}()";
-                                sb.AppendLine($"  --- [{kind}] {label}");
-                            }
-                        }
-                    }
+                        AppendImplUsages(sb, impl, abstractionFullName);
                 }
             }
 
@@ -292,13 +329,29 @@ public static class GetTypeDepsAndUsageTool
         return sb.ToString().TrimEnd();
     }
 
+    static void AppendImplUsages(StringBuilder sb, ImplementationInfo impl, string abstractionFullName)
+    {
+        sb.AppendLine($"- {impl.FullName}");
+        var dep = impl.Dependencies.FirstOrDefault(d => d.AbstractionFullName == abstractionFullName);
+        if (dep is null) return;
+        foreach (var usage in dep.Usages)
+        {
+            var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
+            var label = usage.Kind == MemberUsageKind.PropertyGet
+                ? $"{usage.MemberName} {{get}}"
+                : usage.Kind == MemberUsageKind.PropertySet
+                    ? $"{usage.MemberName} {{set}}"
+                    : $"{usage.MemberName}()";
+            sb.AppendLine($"  --- [{kind}] {label}");
+        }
+    }
+
     internal static Regex WildcardToRegex(string pattern)
     {
         var escaped = Regex.Escape(pattern)
             .Replace(@"\*", ".*")
             .Replace(@"\<", "<")
             .Replace(@"\>", ">");
-        // In regex, < and > are literal characters (not special), safe to unescape
         return new Regex($"^{escaped}$", RegexOptions.IgnoreCase);
     }
 }

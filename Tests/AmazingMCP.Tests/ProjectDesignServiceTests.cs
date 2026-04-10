@@ -1,5 +1,6 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services;
+using AmazingMCP.Services.Scanning;
 using AmazingMCP.Tests.Helpers;
 using AmazingMCP.Tools;
 using FluentAssertions;
@@ -11,6 +12,7 @@ namespace AmazingMCP.Tests;
 public class ProjectDesignServiceTests
 {
     DependencyMapResult _depMap = null!;
+    IDependencyAggregator _aggregator = null!;
     CachedSolution _cachedSolution = null!;
     MemoryCache _cache = null!;
 
@@ -18,13 +20,14 @@ public class ProjectDesignServiceTests
     public async Task OneTimeSetUp()
     {
         _cachedSolution = await CompilationHelper.LoadTestSolutionAsync();
+        _aggregator = new DependencyAggregator();
 
         _cache = new MemoryCache(new MemoryCacheOptions());
+        var typeFilter = new TypeFilter();
         var depMapService = new DependencyMapService(
             new TestWorkspaceProvider(_cachedSolution),
-            new TypeCollector(),
-            new ConstructorAnalyzer(),
-            new MemberUsageAnalyzer(),
+            new TypeCollector(typeFilter),
+            new MemberUsageAnalyzer(new InvocationAnalyzer(), new MemberAccessAnalyzer(), typeFilter),
             new AbstractionExtractor(),
             _cache);
 
@@ -39,7 +42,7 @@ public class ProjectDesignServiceTests
     }
 
     ProjectDesignResult Act() =>
-        ProjectDesignService.BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath);
+        ProjectDesignService.BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath, _aggregator);
 
     #region Flat groups — no project split
 
@@ -51,7 +54,6 @@ public class ProjectDesignServiceTests
 
         // assert
         var fullNames = result.Groups.Select(g => g.FullName).ToList();
-        fullNames.Should().Contain("TestProject.Core.Configuration");
         fullNames.Should().Contain("TestProject.Core.Persistence");
         fullNames.Should().Contain("TestProject.Core.Services");
         fullNames.Should().Contain("TestProject.Core.Logging");
@@ -452,9 +454,10 @@ public class ProjectDesignServiceTests
         // act
         var result = Act();
 
-        // assert — AutoMapperAnimalMapper injects IMapper, so Mapping group depends on AutoMapper ns
+        // assert — AutoMapperAnimalMapper uses AutoMapper types (IMapperBase/IMapper),
+        // so Mapping group depends on AutoMapper namespace
         var mappingGroup = result.Groups.Single(g => g.FullName == "TestProject.App.Mapping");
-        mappingGroup.DependsOn.Should().Contain("AutoMapper");
+        mappingGroup.DependsOn.Should().Contain(d => d.StartsWith("AutoMapper"));
     }
 
     [Test]
@@ -467,7 +470,8 @@ public class ProjectDesignServiceTests
             ProjectName: "Acme.Sdk",
             SourceFilePath: null,
             IsInterface: true,
-            DeclaredMembers: [],
+            IsAbstractClass: false,
+            IsStaticClass: false,
             Implementations: ["MyApp.Services.MyService"]);
 
         var sourceAbstraction = new AbstractionInfo(
@@ -476,7 +480,8 @@ public class ProjectDesignServiceTests
             ProjectName: "MyApp",
             SourceFilePath: "/src/MyApp/Services/IMyService.cs",
             IsInterface: true,
-            DeclaredMembers: [],
+            IsAbstractClass: false,
+            IsStaticClass: false,
             Implementations: ["MyApp.Services.MyService"]);
 
         var impl = new ImplementationInfo(
@@ -486,8 +491,7 @@ public class ProjectDesignServiceTests
             SourceFilePath: "/src/MyApp/Services/MyService.cs",
             ImplementedAbstractions: ["MyApp.Services.IMyService", "Acme.Sdk.IExternalService"],
             BaseClasses: [],
-            Dependencies: [new ConstructorDependency("Acme.Sdk.IExternalService", false, false)],
-            DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>());
+            Dependencies: [new AbstractionUsage("Acme.Sdk.IExternalService", false, [])]);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>
@@ -501,7 +505,7 @@ public class ProjectDesignServiceTests
             });
 
         // act
-        var result = ProjectDesignService.BuildFromDependencyMap(depMap, "/fake/solution.slnx");
+        var result = ProjectDesignService.BuildFromDependencyMap(depMap, "/fake/solution.slnx", new DependencyAggregator());
 
         // assert — NuGet group must not appear in the main list
         result.Groups.Should().NotContain(g => g.FullName == "Acme.Sdk");
@@ -518,7 +522,8 @@ public class ProjectDesignServiceTests
             ProjectName: "Acme.Sdk",
             SourceFilePath: null,
             IsInterface: true,
-            DeclaredMembers: [],
+            IsAbstractClass: false,
+            IsStaticClass: false,
             Implementations: ["MyApp.Services.MyService"]);
 
         var sourceAbstraction = new AbstractionInfo(
@@ -527,7 +532,8 @@ public class ProjectDesignServiceTests
             ProjectName: "MyApp",
             SourceFilePath: "/src/MyApp/Services/IMyService.cs",
             IsInterface: true,
-            DeclaredMembers: [],
+            IsAbstractClass: false,
+            IsStaticClass: false,
             Implementations: ["MyApp.Services.MyService"]);
 
         var consumerAbstraction = new AbstractionInfo(
@@ -536,7 +542,8 @@ public class ProjectDesignServiceTests
             ProjectName: "MyApp",
             SourceFilePath: "/src/MyApp/Application/IConsumer.cs",
             IsInterface: true,
-            DeclaredMembers: [],
+            IsAbstractClass: false,
+            IsStaticClass: false,
             Implementations: ["MyApp.Application.Consumer"]);
 
         var consumerImpl = new ImplementationInfo(
@@ -546,8 +553,7 @@ public class ProjectDesignServiceTests
             SourceFilePath: "/src/MyApp/Application/Consumer.cs",
             ImplementedAbstractions: ["MyApp.Application.IConsumer"],
             BaseClasses: [],
-            Dependencies: [new ConstructorDependency("Acme.Sdk.IExternalService", false, false)],
-            DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>());
+            Dependencies: [new AbstractionUsage("Acme.Sdk.IExternalService", false, [])]);
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>
@@ -562,7 +568,7 @@ public class ProjectDesignServiceTests
             });
 
         // act
-        var result = ProjectDesignService.BuildFromDependencyMap(depMap, "/fake/solution.slnx");
+        var result = ProjectDesignService.BuildFromDependencyMap(depMap, "/fake/solution.slnx", new DependencyAggregator());
 
         // assert — Application group depends on Acme.Sdk namespace (NuGet), even though it's not in groups
         var appGroup = result.Groups.Single(g => g.FullName == "MyApp.Application");

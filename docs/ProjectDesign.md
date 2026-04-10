@@ -1,59 +1,69 @@
-﻿# ProjectDesign — высокоуровневая карта дизайна решения
+﻿# ProjectDesign — High-Level Solution Design Map
 
-## Назначение
+## Purpose
 
-`ProjectDesignService` строит высокоуровневую карту дизайна C#-решения: группы абстракций и зависимости между ними. В отличие от `DependencyMap`, который оперирует отдельными типами, ProjectDesign работает на уровне групп — показывая архитектурную структуру решения без деталей конкретных классов и интерфейсов.
+`ProjectDesignService` builds a high-level design map of a C# solution: groups of abstractions and dependencies between them. Unlike `DependencyMap`, which operates on individual types, ProjectDesign works at the group level — showing the architectural structure of a solution without details of specific classes and interfaces.
 
 MCP tool: `get_project_design`
 
-## Что показывает
+## What It Shows
 
-Плоский список групп абстракций (без разделения по проектам). По каждой группе:
+A flat list of abstraction groups (no per-project split). For each group:
 
-- Короткое имя (относительно root namespace проекта)
-- Полное имя (полный namespace)
-- Количество записей (entries) в группе
-- Зависимости на другие группы (полные namespace целевых групп)
+- Short name (relative to the project's root namespace)
+- Full name (full namespace)
+- Entry count (number of abstractions in the group)
+- Dependencies on other groups (full namespaces of target groups)
 
-## Что попадает в группы
+## What Goes Into Groups
 
-Группы формируются только из абстракций с `SourceFilePath != null` — то есть типов, определённых в исходном коде решения. NuGet-типы (с `SourceFilePath = null`) в группы не попадают, но участвуют в резолве зависимостей: если имплементация зависит от NuGet-типа, его namespace появится в `DependsOn` соответствующей группы.
+Groups are formed only from abstractions with `SourceFilePath != null` — i.e., types defined in the solution's source code. NuGet types (with `SourceFilePath = null`) do not form groups but participate in dependency resolution: if an implementation depends on a NuGet type, its namespace will appear in the corresponding group's `DependsOn`.
 
-Типы из тест-проектов исключаются на уровне `DependencyMapService` и в группы не попадают.
+Types from test projects are excluded at the `DependencyMapService` level and do not appear in groups.
 
-## Группировка
+## Grouping
 
-Абстракции группируются по namespace. Root namespace определяется из `<RootNamespace>` в `.csproj`, при отсутствии — используется имя проекта. Короткое имя группы вычисляется относительно root namespace.
+Abstractions are grouped by namespace. The root namespace is determined from `<RootNamespace>` in `.csproj`; if absent, the project name is used. The short group name is computed relative to the root namespace.
 
-| Namespace | Root namespace | Короткое имя |
+| Namespace | Root namespace | Short name |
 |---|---|---|
 | `MyApp.Core` | `MyApp.Core` | `(root)` |
 | `MyApp.Core.Services` | `MyApp.Core` | `Services` |
 | `MyApp.Core.Mapping.Tv2` | `MyApp.Core` | `Mapping.Tv2` |
 
-## Зависимости между группами
+## Inter-Group Dependencies
 
-Для каждой группы собираются внешние зависимости — те, что выходят за рамки группы. Алгоритм:
+For each group, external dependencies are collected — those that go beyond the group's boundaries. Algorithm:
 
-1. Берём все абстракции группы
-2. Для каждой абстракции берём все имплементации
-3. Для каждой имплементации проходим по цепочке базовых классов
-4. Собираем все constructor-injected зависимости
-5. Фильтруем: оставляем только те, что являются известными абстракциями и не входят в текущую группу
-6. Резолвим каждую зависимость в полный namespace целевой группы
+1. Take all abstractions in the group
+2. For each abstraction, take all its implementations
+3. For standalone abstractions (not an interface, not an abstract class) — also process as an implementation
+4. For each implementation, `IDependencyAggregator.GetAllUsages()` recursively collects dependencies across the base class chain
+5. Filter: keep only those that are known abstractions and do not belong to the current group
+6. Resolve each dependency to the full namespace of the target group
 
-NuGet-зависимости резолвятся в namespace внешней библиотеки (например `AutoMapper`, `Microsoft.Extensions.Logging`) и попадают в `DependsOn` наравне с source-группами.
+NuGet dependencies are resolved to the external library's namespace (e.g., `AutoMapper`, `Microsoft.Extensions.Logging`) and appear in `DependsOn` alongside source groups.
 
-## Пример вывода
+## Example Output
 
 ```markdown
 # Project Design
+
+> Each group is shown as: `## ShortName (FullNamespace)`
+> To get detailed info for specific groups, call `get_detailed_project_design` with `forNamespaces`.
+> Use the `FullNamespace` value directly, or use `*` as a wildcard anywhere (e.g. `MyApp.App.*`, `*.Mapping`, `MyApp.*.Services`).
 
 ## Configuration (TestProject.Core.Configuration)
 Entries count: 1
 
 ## EventHandling (TestProject.Core.EventHandling)
 Entries count: 3
+
+## GenericConsumers (TestProject.App.Services.GenericConsumers)
+Entries count: 1
+Depends on:
+- → TestProject.Core.EventHandling
+- → TestProject.Core.Persistence
 
 ## Logging (TestProject.Core.Logging)
 Entries count: 1
@@ -62,6 +72,15 @@ Entries count: 1
 Entries count: 5
 Depends on:
 - → AutoMapper
+
+## Mapping.Tv2 (TestProject.App.Mapping.Tv2)
+Entries count: 1
+
+## Mapping.Tv3 (TestProject.App.Mapping.Tv3)
+Entries count: 1
+
+## Mapping.Tv4 (TestProject.App.Mapping.Tv4)
+Entries count: 1
 
 ## Messaging (TestProject.App.Messaging)
 Entries count: 3
@@ -88,55 +107,56 @@ Depends on:
 - → TestProject.Core.Persistence
 ```
 
-## Что НЕ попадает в вывод
+## What Is NOT Included in the Output
 
-- Имена конкретных абстракций (интерфейсов, классов)
-- Имена имплементаций
-- Детали constructor injection
-- Member usages
-- Namespace-группы без собственных source-defined абстракций
-- Типы из тест-проектов
-- NuGet-типы как самостоятельные группы (только как цели в `DependsOn`)
+- Names of specific abstractions (interfaces, classes)
+- Implementation names
+- Dependency details and member usages
+- Namespace groups without their own source-defined abstractions
+- Types from test projects
+- NuGet types as standalone groups (only as targets in `DependsOn`)
 
-## Архитектура
+## Architecture
 
-`ProjectDesignService` использует `DependencyMapService` как источник данных:
+`ProjectDesignService` uses `DependencyMapService` as a data source and `IDependencyAggregator` for recursive dependency collection:
 
 ```
 ProjectDesignService
 ├── DependencyMapService.BuildMapAsync() → DependencyMapResult
-├── Phase 1: группировка source-абстракций по namespace
-│   └── пропускаем абстракции с SourceFilePath = null (NuGet)
-├── Phase 2: lookup всех абстракций (включая NuGet) для резолва зависимостей
-├── Phase 3: для каждой группы — CollectExternalDependencies()
-│   └── walker по impl → base classes → constructor deps → resolve to namespace
-├── ResolveRootNamespaces() → читает <RootNamespace> из .csproj файлов
-├── ResolveOwningProject() → longest-prefix match namespace → project (для short name)
-└── GetRelativeNamespace() → вычисляет короткое имя группы
+├── Phase 1: group source abstractions by namespace
+│   └── skip abstractions with SourceFilePath = null (NuGet)
+├── Phase 2: lookup all abstractions (including NuGet) for dependency resolution
+├── Phase 3: for each group — CollectExternalDependencies()
+│   └── IDependencyAggregator.GetAllUsages() → recursive walk impl + base classes
+├── ResolveRootNamespaces() → reads <RootNamespace> from .csproj files
+├── ResolveOwningProject() → longest-prefix match namespace → project (for short name)
+└── GetRelativeNamespace() → computes the short group name
 ```
 
-## Модели
+`BuildFromDependencyMap` is an `internal static` method, enabling testing of the logic without async dependencies.
+
+## Models
 
 ```
 ProjectDesignResult
-└── Groups: List<AbstractionGroup>
-    ├── FullName (полный namespace)
-    ├── Name (короткое имя, "" для root)
+└── Groups: IReadOnlyList<AbstractionGroup>
+    ├── FullName (full namespace)
+    ├── Name (short name, "" for root)
     ├── EntryCount
-    └── DependsOn: List<string> (полные namespace целевых групп, включая NuGet)
+    └── DependsOn: IReadOnlyList<string> (full namespaces of target groups, including NuGet)
 ```
 
-## Тесты
+## Tests
 
-Тесты расположены в `Tests/AmazingMCP.Tests/ProjectDesignServiceTests.cs`:
+Tests are located in `Tests/AmazingMCP.Tests/ProjectDesignServiceTests.cs`:
 
-| Область | Покрытие |
+| Area | Coverage |
 |---|---|
-| Flat groups | Source-группы присутствуют, Infrastructure отсутствует, sub-namespace (Mapping.Tv2/Tv3/Tv4) |
-| NuGet exclusion | NuGet-типы не создают группы, но попадают в DependsOn |
-| EntryCount | Количество записей в группах Services, Persistence |
-| DependsOn | Cross-group deps, NuGet deps (AutoMapper), internal deps excluded |
+| Flat groups | Source groups present, Infrastructure absent, sub-namespaces (Mapping.Tv2/Tv3/Tv4), GenericConsumers |
+| NuGet exclusion | NuGet types do not create groups but appear in DependsOn |
+| EntryCount | Entry counts in Services, Persistence groups |
+| DependsOn | Cross-group deps, NuGet deps (AutoMapper), internal deps excluded, GenericConsumers → Persistence + EventHandling |
 | ResolveOwningProject | Exact match, longest-prefix, fallback |
 | GetRelativeNamespace | Root, child, empty root, different root |
-| ExtractRootNamespace | С тегом, без тега |
-| Markdown | No project headers, group headers, Full name, Entries count label, Depends on with full namespaces |
+| ExtractRootNamespace | With tag, without tag |
+| Markdown | No project headers, group headers, full name, entries count label, depends on with full namespaces |
