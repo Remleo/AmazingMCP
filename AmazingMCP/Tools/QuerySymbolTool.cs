@@ -13,6 +13,7 @@ public static class QuerySymbolTool
         "USE THIS MCP WHEN YOU NEED TO FIND TYPES FROM EXTERNAL LIBRARIES. " +
         "Finds all types whose name contains the query string " +
         "across all projects in the given solution, including NuGet dependencies. " +
+        "Searches nested public/internal classes as well. " +
         "Returns unique types (deduplicated across projects).")]
     public static async Task<string> QuerySymbol(
         RoslynSymbolService roslyn,

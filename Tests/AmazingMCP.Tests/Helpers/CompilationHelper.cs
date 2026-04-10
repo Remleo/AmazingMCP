@@ -14,10 +14,10 @@ public static class CompilationHelper
     static readonly Lock InitLock = new();
     static bool _msbuildRegistered;
 
-    static readonly string TestSolutionPath = "C:\\dotNet\\BetContentAggregatorV2\\Source\\BetContentAggregatorV2.sln"; /*Path.GetFullPath(
+    static readonly string TestSolutionPath = /*"C:\\dotNet\\BetContentAggregatorV2\\Source\\BetContentAggregatorV2.sln";*/ Path.GetFullPath(
         Path.Combine(
             AppContext.BaseDirectory,
-            "..", "..", "..", "TestData", "TestSolution", "TestSolution.slnx"));*/
+            "..", "..", "..", "TestData", "TestSolution", "TestSolution.slnx"));
 
     public static string SolutionPath => TestSolutionPath;
 

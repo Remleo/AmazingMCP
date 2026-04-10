@@ -6,34 +6,42 @@ namespace AmazingMCP.Services;
 
 public class MemberUsageAnalyzer : IMemberUsageAnalyzer
 {
-    public async Task<List<MemberUsage>> AnalyzeUsagesAsync(
+    public async Task<Dictionary<string, List<MemberUsage>>> AnalyzeUsagesAsync(
         INamedTypeSymbol cls,
         List<ConstructorDependency> ctorDeps,
         Compilation compilation,
         CancellationToken ct)
     {
-        var usages = new HashSet<MemberUsage>();
-
-        var depTypeSymbols = new List<INamedTypeSymbol>();
+        // Build per-dep symbol map: dep type full name → INamedTypeSymbol
+        var depSymbols = new Dictionary<string, INamedTypeSymbol>();
         foreach (var dep in ctorDeps)
         {
-            var depSymbol = FindTypeByName(compilation, dep.TypeFullName);
-            if (depSymbol is not null)
-                depTypeSymbols.Add(depSymbol);
+            var symbol = FindTypeByName(compilation, dep.TypeFullName);
+            if (symbol is not null)
+                depSymbols[dep.TypeFullName] = symbol;
         }
 
-        if (depTypeSymbols.Count == 0) return [];
+        if (depSymbols.Count == 0)
+            return [];
+
+        // usages per dep type full name
+        var result = new Dictionary<string, HashSet<MemberUsage>>();
+        foreach (var key in depSymbols.Keys)
+            result[key] = [];
 
         var visited = new HashSet<string>();
-        await CollectUsagesFromHierarchy(cls, depTypeSymbols, compilation, usages, visited, ct);
-        return usages.ToList();
+        await CollectUsagesFromHierarchy(cls, depSymbols, compilation, result, visited, ct);
+
+        return result
+            .Where(kv => kv.Value.Count > 0)
+            .ToDictionary(kv => kv.Key, kv => kv.Value.ToList());
     }
 
     async Task CollectUsagesFromHierarchy(
         INamedTypeSymbol cls,
-        List<INamedTypeSymbol> depTypeSymbols,
+        Dictionary<string, INamedTypeSymbol> depSymbols,
         Compilation compilation,
-        HashSet<MemberUsage> usages,
+        Dictionary<string, HashSet<MemberUsage>> result,
         HashSet<string> visited,
         CancellationToken ct)
     {
@@ -52,72 +60,83 @@ public class MemberUsageAnalyzer : IMemberUsageAnalyzer
                 switch (node)
                 {
                     case InvocationExpressionSyntax invocation:
-                        AnalyzeInvocation(invocation, model, depTypeSymbols, usages);
+                        AnalyzeInvocation(invocation, model, depSymbols, result);
                         break;
                     case MemberAccessExpressionSyntax memberAccess
                         when node.Parent is not InvocationExpressionSyntax:
-                        AnalyzeMemberAccess(memberAccess, model, depTypeSymbols, usages);
+                        AnalyzeMemberAccess(memberAccess, model, depSymbols, result);
                         break;
                     case AssignmentExpressionSyntax assignment:
-                        AnalyzeAssignment(assignment, model, depTypeSymbols, usages);
+                        AnalyzeAssignment(assignment, model, depSymbols, result);
                         break;
                 }
             }
         }
 
         if (cls.BaseType is not null && cls.BaseType.SpecialType == SpecialType.None)
-            await CollectUsagesFromHierarchy(cls.BaseType, depTypeSymbols, compilation, usages, visited, ct);
+            await CollectUsagesFromHierarchy(cls.BaseType, depSymbols, compilation, result, visited, ct);
     }
 
     static void AnalyzeInvocation(
         InvocationExpressionSyntax invocation, SemanticModel model,
-        List<INamedTypeSymbol> depTypes, HashSet<MemberUsage> usages)
+        Dictionary<string, INamedTypeSymbol> depSymbols,
+        Dictionary<string, HashSet<MemberUsage>> result)
     {
         if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol { ContainingType: { } containingType } method)
             return;
-        if (IsDependencyType(containingType, depTypes))
-            usages.Add(new MemberUsage(method.Name, MemberUsageKind.MethodCall));
+
+        var depKey = FindMatchingDep(containingType, depSymbols);
+        if (depKey is not null)
+            result[depKey].Add(new MemberUsage(method.Name, MemberUsageKind.MethodCall));
     }
 
     static void AnalyzeMemberAccess(
         MemberAccessExpressionSyntax memberAccess, SemanticModel model,
-        List<INamedTypeSymbol> depTypes, HashSet<MemberUsage> usages)
+        Dictionary<string, INamedTypeSymbol> depSymbols,
+        Dictionary<string, HashSet<MemberUsage>> result)
     {
         if (model.GetSymbolInfo(memberAccess).Symbol is not IPropertySymbol { ContainingType: { } containingType } prop)
             return;
-        if (IsDependencyType(containingType, depTypes))
-            usages.Add(new MemberUsage(prop.Name, MemberUsageKind.PropertyGet));
+
+        var depKey = FindMatchingDep(containingType, depSymbols);
+        if (depKey is not null)
+            result[depKey].Add(new MemberUsage(prop.Name, MemberUsageKind.PropertyGet));
     }
 
     static void AnalyzeAssignment(
         AssignmentExpressionSyntax assignment, SemanticModel model,
-        List<INamedTypeSymbol> depTypes, HashSet<MemberUsage> usages)
+        Dictionary<string, INamedTypeSymbol> depSymbols,
+        Dictionary<string, HashSet<MemberUsage>> result)
     {
         if (assignment.Left is not MemberAccessExpressionSyntax memberAccess) return;
         if (model.GetSymbolInfo(memberAccess).Symbol is not IPropertySymbol { ContainingType: { } containingType } prop)
             return;
-        if (IsDependencyType(containingType, depTypes))
-            usages.Add(new MemberUsage(prop.Name, MemberUsageKind.PropertySet));
+
+        var depKey = FindMatchingDep(containingType, depSymbols);
+        if (depKey is not null)
+            result[depKey].Add(new MemberUsage(prop.Name, MemberUsageKind.PropertySet));
     }
 
-    static bool IsDependencyType(INamedTypeSymbol candidateType, List<INamedTypeSymbol> depTypes)
+    static string? FindMatchingDep(
+        INamedTypeSymbol candidateType,
+        Dictionary<string, INamedTypeSymbol> depSymbols)
     {
-        foreach (var depType in depTypes)
+        foreach (var (key, depType) in depSymbols)
         {
             if (SymbolEqualityComparer.Default.Equals(candidateType, depType))
-                return true;
+                return key;
 
             if (depType.TypeKind == TypeKind.Interface)
             {
                 foreach (var iface in candidateType.AllInterfaces)
                 {
                     if (SymbolEqualityComparer.Default.Equals(iface, depType))
-                        return true;
+                        return key;
                 }
             }
         }
 
-        return false;
+        return null;
     }
 
     static INamedTypeSymbol? FindTypeByName(Compilation compilation, string fullTypeName)

@@ -146,8 +146,8 @@ public partial class DependencyMapServiceTests
 
         // assert
         var impl = result.Implementations["TestProject.App.Services.GenericConsumers.GenericConsumerService"];
-        impl.DependencyMemberUsages.Should().Contain(u =>
-            u.MemberName == "Save" && u.Kind == MemberUsageKind.MethodCall);
+        var allUsages = impl.DependencyMemberUsages.Values.SelectMany(u => u).ToList();
+        allUsages.Should().Contain(u => u.MemberName == "Save" && u.Kind == MemberUsageKind.MethodCall);
     }
 
     [Test]
@@ -158,8 +158,8 @@ public partial class DependencyMapServiceTests
 
         // assert
         var impl = result.Implementations["TestProject.App.Services.GenericConsumers.GenericConsumerService"];
-        impl.DependencyMemberUsages.Should().Contain(u =>
-            u.MemberName == "Count" && u.Kind == MemberUsageKind.PropertyGet);
+        var allUsages = impl.DependencyMemberUsages.Values.SelectMany(u => u).ToList();
+        allUsages.Should().Contain(u => u.MemberName == "Count" && u.Kind == MemberUsageKind.PropertyGet);
     }
 
     [Test]
@@ -170,8 +170,8 @@ public partial class DependencyMapServiceTests
 
         // assert
         var impl = result.Implementations["TestProject.App.Services.GenericConsumers.GenericConsumerService"];
-        impl.DependencyMemberUsages.Should().Contain(u =>
-            u.MemberName == "Handle" && u.Kind == MemberUsageKind.MethodCall);
+        var allUsages = impl.DependencyMemberUsages.Values.SelectMany(u => u).ToList();
+        allUsages.Should().Contain(u => u.MemberName == "Handle" && u.Kind == MemberUsageKind.MethodCall);
     }
 
     #endregion

@@ -11,8 +11,10 @@ public static class GetSymbolInfoTool
         "IMPORTANT: THIS TOOL RESOLVES TYPE DETAILS FROM THIRD-PARTY NUGET PACKAGES — " +
         "USE THIS MCP WHEN YOU NEED MEMBERS/PROPERTIES/METHODS OF TYPES FROM EXTERNAL LIBRARIES. " +
         "Returns detailed information about a type by its full name. " +
-        "For classes/interfaces: properties, methods, base types and implemented interfaces (recursively). " +
-        "For enums: all values. Use query_symbol first to find the full type name.")]
+        "For classes/interfaces: properties, methods (instance and static), constants, static fields, " +
+        "base types, implemented interfaces (recursively), and nested public/internal types. " +
+        "For enums: all values. Supports nested type names (e.g. 'Outer.Inner'). " +
+        "Use query_symbol first to find the full type name.")]
     public static async Task<string> GetSymbolInfo(
         SymbolInfoService symbolInfo,
         SolutionResolver solutionResolver,

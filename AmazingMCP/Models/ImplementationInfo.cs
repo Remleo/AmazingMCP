@@ -21,6 +21,6 @@ public record ImplementationInfo(
     /// </summary>
     IReadOnlyList<ConstructorDependency> Dependencies,
     /// <summary>
-    /// Unique member usages on injected dependencies found in this class and its base classes.
+    /// Member usages per dependency type full name: dep type → list of usages found in this class and its base classes.
     /// </summary>
-    IReadOnlyList<MemberUsage> DependencyMemberUsages);
+    IReadOnlyDictionary<string, IReadOnlyList<MemberUsage>> DependencyMemberUsages);

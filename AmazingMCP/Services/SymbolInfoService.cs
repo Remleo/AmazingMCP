@@ -82,38 +82,124 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
     {
         var prefix = new string(' ', indent);
 
-        var properties = type.GetMembers()
-            .OfType<IPropertySymbol>()
-            .Where(p => p.DeclaredAccessibility == Accessibility.Public)
+        var constants = type.GetMembers()
+            .OfType<IFieldSymbol>()
+            .Where(f => f.IsConst
+                        && f.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
             .ToList();
 
-        if (properties.Count > 0)
+        if (constants.Count > 0)
+        {
+            sb.AppendLine($"{prefix}Constants:");
+            foreach (var c in constants)
+            {
+                var vis = c.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
+                sb.AppendLine($"{prefix}  {vis}{c.Type.ToDisplayString()} {c.Name} = {FormatConstantValue(c.ConstantValue)}");
+            }
+        }
+
+        var staticFields = type.GetMembers()
+            .OfType<IFieldSymbol>()
+            .Where(f => f.IsStatic && !f.IsConst
+                        && f.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
+            .ToList();
+
+        if (staticFields.Count > 0)
+        {
+            sb.AppendLine($"{prefix}Static fields:");
+            foreach (var f in staticFields)
+            {
+                var vis = f.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
+                var ro = f.IsReadOnly ? "readonly " : "";
+                sb.AppendLine($"{prefix}  static {vis}{ro}{f.Type.ToDisplayString()} {f.Name}");
+            }
+        }
+
+        var properties = type.GetMembers()
+            .OfType<IPropertySymbol>()
+            .Where(p => p.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
+            .ToList();
+
+        var staticProps = properties.Where(p => p.IsStatic).ToList();
+        var instanceProps = properties.Where(p => !p.IsStatic).ToList();
+
+        if (staticProps.Count > 0)
+        {
+            sb.AppendLine($"{prefix}Static properties:");
+            foreach (var p in staticProps)
+            {
+                var vis = p.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
+                var accessors = FormatAccessors(p);
+                sb.AppendLine($"{prefix}  static {vis}{p.Type.ToDisplayString()} {p.Name} {{ {accessors} }}");
+            }
+        }
+
+        if (instanceProps.Count > 0)
         {
             sb.AppendLine($"{prefix}Properties:");
-            foreach (var p in properties)
+            foreach (var p in instanceProps)
             {
+                var vis = p.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
                 var accessors = FormatAccessors(p);
-                sb.AppendLine($"{prefix}  {p.Type.ToDisplayString()} {p.Name} {{ {accessors} }}");
+                sb.AppendLine($"{prefix}  {vis}{p.Type.ToDisplayString()} {p.Name} {{ {accessors} }}");
             }
         }
 
         var methods = type.GetMembers()
             .OfType<IMethodSymbol>()
-            .Where(m => m.DeclaredAccessibility == Accessibility.Public
+            .Where(m => m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
                         && m.MethodKind == MethodKind.Ordinary)
             .ToList();
 
-        if (methods.Count > 0)
+        var staticMethods = methods.Where(m => m.IsStatic).ToList();
+        var instanceMethods = methods.Where(m => !m.IsStatic).ToList();
+
+        if (staticMethods.Count > 0)
         {
-            sb.AppendLine($"{prefix}Methods:");
-            foreach (var m in methods)
+            sb.AppendLine($"{prefix}Static methods:");
+            foreach (var m in staticMethods)
             {
+                var vis = m.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
                 var parameters = string.Join(", ",
                     m.Parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}"));
-                sb.AppendLine($"{prefix}  {m.ReturnType.ToDisplayString()} {m.Name}({parameters})");
+                sb.AppendLine($"{prefix}  static {vis}{m.ReturnType.ToDisplayString()} {m.Name}({parameters})");
+            }
+        }
+
+        if (instanceMethods.Count > 0)
+        {
+            sb.AppendLine($"{prefix}Methods:");
+            foreach (var m in instanceMethods)
+            {
+                var vis = m.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
+                var parameters = string.Join(", ",
+                    m.Parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}"));
+                sb.AppendLine($"{prefix}  {vis}{m.ReturnType.ToDisplayString()} {m.Name}({parameters})");
+            }
+        }
+
+        var nestedTypes = type.GetTypeMembers()
+            .Where(t => t.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
+            .ToList();
+
+        if (nestedTypes.Count > 0)
+        {
+            sb.AppendLine($"{prefix}Nested types:");
+            foreach (var nested in nestedTypes)
+            {
+                var vis = nested.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
+                sb.AppendLine($"{prefix}  {vis}[{nested.TypeKind}] {nested.ToDisplayString()}");
             }
         }
     }
+
+    static string FormatConstantValue(object? value) =>
+        value switch
+        {
+            null => "null",
+            string s => $"\"{s}\"",
+            _ => value.ToString() ?? "null"
+        };
 
     static bool IsWellKnownFrameworkType(INamedTypeSymbol type)
     {
@@ -187,15 +273,33 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
         {
             switch (member)
             {
-                case INamedTypeSymbol type
-                    when type.ToDisplayString().Equals(fullTypeName, StringComparison.OrdinalIgnoreCase):
-                    return type;
+                case INamedTypeSymbol type:
+                    if (type.ToDisplayString().Equals(fullTypeName, StringComparison.OrdinalIgnoreCase))
+                        return type;
+
+                    var nested = FindNestedType(type, fullTypeName);
+                    if (nested is not null) return nested;
+                    break;
 
                 case INamespaceSymbol childNs:
                     var found = FindType(childNs, fullTypeName);
                     if (found is not null) return found;
                     break;
             }
+        }
+
+        return null;
+    }
+
+    static INamedTypeSymbol? FindNestedType(INamedTypeSymbol parent, string fullTypeName)
+    {
+        foreach (var nested in parent.GetTypeMembers())
+        {
+            if (nested.ToDisplayString().Equals(fullTypeName, StringComparison.OrdinalIgnoreCase))
+                return nested;
+
+            var deeper = FindNestedType(nested, fullTypeName);
+            if (deeper is not null) return deeper;
         }
 
         return null;

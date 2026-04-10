@@ -9,10 +9,10 @@ namespace AmazingMCP.Services;
 public interface IMemberUsageAnalyzer
 {
     /// <summary>
-    /// Finds unique member usages (method calls, property get/set) on constructor dependencies
-    /// within the class body and all base classes.
+    /// Finds member usages (method calls, property get/set) on constructor dependencies,
+    /// grouped by dependency type full name.
     /// </summary>
-    Task<List<MemberUsage>> AnalyzeUsagesAsync(
+    Task<Dictionary<string, List<MemberUsage>>> AnalyzeUsagesAsync(
         INamedTypeSymbol cls,
         List<ConstructorDependency> ctorDeps,
         Compilation compilation,

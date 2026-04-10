@@ -15,6 +15,12 @@ MCP tool: `get_project_design`
 - Количество записей (entries) в группе
 - Зависимости на другие группы (полные namespace целевых групп)
 
+## Что попадает в группы
+
+Группы формируются только из абстракций с `SourceFilePath != null` — то есть типов, определённых в исходном коде решения. NuGet-типы (с `SourceFilePath = null`) в группы не попадают, но участвуют в резолве зависимостей: если имплементация зависит от NuGet-типа, его namespace появится в `DependsOn` соответствующей группы.
+
+Типы из тест-проектов исключаются на уровне `DependencyMapService` и в группы не попадают.
+
 ## Группировка
 
 Абстракции группируются по namespace. Root namespace определяется из `<RootNamespace>` в `.csproj`, при отсутствии — используется имя проекта. Короткое имя группы вычисляется относительно root namespace.
@@ -36,48 +42,32 @@ MCP tool: `get_project_design`
 5. Фильтруем: оставляем только те, что являются известными абстракциями и не входят в текущую группу
 6. Резолвим каждую зависимость в полный namespace целевой группы
 
+NuGet-зависимости резолвятся в namespace внешней библиотеки (например `AutoMapper`, `Microsoft.Extensions.Logging`) и попадают в `DependsOn` наравне с source-группами.
+
 ## Пример вывода
 
 ```markdown
 # Project Design
 
-## Contracts (TestProject.App.Contracts)
-Entries count: 2
-
-## Helpers (TestProject.App.Helpers)
-Entries count: 1
-
-## Services (TestProject.App.Services)
-Entries count: 1
-
-## Services.GenericConsumers (TestProject.App.Services.GenericConsumers)
+## Configuration (TestProject.Core.Configuration)
 Entries count: 1
 
 ## EventHandling (TestProject.Core.EventHandling)
-Entries count: 1
-
-## Events (TestProject.Core.Events)
-Entries count: 2
+Entries count: 3
 
 ## Logging (TestProject.Core.Logging)
 Entries count: 1
 
-## Mapping (TestProject.Core.Mapping)
-Entries count: 2
-
-## Mapping.Tv2 (TestProject.Core.Mapping.Tv2)
-Entries count: 2
-
-## Messaging (TestProject.Core.Messaging)
+## Mapping (TestProject.App.Mapping)
 Entries count: 5
 Depends on:
-- → TestProject.Core.EventHandling
-- → TestProject.Core.Logging
-- → TestProject.Core.Notifications
-- → TestProject.Core.Persistence
+- → AutoMapper
 
-## Models (TestProject.Core.Models)
-Entries count: 2
+## Messaging (TestProject.App.Messaging)
+Entries count: 3
+Depends on:
+- → TestProject.App.Mapping
+- → TestProject.Core.EventHandling
 
 ## Notifications (TestProject.Core.Notifications)
 Entries count: 1
@@ -85,10 +75,16 @@ Entries count: 1
 ## Persistence (TestProject.Core.Persistence)
 Entries count: 3
 
+## Services (TestProject.App.Services)
+Entries count: 3
+Depends on:
+- → TestProject.Core.Configuration
+- → TestProject.Core.Persistence
+- → TestProject.Core.Services
+
 ## Services (TestProject.Core.Services)
 Entries count: 3
 Depends on:
-- → TestProject.Core.Models
 - → TestProject.Core.Persistence
 ```
 
@@ -98,19 +94,25 @@ Depends on:
 - Имена имплементаций
 - Детали constructor injection
 - Member usages
-- Namespace-группы без собственных абстракций
+- Namespace-группы без собственных source-defined абстракций
+- Типы из тест-проектов
+- NuGet-типы как самостоятельные группы (только как цели в `DependsOn`)
 
 ## Архитектура
 
-`ProjectDesignService` использует `DependencyMapService` как источник данных и строит поверх него группировку:
+`ProjectDesignService` использует `DependencyMapService` как источник данных:
 
 ```
 ProjectDesignService
 ├── DependencyMapService.BuildMapAsync() → DependencyMapResult
+├── Phase 1: группировка source-абстракций по namespace
+│   └── пропускаем абстракции с SourceFilePath = null (NuGet)
+├── Phase 2: lookup всех абстракций (включая NuGet) для резолва зависимостей
+├── Phase 3: для каждой группы — CollectExternalDependencies()
+│   └── walker по impl → base classes → constructor deps → resolve to namespace
 ├── ResolveRootNamespaces() → читает <RootNamespace> из .csproj файлов
 ├── ResolveOwningProject() → longest-prefix match namespace → project (для short name)
-├── GetRelativeNamespace() → вычисляет короткое имя группы
-└── CollectExternalDependencies() → резолвит зависимости в полные namespace целевых групп
+└── GetRelativeNamespace() → вычисляет короткое имя группы
 ```
 
 ## Модели
@@ -121,7 +123,7 @@ ProjectDesignResult
     ├── FullName (полный namespace)
     ├── Name (короткое имя, "" для root)
     ├── EntryCount
-    └── DependsOn: List<string> (полные namespace целевых групп)
+    └── DependsOn: List<string> (полные namespace целевых групп, включая NuGet)
 ```
 
 ## Тесты
@@ -130,10 +132,11 @@ ProjectDesignResult
 
 | Область | Покрытие |
 |---|---|
-| Flat groups | Core/App группы присутствуют, Infrastructure отсутствует, sub-namespace (Mapping.Tv2/Tv3/Tv4) |
+| Flat groups | Source-группы присутствуют, Infrastructure отсутствует, sub-namespace (Mapping.Tv2/Tv3/Tv4) |
+| NuGet exclusion | NuGet-типы не создают группы, но попадают в DependsOn |
 | EntryCount | Количество записей в группах Services, Persistence |
-| DependsOn | Cross-group deps (Messaging → Persistence, Logging, Notifications), internal deps excluded, валидация ссылок |
+| DependsOn | Cross-group deps, NuGet deps (AutoMapper), internal deps excluded |
 | ResolveOwningProject | Exact match, longest-prefix, fallback |
 | GetRelativeNamespace | Root, child, empty root, different root |
 | ExtractRootNamespace | С тегом, без тега |
-| Markdown | No project headers, group headers, Full name, Entries count label, Depends on with full namespaces, отсутствие имён абстракций |
+| Markdown | No project headers, group headers, Full name, Entries count label, Depends on with full namespaces |

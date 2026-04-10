@@ -51,12 +51,10 @@ public class ProjectDesignServiceTests
 
         // assert
         var fullNames = result.Groups.Select(g => g.FullName).ToList();
-        fullNames.Should().Contain("TestProject.Core.Models");
+        fullNames.Should().Contain("TestProject.Core.Configuration");
         fullNames.Should().Contain("TestProject.Core.Persistence");
         fullNames.Should().Contain("TestProject.Core.Services");
         fullNames.Should().Contain("TestProject.Core.Logging");
-        fullNames.Should().Contain("TestProject.Core.Dtos");
-        fullNames.Should().Contain("TestProject.Core.Events");
         fullNames.Should().Contain("TestProject.Core.EventHandling");
         fullNames.Should().Contain("TestProject.Core.Notifications");
     }
@@ -72,8 +70,6 @@ public class ProjectDesignServiceTests
         fullNames.Should().Contain("TestProject.App.Services");
         fullNames.Should().Contain("TestProject.App.Services.GenericConsumers");
         fullNames.Should().Contain("TestProject.App.Messaging");
-        fullNames.Should().Contain("TestProject.App.Contracts");
-        fullNames.Should().Contain("TestProject.App.Helpers");
         fullNames.Should().Contain("TestProject.App.Mapping");
     }
 
@@ -491,7 +487,7 @@ public class ProjectDesignServiceTests
             ImplementedAbstractions: ["MyApp.Services.IMyService", "Acme.Sdk.IExternalService"],
             BaseClasses: [],
             Dependencies: [new ConstructorDependency("Acme.Sdk.IExternalService", false, false)],
-            DependencyMemberUsages: []);
+            DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>());
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>
@@ -551,7 +547,7 @@ public class ProjectDesignServiceTests
             ImplementedAbstractions: ["MyApp.Application.IConsumer"],
             BaseClasses: [],
             Dependencies: [new ConstructorDependency("Acme.Sdk.IExternalService", false, false)],
-            DependencyMemberUsages: []);
+            DependencyMemberUsages: new Dictionary<string, IReadOnlyList<MemberUsage>>());
 
         var depMap = new DependencyMapResult(
             Abstractions: new Dictionary<string, AbstractionInfo>

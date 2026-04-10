@@ -36,8 +36,12 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider)
         {
             switch (member)
             {
-                case INamedTypeSymbol type when Matches(type, query, qualifiedQuery):
-                    yield return type;
+                case INamedTypeSymbol type:
+                    if (Matches(type, query, qualifiedQuery))
+                        yield return type;
+
+                    foreach (var nested in FindNestedTypes(type, query, qualifiedQuery))
+                        yield return nested;
                     break;
 
                 case INamespaceSymbol childNs:
@@ -45,6 +49,22 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider)
                         yield return t;
                     break;
             }
+        }
+    }
+
+    static IEnumerable<INamedTypeSymbol> FindNestedTypes(
+        INamedTypeSymbol parent, string query, bool qualifiedQuery)
+    {
+        foreach (var nested in parent.GetTypeMembers())
+        {
+            if (nested.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+                continue;
+
+            if (Matches(nested, query, qualifiedQuery))
+                yield return nested;
+
+            foreach (var deeper in FindNestedTypes(nested, query, qualifiedQuery))
+                yield return deeper;
         }
     }
 

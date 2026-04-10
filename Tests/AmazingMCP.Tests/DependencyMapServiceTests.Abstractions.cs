@@ -67,31 +67,18 @@ public partial class DependencyMapServiceTests
 
     #endregion
 
-    #region Abstractions — standalone class (no interface)
+    #region Standalone class — no interface, no complex deps → not in map
 
     [Test]
-    public async Task BuildMapAsync_StandaloneClass_AppearsInAbstractions()
+    public async Task BuildMapAsync_StandaloneClass_NotInAbstractions()
     {
         // act
         var result = await Act();
 
-        // assert
-        result.Abstractions.Should().ContainKey("TestProject.App.Helpers.StandaloneHelper");
-        result.Abstractions["TestProject.App.Helpers.StandaloneHelper"].Should().BeEquivalentTo(new
-        {
-            FullName = "TestProject.App.Helpers.StandaloneHelper",
-            IsInterface = false
-        }, options => options.ExcludingMissingMembers());
-    }
-
-    [Test]
-    public async Task BuildMapAsync_StandaloneClass_AppearsInImplementations()
-    {
-        // act
-        var result = await Act();
-
-        // assert
-        result.Implementations.Should().ContainKey("TestProject.App.Helpers.StandaloneHelper");
+        // assert — StandaloneHelper has no interfaces and no constructor deps,
+        // so it's not an abstraction or implementation under the new algorithm
+        result.Abstractions.Should().NotContainKey("TestProject.App.Helpers.StandaloneHelper");
+        result.Implementations.Should().NotContainKey("TestProject.App.Helpers.StandaloneHelper");
     }
 
     #endregion
@@ -153,8 +140,24 @@ public partial class DependencyMapServiceTests
         // act
         var result = await Act();
 
-        // assert
+        // assert — abstract classes are abstractions, not implementations
         result.Implementations.Should().NotContainKey("TestProject.App.Services.AnimalServiceBase");
+    }
+
+    #endregion
+
+    #region Test project filtering
+
+    [Test]
+    public async Task BuildMapAsync_TestProjectTypes_ExcludedFromMap()
+    {
+        // act
+        var result = await Act();
+
+        // assert — TestProject.Tests is a test project (has Microsoft.NET.Test.Sdk),
+        // so its types must not appear in the dependency map
+        result.Abstractions.Keys.Should().NotContain(k => k.StartsWith("TestProject.Tests."));
+        result.Implementations.Keys.Should().NotContain(k => k.StartsWith("TestProject.Tests."));
     }
 
     #endregion

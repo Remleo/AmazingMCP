@@ -36,65 +36,73 @@ public class DependencyMapService(
     {
         var solution = await workspaceProvider.GetSolutionAsync(solutionPath, ct);
 
-        // Phase 1: Collect all source-defined types
-        var allTypes = typeCollector.CollectSourceTypes(solution.Compilations);
-
-        var interfaces = allTypes.Where(t => t.Symbol.TypeKind == TypeKind.Interface).ToList();
-        var classes = allTypes
-            .Where(t => t.Symbol.TypeKind == TypeKind.Class && !t.Symbol.IsAbstract && !t.Symbol.IsStatic)
+        // Phase 1: collect all source-defined types, excluding test projects.
+        // Deduplicate by full name — partial classes across multiple files produce multiple SourceType entries
+        // with the same symbol display string, which would cause duplicate key errors downstream.
+        var compilations = TestProjectFilter.ExcludeTestProjects(solution.Compilations, solution);
+        var allTypes = typeCollector.CollectSourceTypes(compilations)
+            .GroupBy(t => t.Symbol.ToDisplayString())
+            .Select(g => g.First())
             .ToList();
+        var typeIndex = allTypes.ToDictionary(t => t.Symbol.ToDisplayString());
 
-        // Phase 2: Build implementation -> abstraction mapping
-        var implToAbstractions = new Dictionary<string, List<string>>();
+        // Phase 2: determine initial abstraction set
+        var abstractions = new Dictionary<string, AbstractionInfo>();
         var abstractionImplementors = new Dictionary<string, List<string>>();
 
-        foreach (var entry in classes)
-        {
-            var implName = entry.Symbol.ToDisplayString();
-            var ifaceNames = typeCollector.GetAllImplementedAbstractions(entry.Symbol);
-            implToAbstractions[implName] = ifaceNames;
+        CollectInitialAbstractions(allTypes, typeIndex, abstractions, abstractionImplementors);
 
-            foreach (var ifaceName in ifaceNames)
-            {
-                if (!abstractionImplementors.TryGetValue(ifaceName, out var list))
-                {
-                    list = [];
-                    abstractionImplementors[ifaceName] = list;
-                }
-                list.Add(implName);
-            }
-        }
+        // Phase 3: find implementations for each abstraction, analyze constructor deps & member usages
+        var implementations = new Dictionary<string, ImplementationInfo>();
+        var missingAbstractions = new HashSet<string>();
 
-        // Phase 3: Build abstractions dictionary
-        var abstractions = BuildAbstractions(
-            interfaces, classes, allTypes, abstractionImplementors);
+        await AnalyzeImplementationsAsync(
+            allTypes, abstractions, abstractionImplementors,
+            implementations, missingAbstractions, compilations, ct);
 
-        // Phase 4: Analyze implementations
-        var (implementations, standaloneClassCandidates) = await AnalyzeImplementationsAsync(
-            classes, implToAbstractions, abstractions, ct);
-
-        // Phase 5: Add standalone classes to abstractions
-        await AddStandaloneClassesAsync(
-            standaloneClassCandidates, allTypes, abstractions, implementations,
-            abstractionImplementors, ct);
-
-        // Phase 6: Add IOptions<T> types as abstractions
-        AddOptionsAbstractions(implementations, allTypes, abstractions);
-
-        // Phase 7: Add external (NuGet) abstractions — deps not found in source, SourceFilePath = null
-        AddExternalAbstractions(implementations, solution.Compilations, abstractions);
+        // Phase 4: iteratively resolve missing abstractions
+        await ResolveMissingAbstractionsAsync(
+            missingAbstractions, typeIndex, abstractions, abstractionImplementors,
+            implementations, compilations, ct);
 
         return new DependencyMapResult(abstractions, implementations);
     }
 
-    Dictionary<string, AbstractionInfo> BuildAbstractions(
-        List<SourceType> interfaces,
-        List<SourceType> classes,
+    // ─── Phase 2: initial abstraction collection ────────────────────────────
+
+    void CollectInitialAbstractions(
         List<SourceType> allTypes,
+        Dictionary<string, SourceType> typeIndex,
+        Dictionary<string, AbstractionInfo> abstractions,
         Dictionary<string, List<string>> abstractionImplementors)
     {
-        var abstractions = new Dictionary<string, AbstractionInfo>();
+        // Pass 1: collect all interfaces that have at least one source-defined implementor
+        // and all concrete classes that qualify as abstractions.
+        // We need two passes: first build implementors map, then build AbstractionInfo.
 
+        var interfaces = allTypes.Where(t => t.Symbol.TypeKind == TypeKind.Interface).ToList();
+        var concreteClasses = allTypes
+            .Where(t => t.Symbol.TypeKind == TypeKind.Class && !t.Symbol.IsAbstract && !t.Symbol.IsStatic)
+            .ToList();
+        var abstractClasses = allTypes
+            .Where(t => t.Symbol.TypeKind == TypeKind.Class && t.Symbol.IsAbstract && !t.Symbol.IsStatic)
+            .ToList();
+
+        // Build implementors map: abstraction full name → list of concrete implementor full names
+        foreach (var entry in concreteClasses)
+        {
+            var implName = entry.Symbol.ToDisplayString();
+            var implemented = typeCollector.GetAllImplementedAbstractions(entry.Symbol);
+            foreach (var ifaceName in implemented)
+            {
+                if (!abstractionImplementors.TryGetValue(ifaceName, out var list))
+                    abstractionImplementors[ifaceName] = list = [];
+                if (!list.Contains(implName))
+                    list.Add(implName);
+            }
+        }
+
+        // Interfaces: add if they have at least one source implementor
         foreach (var entry in interfaces)
         {
             var fullName = entry.Symbol.ToDisplayString();
@@ -105,16 +113,16 @@ public class DependencyMapService(
                 entry.Symbol, entry.ProjectName, abstractionImplementors);
         }
 
+        // Closed generic interfaces (implemented by source classes but not directly in interfaces list)
         foreach (var (ifaceName, implementors) in abstractionImplementors)
         {
             if (abstractions.ContainsKey(ifaceName)) continue;
             if (typeCollector.IsExcludedInterface(ifaceName)) continue;
 
-            var ifaceSymbol = abstractionExtractor.FindClosedGenericInterface(ifaceName, classes);
+            var ifaceSymbol = abstractionExtractor.FindClosedGenericInterface(ifaceName, concreteClasses);
             if (ifaceSymbol is null) continue;
 
             var projName = abstractionExtractor.ResolveProjectForClosedGeneric(ifaceSymbol, allTypes);
-
             abstractions[ifaceName] = new AbstractionInfo(
                 FullName: ifaceName,
                 Namespace: ifaceSymbol.ContainingNamespace?.ToDisplayString() ?? "",
@@ -125,166 +133,216 @@ public class DependencyMapService(
                 Implementations: implementors);
         }
 
-        return abstractions;
+        // Abstract classes: each is an abstraction on its own
+        foreach (var entry in abstractClasses)
+        {
+            var fullName = entry.Symbol.ToDisplayString();
+            if (abstractions.ContainsKey(fullName)) continue;
+            abstractions[fullName] = abstractionExtractor.BuildAbstractionInfo(
+                entry.Symbol, entry.ProjectName, abstractionImplementors);
+        }
+
+        // Concrete classes that qualify as standalone abstractions:
+        // - no interfaces (even through base chain), AND
+        // - has a constructor with at least one complex dependency
+        foreach (var entry in concreteClasses)
+        {
+            var fullName = entry.Symbol.ToDisplayString();
+            if (abstractions.ContainsKey(fullName)) continue;
+
+            var implemented = abstractionImplementors.Keys
+                .Any(k => abstractionImplementors[k].Contains(fullName));
+            if (implemented) continue; // it's an implementation of something
+
+            var hasInterfaceInChain = typeCollector.GetAllImplementedAbstractions(entry.Symbol).Count > 0;
+            if (hasInterfaceInChain) continue;
+
+            var deps = constructorAnalyzer.AnalyzeDependencies(entry.Symbol);
+            if (deps.Count == 0) continue; // no complex deps → not an abstraction
+
+            abstractions[fullName] = abstractionExtractor.BuildAbstractionInfo(
+                entry.Symbol, entry.ProjectName, abstractionImplementors);
+
+            if (!abstractionImplementors.ContainsKey(fullName))
+                abstractionImplementors[fullName] = [fullName];
+        }
+
+        // IOptions<T> types: add as abstractions when referenced
+        // (deferred to Phase 4 since we need to scan constructors first)
     }
 
-    async Task<(Dictionary<string, ImplementationInfo>, HashSet<string>)> AnalyzeImplementationsAsync(
-        List<SourceType> classes,
-        Dictionary<string, List<string>> implToAbstractions,
+    // ─── Phase 3: analyze implementations ───────────────────────────────────
+
+    async Task AnalyzeImplementationsAsync(
+        List<SourceType> allTypes,
         Dictionary<string, AbstractionInfo> abstractions,
+        Dictionary<string, List<string>> abstractionImplementors,
+        Dictionary<string, ImplementationInfo> implementations,
+        HashSet<string> missingAbstractions,
+        IReadOnlyList<(string ProjectName, Compilation Compilation)> compilations,
         CancellationToken ct)
     {
-        var implementations = new Dictionary<string, ImplementationInfo>();
-        var standaloneClassCandidates = new HashSet<string>();
+        // Analyze every concrete class that is an implementor of at least one known abstraction,
+        // plus standalone abstractions (which are their own implementors).
+        var toAnalyze = allTypes
+            .Where(t => t.Symbol.TypeKind == TypeKind.Class && !t.Symbol.IsAbstract && !t.Symbol.IsStatic)
+            .ToList();
 
-        foreach (var entry in classes)
+        foreach (var entry in toAnalyze)
         {
-            var implName = entry.Symbol.ToDisplayString();
+            var fullName = entry.Symbol.ToDisplayString();
+
+            // Only analyze if it's an implementor of something OR a standalone abstraction
+            var isImplementor = abstractionImplementors.Values.Any(list => list.Contains(fullName));
+            var isStandaloneAbstraction = abstractions.ContainsKey(fullName);
+            if (!isImplementor && !isStandaloneAbstraction) continue;
+
+            if (implementations.ContainsKey(fullName)) continue;
+
             var ctorDeps = constructorAnalyzer.AnalyzeDependencies(entry.Symbol);
             var baseClasses = typeCollector.GetBaseClassChain(entry.Symbol);
             var memberUsages = await memberUsageAnalyzer.AnalyzeUsagesAsync(
                 entry.Symbol, ctorDeps, entry.Compilation, ct);
-            var ifaceNames = implToAbstractions.GetValueOrDefault(implName, []);
 
-            implementations[implName] = new ImplementationInfo(
-                FullName: implName,
+            var implementedAbstractions = typeCollector.GetAllImplementedAbstractions(entry.Symbol);
+
+            implementations[fullName] = new ImplementationInfo(
+                FullName: fullName,
                 Namespace: entry.Symbol.ContainingNamespace?.ToDisplayString() ?? "",
                 ProjectName: entry.ProjectName,
                 SourceFilePath: GetSourcePath(entry.Symbol),
-                ImplementedAbstractions: ifaceNames,
+                ImplementedAbstractions: implementedAbstractions,
                 BaseClasses: baseClasses,
                 Dependencies: ctorDeps,
-                DependencyMemberUsages: memberUsages);
+                DependencyMemberUsages: memberUsages.ToDictionary(
+                    kv => kv.Key,
+                    kv => (IReadOnlyList<MemberUsage>)kv.Value));
 
+            // Collect missing abstractions from dependencies
             foreach (var dep in ctorDeps)
             {
-                if (!dep.IsOptions && !abstractions.ContainsKey(dep.TypeFullName))
-                    standaloneClassCandidates.Add(dep.TypeFullName);
-            }
-
-            if (ifaceNames.Count == 0)
-                standaloneClassCandidates.Add(implName);
-        }
-
-        return (implementations, standaloneClassCandidates);
-    }
-
-    async Task AddStandaloneClassesAsync(
-        HashSet<string> candidates,
-        List<SourceType> allTypes,
-        Dictionary<string, AbstractionInfo> abstractions,
-        Dictionary<string, ImplementationInfo> implementations,
-        Dictionary<string, List<string>> abstractionImplementors,
-        CancellationToken ct)
-    {
-        foreach (var candidate in candidates)
-        {
-            if (abstractions.ContainsKey(candidate)) continue;
-
-            var found = allTypes.FirstOrDefault(t => t.Symbol.ToDisplayString() == candidate);
-            if (found is null) continue;
-
-            abstractions[candidate] = abstractionExtractor.BuildAbstractionInfo(
-                found.Symbol, found.ProjectName, abstractionImplementors);
-
-            if (!implementations.ContainsKey(candidate) && found.Symbol.TypeKind == TypeKind.Class)
-            {
-                var ctorDeps = constructorAnalyzer.AnalyzeDependencies(found.Symbol);
-                var baseClasses = typeCollector.GetBaseClassChain(found.Symbol);
-                var memberUsages = await memberUsageAnalyzer.AnalyzeUsagesAsync(
-                    found.Symbol, ctorDeps, found.Compilation, ct);
-
-                implementations[candidate] = new ImplementationInfo(
-                    FullName: candidate,
-                    Namespace: found.Symbol.ContainingNamespace?.ToDisplayString() ?? "",
-                    ProjectName: found.ProjectName,
-                    SourceFilePath: GetSourcePath(found.Symbol),
-                    ImplementedAbstractions: [],
-                    BaseClasses: baseClasses,
-                    Dependencies: ctorDeps,
-                    DependencyMemberUsages: memberUsages);
-
-                if (!abstractionImplementors.ContainsKey(candidate))
-                    abstractionImplementors[candidate] = [candidate];
-                else if (!abstractionImplementors[candidate].Contains(candidate))
-                    abstractionImplementors[candidate].Add(candidate);
-
-                abstractions[candidate] = abstractions[candidate] with
+                if (dep.IsOptions)
                 {
-                    Implementations = abstractionImplementors.GetValueOrDefault(candidate, [])
-                };
+                    // IOptions<T> → T is an abstraction
+                    if (!abstractions.ContainsKey(dep.TypeFullName))
+                        missingAbstractions.Add(dep.TypeFullName);
+                }
+                else if (!abstractions.ContainsKey(dep.TypeFullName))
+                {
+                    missingAbstractions.Add(dep.TypeFullName);
+                }
             }
         }
     }
 
-    void AddOptionsAbstractions(
-        Dictionary<string, ImplementationInfo> implementations,
-        List<SourceType> allTypes,
-        Dictionary<string, AbstractionInfo> abstractions)
-    {
-        foreach (var impl in implementations.Values)
-        {
-            foreach (var dep in impl.Dependencies.Where(d => d.IsOptions))
-            {
-                if (abstractions.ContainsKey(dep.TypeFullName)) continue;
+    // ─── Phase 4: resolve missing abstractions iteratively ──────────────────
 
-                var found = allTypes.FirstOrDefault(t => t.Symbol.ToDisplayString() == dep.TypeFullName);
-                if (found is null) continue;
-
-                abstractions[dep.TypeFullName] = new AbstractionInfo(
-                    FullName: dep.TypeFullName,
-                    Namespace: found.Symbol.ContainingNamespace?.ToDisplayString() ?? "",
-                    ProjectName: found.ProjectName,
-                    SourceFilePath: GetSourcePath(found.Symbol),
-                    IsInterface: false,
-                    DeclaredMembers: abstractionExtractor.GetDeclaredMembers(found.Symbol),
-                    Implementations: [dep.TypeFullName]);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Adds abstractions for NuGet/external dependencies that have no source file.
-    /// These are injected types whose symbol exists in referenced assemblies but not in source.
-    /// SourceFilePath is null for all of them, which lets ProjectDesignService exclude them from groups
-    /// while still resolving them as dependency targets.
-    /// </summary>
-    void AddExternalAbstractions(
+    async Task ResolveMissingAbstractionsAsync(
+        HashSet<string> missingAbstractions,
+        Dictionary<string, SourceType> typeIndex,
+        Dictionary<string, AbstractionInfo> abstractions,
+        Dictionary<string, List<string>> abstractionImplementors,
         Dictionary<string, ImplementationInfo> implementations,
         IReadOnlyList<(string ProjectName, Compilation Compilation)> compilations,
-        Dictionary<string, AbstractionInfo> abstractions)
+        CancellationToken ct)
     {
-        foreach (var impl in implementations.Values)
+        var queue = new Queue<string>(missingAbstractions);
+        var visited = new HashSet<string>(abstractions.Keys);
+
+        while (queue.Count > 0)
         {
-            foreach (var dep in impl.Dependencies)
+            var typeName = queue.Dequeue();
+            if (!visited.Add(typeName)) continue;
+            if (abstractions.ContainsKey(typeName)) continue;
+
+            // Try source-defined type first
+            if (typeIndex.TryGetValue(typeName, out var sourceType))
             {
-                if (dep.IsOptions) continue;
-                if (abstractions.ContainsKey(dep.TypeFullName)) continue;
-                if (typeCollector.IsExcludedInterface(dep.TypeFullName)) continue;
+                await AddSourceAbstractionAsync(
+                    sourceType, typeIndex, abstractions, abstractionImplementors,
+                    implementations, queue, ct);
+                continue;
+            }
 
-                // Try to resolve the symbol from any compilation's referenced assemblies
-                INamedTypeSymbol? symbol = null;
-                foreach (var (_, compilation) in compilations)
-                {
-                    symbol = compilation.GetTypeByMetadataName(dep.TypeFullName);
-                    if (symbol is not null) break;
-                }
-
-                if (symbol is null) continue;
-
-                // Only add if it truly has no source (NuGet/framework type)
-                if (symbol.DeclaringSyntaxReferences.Length > 0) continue;
-
-                abstractions[dep.TypeFullName] = new AbstractionInfo(
-                    FullName: dep.TypeFullName,
-                    Namespace: symbol.ContainingNamespace?.ToDisplayString() ?? "",
-                    ProjectName: symbol.ContainingAssembly?.Name ?? "",
-                    SourceFilePath: null,
-                    IsInterface: symbol.TypeKind == TypeKind.Interface,
-                    DeclaredMembers: abstractionExtractor.GetDeclaredMembers(symbol),
-                    Implementations: []);
+            // Try NuGet/external type
+            var externalSymbol = ResolveExternalSymbol(typeName, compilations);
+            if (externalSymbol is not null)
+            {
+                AddExternalAbstraction(externalSymbol, typeName, abstractions);
             }
         }
+    }
+
+    async Task AddSourceAbstractionAsync(
+        SourceType entry,
+        Dictionary<string, SourceType> typeIndex,
+        Dictionary<string, AbstractionInfo> abstractions,
+        Dictionary<string, List<string>> abstractionImplementors,
+        Dictionary<string, ImplementationInfo> implementations,
+        Queue<string> queue,
+        CancellationToken ct)
+    {
+        var fullName = entry.Symbol.ToDisplayString();
+
+        abstractions[fullName] = abstractionExtractor.BuildAbstractionInfo(
+            entry.Symbol, entry.ProjectName, abstractionImplementors);
+
+        if (implementations.ContainsKey(fullName)) return;
+        if (entry.Symbol.IsAbstract || entry.Symbol.TypeKind == TypeKind.Interface) return;
+
+        var ctorDeps = constructorAnalyzer.AnalyzeDependencies(entry.Symbol);
+        var baseClasses = typeCollector.GetBaseClassChain(entry.Symbol);
+        var memberUsages = await memberUsageAnalyzer.AnalyzeUsagesAsync(
+            entry.Symbol, ctorDeps, entry.Compilation, ct);
+        var implementedAbstractions = typeCollector.GetAllImplementedAbstractions(entry.Symbol);
+
+        implementations[fullName] = new ImplementationInfo(
+            FullName: fullName,
+            Namespace: entry.Symbol.ContainingNamespace?.ToDisplayString() ?? "",
+            ProjectName: entry.ProjectName,
+            SourceFilePath: GetSourcePath(entry.Symbol),
+            ImplementedAbstractions: implementedAbstractions,
+            BaseClasses: baseClasses,
+            Dependencies: ctorDeps,
+            DependencyMemberUsages: memberUsages.ToDictionary(
+                kv => kv.Key,
+                kv => (IReadOnlyList<MemberUsage>)kv.Value));
+
+        // Enqueue newly discovered missing deps
+        foreach (var dep in ctorDeps)
+        {
+            if (!abstractions.ContainsKey(dep.TypeFullName))
+                queue.Enqueue(dep.TypeFullName);
+        }
+    }
+
+    void AddExternalAbstraction(
+        INamedTypeSymbol symbol,
+        string typeName,
+        Dictionary<string, AbstractionInfo> abstractions)
+    {
+        // External (NuGet/framework) types: no source file, no System/Microsoft.Extensions.Options filter
+        abstractions[typeName] = new AbstractionInfo(
+            FullName: typeName,
+            Namespace: symbol.ContainingNamespace?.ToDisplayString() ?? "",
+            ProjectName: symbol.ContainingAssembly?.Name ?? "",
+            SourceFilePath: null,
+            IsInterface: symbol.TypeKind == TypeKind.Interface,
+            DeclaredMembers: abstractionExtractor.GetDeclaredMembers(symbol),
+            Implementations: []);
+    }
+
+    static INamedTypeSymbol? ResolveExternalSymbol(
+        string typeName,
+        IReadOnlyList<(string ProjectName, Compilation Compilation)> compilations)
+    {
+        foreach (var (_, compilation) in compilations)
+        {
+            var symbol = compilation.GetTypeByMetadataName(typeName);
+            if (symbol is not null && symbol.DeclaringSyntaxReferences.Length == 0)
+                return symbol;
+        }
+        return null;
     }
 
     static string? GetSourcePath(INamedTypeSymbol symbol) =>

@@ -35,6 +35,10 @@ public static class GetProjectDesignTool
         var sb = new StringBuilder();
         sb.AppendLine("# Project Design");
         sb.AppendLine();
+        sb.AppendLine("> Each group is shown as: `## ShortName (FullNamespace)`");
+        sb.AppendLine("> To get detailed info for specific groups, call `get_detailed_project_design` with `forNamespaces`.");
+        sb.AppendLine("> Use the `FullNamespace` value directly, or use `*` as a wildcard anywhere (e.g. `MyApp.App.*`, `*.Mapping`, `MyApp.*.Services`).");
+        sb.AppendLine();
 
         foreach (var group in design.Groups)
         {
