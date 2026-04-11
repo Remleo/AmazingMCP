@@ -10,11 +10,11 @@ namespace AmazingMCP.Tools;
 public static class GetProjectDesignTool
 {
     [McpServerTool(Name = "get_project_design", ReadOnly = true), Description(
-        "Returns a high-level project design showing abstraction groups and their " +
-        "inter-group dependencies. Groups are formed by namespace hierarchy. " +
-        "For each group, shows the abstraction count and which other groups it depends on " +
-        "(resolved from constructor injection across all implementations and base class chains). " +
-        "Output is Markdown.")]
+        "START HERE when exploring an unfamiliar codebase. " +
+        "Returns the high-level architecture map: all abstraction groups organized by namespace, " +
+        "their sizes, and inter-group dependency graph. " +
+        "Use this to understand the overall structure before diving into details. " +
+        "Then call `get_detailed_project_design` with specific namespaces to drill down.")]
     public static async Task<string> GetProjectDesign(
         ProjectDesignService projectDesignService,
         SolutionResolver solutionResolver,
@@ -51,7 +51,7 @@ public static class GetProjectDesignTool
             {
                 sb.AppendLine("Depends on:");
                 foreach (var dep in group.DependsOn)
-                    sb.AppendLine($"- → {dep}");
+                    sb.AppendLine($"- {dep}");
             }
 
             sb.AppendLine();

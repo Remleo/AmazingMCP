@@ -11,9 +11,9 @@ namespace AmazingMCP.Services.Scanning;
 public interface IInvocationAnalyzer
 {
     /// <summary>
-    /// Returns (containingType, memberName, isStatic) for a given invocation, or null if not applicable.
+    /// Returns (typeInfo, memberName, isStatic) for a given invocation, or null if not applicable.
     /// For extension methods, returns the receiver type (not the static class declaring the extension).
     /// </summary>
-    (INamedTypeSymbol ContainingType, string MemberName, bool IsStatic)?
+    (RawTypeInfo TypeInfo, string MemberName, bool IsStatic)?
         Analyze(InvocationExpressionSyntax invocation, SemanticModel model);
 }

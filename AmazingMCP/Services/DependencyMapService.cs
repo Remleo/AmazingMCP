@@ -38,8 +38,6 @@ public class DependencyMapService(
         var compilations = TestProjectFilter.ExcludeTestProjects(solution.Compilations, solution);
 
         // Phase 1: collect all source-defined types, deduplicate partial classes.
-        // When a type appears in multiple compilations (via project references),
-        // prefer the compilation that actually owns the syntax tree.
         var allTypes = typeCollector.CollectSourceTypes(compilations)
             .GroupBy(t => t.Symbol.ToDisplayString())
             .Select(g => g.FirstOrDefault(t =>
@@ -55,8 +53,7 @@ public class DependencyMapService(
 
         CollectInitialAbstractions(allTypes, typeIndex, abstractions, abstractionImplementors);
 
-        // Phase 3: scan bodies of all concrete + abstract source types,
-        // discover dependencies inline, add missing abstractions on the fly
+        // Phase 3: scan bodies of all concrete + abstract source types
         var implementations = new Dictionary<string, ImplementationInfo>();
 
         await AnalyzeAllTypeBodiesAsync(
@@ -71,7 +68,10 @@ public class DependencyMapService(
             abstractions[abstractionName] = abs with { Implementations = implList };
         }
 
-        return new DependencyMapResult(abstractions, implementations);
+        // Post-processing: build ClosedToOpenGenericMap and add missing open generics
+        var closedToOpenMap = BuildClosedToOpenGenericMap(abstractions, implementations);
+
+        return new DependencyMapResult(abstractions, implementations, closedToOpenMap);
     }
 
     // ─── Phase 2: initial abstraction collection ────────────────────────────
@@ -86,7 +86,6 @@ public class DependencyMapService(
             .Where(t => t.Symbol.TypeKind == TypeKind.Class && !t.Symbol.IsAbstract && !t.Symbol.IsStatic)
             .ToList();
 
-        // Build implementors map from concrete classes
         foreach (var entry in concreteClasses)
         {
             var implName = entry.Symbol.ToDisplayString();
@@ -99,7 +98,6 @@ public class DependencyMapService(
             }
         }
 
-        // Interfaces with at least one source implementor
         foreach (var entry in allTypes.Where(t => t.Symbol.TypeKind == TypeKind.Interface))
         {
             var fullName = entry.Symbol.ToDisplayString();
@@ -112,7 +110,6 @@ public class DependencyMapService(
                 entry.Symbol, entry.ProjectName, implementors);
         }
 
-        // Closed generic interfaces implemented by source classes
         foreach (var (ifaceName, implementors) in abstractionImplementors)
         {
             if (abstractions.ContainsKey(ifaceName)) continue;
@@ -125,7 +122,6 @@ public class DependencyMapService(
                 ifaceSymbol, projName, implementors);
         }
 
-        // Abstract classes
         foreach (var entry in allTypes.Where(t => t.Symbol.TypeKind == TypeKind.Class && t.Symbol.IsAbstract))
         {
             var fullName = entry.Symbol.ToDisplayString();
@@ -136,7 +132,6 @@ public class DependencyMapService(
                 entry.Symbol, entry.ProjectName, implementors);
         }
 
-        // Base classes in the inheritance chain of concrete classes
         foreach (var entry in concreteClasses)
         {
             foreach (var baseClassName in typeCollector.GetBaseClassChain(entry.Symbol))
@@ -162,7 +157,6 @@ public class DependencyMapService(
         Dictionary<string, ImplementationInfo> implementations,
         CancellationToken ct)
     {
-        // Scan concrete classes + abstract classes (they have bodies with dependencies)
         var toScan = allTypes
             .Where(t => t.Symbol.TypeKind == TypeKind.Class && !t.Symbol.IsStatic)
             .ToList();
@@ -180,12 +174,11 @@ public class DependencyMapService(
                 || abstractionImplementors.Values.Any(list => list.Contains(fullName));
             var isKnownAbstraction = abstractions.ContainsKey(fullName);
 
-            // Skip if no usages AND not an implementor AND not already a known abstraction
             if (rawUsages.Count == 0 && !isImplementorOfSomething && !isKnownAbstraction) continue;
 
             // Register all discovered dependency types as abstractions
-            foreach (var usage in rawUsages)
-                EnsureAbstraction(usage.AbstractionFullName, usage.IsStatic,
+            foreach (var raw in rawUsages)
+                EnsureAbstraction(raw.TypeInfo, raw.Usage.IsStatic,
                     typeIndex, compilations, abstractions, abstractionImplementors);
 
             var baseClasses = typeCollector.GetBaseClassChain(entry.Symbol);
@@ -197,10 +190,9 @@ public class DependencyMapService(
                 SourceFilePath: GetSourcePath(entry.Symbol),
                 ImplementedAbstractions: implementedAbstractions,
                 BaseClasses: baseClasses,
-                Dependencies: rawUsages);
+                Dependencies: rawUsages.Select(r => r.Usage).ToList(),
+                IsGeneric: entry.Symbol.IsGenericType);
 
-            // Standalone class (no interface): register as its own abstraction.
-            // If pre-registered by EnsureAbstraction with empty Implementations, fix it.
             if (!isImplementorOfSomething && rawUsages.Count > 0)
             {
                 if (!abstractions.TryGetValue(fullName, out var existing))
@@ -213,90 +205,126 @@ public class DependencyMapService(
     }
 
     void EnsureAbstraction(
-        string typeName,
+        RawTypeInfo typeInfo,
         bool isStatic,
         Dictionary<string, SourceType> typeIndex,
         IReadOnlyList<(string ProjectName, Compilation Compilation)> compilations,
         Dictionary<string, AbstractionInfo> abstractions,
         Dictionary<string, List<string>> abstractionImplementors)
     {
-        if (abstractions.ContainsKey(typeName)) return;
+        if (abstractions.ContainsKey(typeInfo.FullName)) return;
 
-        // Source-defined type
-        if (typeIndex.TryGetValue(typeName, out var sourceType))
+        // Source-defined type — use typeIndex for authoritative info
+        if (typeIndex.TryGetValue(typeInfo.FullName, out var sourceType))
         {
-            var implementors = abstractionImplementors.GetValueOrDefault(typeName, []);
-            abstractions[typeName] = abstractionExtractor.BuildAbstractionInfo(
+            var implementors = abstractionImplementors.GetValueOrDefault(typeInfo.FullName, []);
+            abstractions[typeInfo.FullName] = abstractionExtractor.BuildAbstractionInfo(
                 sourceType.Symbol, sourceType.ProjectName, implementors);
             return;
         }
 
-        // External/NuGet type — resolve symbol from compilations
-        var externalSymbol = ResolveExternalSymbol(typeName, compilations);
+        // External/NuGet type — RawTypeInfo already has all metadata from the Roslyn symbol,
+        // built at scan time. No further symbol lookup needed for the common case.
+        if (typeInfo.AssemblyName.Length > 0)
+        {
+            abstractions[typeInfo.FullName] = abstractionExtractor.BuildAbstractionInfo(
+                typeInfo with { IsStaticClass = isStatic || typeInfo.IsStaticClass },
+                typeInfo.AssemblyName,
+                []);
+            return;
+        }
+
+        // Last resort: resolve symbol from compilations (handles edge cases where AssemblyName is empty)
+        var externalSymbol = FindExternalSymbol(typeInfo, compilations);
         if (externalSymbol is not null)
         {
-            abstractions[typeName] = new AbstractionInfo(
-                FullName: typeName,
-                Namespace: externalSymbol.ContainingNamespace?.ToDisplayString() ?? "",
-                ProjectName: externalSymbol.ContainingAssembly?.Name ?? "",
-                SourceFilePath: null,
-                IsInterface: externalSymbol.TypeKind == TypeKind.Interface,
-                IsAbstractClass: externalSymbol.TypeKind == TypeKind.Class && externalSymbol.IsAbstract,
-                IsStaticClass: isStatic || (externalSymbol.TypeKind == TypeKind.Class && externalSymbol.IsStatic),
-                Implementations: []);
+            var resolved = RawTypeInfo.From(externalSymbol);
+            abstractions[typeInfo.FullName] = abstractionExtractor.BuildAbstractionInfo(
+                resolved with { IsStaticClass = isStatic || resolved.IsStaticClass },
+                resolved.AssemblyName,
+                []);
         }
-    }
-
-    static INamedTypeSymbol? ResolveExternalSymbol(
-        string typeName,
-        IReadOnlyList<(string ProjectName, Compilation Compilation)> compilations)
-    {
-        var symbol = FindExternalSymbol(typeName, compilations);
-        if (symbol is not null) return symbol;
-
-        // GetTypeByMetadataName doesn't work for closed generic types like ITracer<Foo>.
-        // Extract the open generic name (e.g. ITracer<Foo> → ITracer`1) and resolve that instead.
-        var openGenericName = ToOpenGenericMetadataName(typeName);
-        return openGenericName is not null ? FindExternalSymbol(openGenericName, compilations) : null;
     }
 
     static INamedTypeSymbol? FindExternalSymbol(
-        string metadataName,
+        RawTypeInfo typeInfo,
         IReadOnlyList<(string ProjectName, Compilation Compilation)> compilations)
     {
+        // Try direct metadata name first (works for non-generic and open generic types)
         foreach (var (_, compilation) in compilations)
         {
-            var symbol = compilation.GetTypeByMetadataName(metadataName);
+            var symbol = compilation.GetTypeByMetadataName(typeInfo.FullName);
             if (symbol is not null && symbol.DeclaringSyntaxReferences.Length == 0)
                 return symbol;
         }
+
+        // For closed generic types: use the pre-computed open generic metadata name
+        if (typeInfo.OpenGenericMetadataName is not null)
+        {
+            foreach (var (_, compilation) in compilations)
+            {
+                var symbol = compilation.GetTypeByMetadataName(typeInfo.OpenGenericMetadataName);
+                if (symbol is not null && symbol.DeclaringSyntaxReferences.Length == 0)
+                    return symbol;
+            }
+        }
+
         return null;
     }
 
-    /// <summary>
-    /// Converts a display-form closed generic name to an open generic metadata name.
-    /// E.g. "Ns.ITracer&lt;Ns.Foo&gt;" → "Ns.ITracer`1"
-    ///      "Ns.IRepo&lt;Ns.A, Ns.B&gt;" → "Ns.IRepo`2"
-    /// Returns null if the name is not a generic type.
-    /// </summary>
-    static string? ToOpenGenericMetadataName(string typeName)
-    {
-        var angleIdx = typeName.IndexOf('<');
-        if (angleIdx < 0) return null;
+    // ─── Post-processing: ClosedToOpenGenericMap ─────────────────────────────
 
-        var baseName = typeName[..angleIdx];
-        // Count top-level commas inside <...> to determine arity
-        var inner = typeName[(angleIdx + 1)..^1];
-        var depth = 0;
-        var arity = 1;
-        foreach (var c in inner)
+    /// <summary>
+    /// Builds a map of closed generic abstractions → open generic full names.
+    /// A closed generic abstraction is "collapsed" into its open generic if it has no
+    /// source-defined implementations (i.e. no class explicitly implements it).
+    /// Missing open generic abstractions are added to the abstractions dictionary.
+    /// </summary>
+    static IReadOnlyDictionary<string, string> BuildClosedToOpenGenericMap(
+        Dictionary<string, AbstractionInfo> abstractions,
+        Dictionary<string, ImplementationInfo> implementations)
+    {
+        var closedToOpen = new Dictionary<string, string>();
+        // Collect missing open generics separately to avoid modifying dict while iterating
+        var missingOpenGenerics = new Dictionary<string, AbstractionInfo>();
+
+        foreach (var (key, abstraction) in abstractions)
         {
-            if (c == '<') depth++;
-            else if (c == '>') depth--;
-            else if (c == ',' && depth == 0) arity++;
+            var openGenericFullName = abstraction.OpenGenericFullName;
+            if (openGenericFullName is null) continue;
+
+            // Only collapse if no source-defined class explicitly implements this closed generic
+            // AND no generic implementation covers it (e.g. class Repo<T> : IRepo<T>)
+            if (abstraction.Implementations.Count > 0) continue;
+
+            // Check if any implementation is generic and could cover this abstraction
+            // (e.g. class Repository<TEntity> : IRepository<TEntity> covers IRepository<Animal>)
+            // This is already handled: if such a class exists, it would be in abstractionImplementors
+            // and thus Implementations would not be empty. So Implementations.Count == 0 is sufficient.
+
+            closedToOpen[key] = openGenericFullName;
+
+            // Ensure open generic exists in abstractions
+            if (!abstractions.ContainsKey(openGenericFullName)
+                && !missingOpenGenerics.ContainsKey(openGenericFullName))
+            {
+                missingOpenGenerics[openGenericFullName] = new AbstractionInfo(
+                    FullName: openGenericFullName,
+                    Namespace: abstraction.Namespace,
+                    ProjectName: abstraction.ProjectName,
+                    SourceFilePath: abstraction.SourceFilePath,
+                    IsInterface: abstraction.IsInterface,
+                    IsAbstractClass: abstraction.IsAbstractClass,
+                    IsStaticClass: abstraction.IsStaticClass,
+                    Implementations: [],
+                    OpenGenericFullName: null);
+            }
         }
 
-        return $"{baseName}`{arity}";
+        foreach (var (key, value) in missingOpenGenerics)
+            abstractions[key] = value;
+
+        return closedToOpen;
     }
 
     static string? GetSourcePath(INamedTypeSymbol symbol) =>

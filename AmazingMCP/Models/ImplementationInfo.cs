@@ -15,4 +15,6 @@ public record ImplementationInfo(
     /// <summary>Base class chain excluding System.Object.</summary>
     IReadOnlyList<string> BaseClasses,
     /// <summary>Direct dependencies found by scanning this class's own body only.</summary>
-    IReadOnlyList<AbstractionUsage> Dependencies);
+    IReadOnlyList<AbstractionUsage> Dependencies,
+    /// <summary>True if this class is a generic type (open or closed).</summary>
+    bool IsGeneric = false);

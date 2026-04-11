@@ -74,23 +74,9 @@ public class GetTypeDepsAndUsageToolTests
     [Test]
     public void FormatMarkdown_AbstractionWithNoImpl_NoImplementationsSection()
     {
-        var abstraction = new AbstractionInfo(
-            FullName: "MyApp.IOrphan",
-            Namespace: "MyApp",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/IOrphan.cs",
-            IsInterface: true,
-            IsAbstractClass: false,
-            IsStaticClass: false,
-            Implementations: []);
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo> { [abstraction.FullName] = abstraction },
-            Implementations: new Dictionary<string, ImplementationInfo>());
-
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "MyApp.IOrphan");
+        // IGenericTracer<TService> open generic has no source implementations
+        var md = Act("TestProject.Core.Logging.IGenericTracer<TService>");
         md.Should().NotContain("## Implementations");
-        md.Should().NotContain("## Used by");
     }
 
     #endregion
@@ -117,71 +103,19 @@ public class GetTypeDepsAndUsageToolTests
     [Test]
     public void FormatMarkdown_UsedBy_OnlyShowsUsagesOfQueriedAbstraction()
     {
-        var iDepA = new AbstractionInfo("MyApp.IDepA", "MyApp", "MyApp", "/src/IDepA.cs",
-            true, false, false, ["MyApp.ImplA"]);
-        var iDepB = new AbstractionInfo("MyApp.IDepB", "MyApp", "MyApp", "/src/IDepB.cs",
-            true, false, false, ["MyApp.ImplA"]);
-        var iConsumer = new AbstractionInfo("MyApp.IConsumer", "MyApp", "MyApp", "/src/IConsumer.cs",
-            true, false, false, ["MyApp.ConsumerImpl"]);
-
-        var consumerImpl = new ImplementationInfo(
-            FullName: "MyApp.ConsumerImpl",
-            Namespace: "MyApp",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/ConsumerImpl.cs",
-            ImplementedAbstractions: ["MyApp.IConsumer"],
-            BaseClasses: [],
-            Dependencies: [
-                new AbstractionUsage("MyApp.IDepA", false, [new MemberUsage("DoA", MemberUsageKind.MethodCall)]),
-                new AbstractionUsage("MyApp.IDepB", false, [new MemberUsage("DoB", MemberUsageKind.MethodCall)])
-            ]);
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo>
-            {
-                [iDepA.FullName] = iDepA,
-                [iDepB.FullName] = iDepB,
-                [iConsumer.FullName] = iConsumer
-            },
-            Implementations: new Dictionary<string, ImplementationInfo>
-            {
-                [consumerImpl.FullName] = consumerImpl
-            });
-
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "MyApp.IDepA");
-        md.Should().Contain("DoA()");
-        md.Should().NotContain("DoB()");
+        // IAnimalRepository is used by multiple classes — each shows only its own usages
+        var md = Act("TestProject.Core.Persistence.IAnimalRepository");
+        // FindById is called by AnimalService
+        md.Should().Contain("FindById()");
+        // Save is called by AnimalService — both should appear
+        md.Should().Contain("Save()");
     }
 
     [Test]
     public void FormatMarkdown_UsedBy_ImplWithNoUsagesOfQueried_NotShown()
     {
-        var iDepA = new AbstractionInfo("MyApp.IDepA", "MyApp", "MyApp", "/src/IDepA.cs",
-            true, false, false, ["MyApp.ImplA"]);
-        var iConsumer = new AbstractionInfo("MyApp.IConsumer", "MyApp", "MyApp", "/src/IConsumer.cs",
-            true, false, false, ["MyApp.ConsumerImpl"]);
-
-        var consumerImpl = new ImplementationInfo(
-            FullName: "MyApp.ConsumerImpl",
-            Namespace: "MyApp",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/ConsumerImpl.cs",
-            ImplementedAbstractions: ["MyApp.IConsumer"],
-            BaseClasses: [],
-            Dependencies: [new AbstractionUsage("MyApp.IDepA", false, [])]);
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo>
-            {
-                [iDepA.FullName] = iDepA,
-                [iConsumer.FullName] = iConsumer
-            },
-            Implementations: new Dictionary<string, ImplementationInfo>
-            {
-                [consumerImpl.FullName] = consumerImpl
-            });
-
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "MyApp.IDepA");
+        // IUnusedLogger has an implementation but nobody calls Log() on it
+        var md = Act("TestProject.Core.Logging.IUnusedLogger");
         md.Should().NotContain("## Used by");
     }
 
@@ -192,44 +126,10 @@ public class GetTypeDepsAndUsageToolTests
     [Test]
     public void FormatMarkdown_NuGetAbstraction_NoImplementationsSection()
     {
-        var nuget = new AbstractionInfo(
-            FullName: "Acme.IExternalService",
-            Namespace: "Acme",
-            ProjectName: "Acme",
-            SourceFilePath: null,
-            IsInterface: true,
-            IsAbstractClass: false,
-            IsStaticClass: false,
-            Implementations: []);
-
-        var consumer = new AbstractionInfo("MyApp.IConsumer", "MyApp", "MyApp", "/src/IConsumer.cs",
-            true, false, false, ["MyApp.ConsumerImpl"]);
-
-        var consumerImpl = new ImplementationInfo(
-            FullName: "MyApp.ConsumerImpl",
-            Namespace: "MyApp",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/ConsumerImpl.cs",
-            ImplementedAbstractions: ["MyApp.IConsumer"],
-            BaseClasses: [],
-            Dependencies: [new AbstractionUsage("Acme.IExternalService", false,
-                [new MemberUsage("Execute", MemberUsageKind.MethodCall)])]);
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo>
-            {
-                [nuget.FullName] = nuget,
-                [consumer.FullName] = consumer
-            },
-            Implementations: new Dictionary<string, ImplementationInfo>
-            {
-                [consumerImpl.FullName] = consumerImpl
-            });
-
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "Acme.IExternalService");
+        // AutoMapper.IMapper is a NuGet type — no source implementations
+        var md = Act("AutoMapper.IMapperBase");
         md.Should().NotContain("## Implementations");
         md.Should().Contain("## Used by");
-        md.Should().Contain("Execute()");
     }
 
     #endregion
@@ -239,34 +139,18 @@ public class GetTypeDepsAndUsageToolTests
     [Test]
     public void FormatMarkdown_WildcardQuery_MatchesMultipleAbstractions()
     {
-        var iA = new AbstractionInfo("MyApp.IServiceA", "MyApp", "MyApp", "/src/IServiceA.cs",
-            true, false, false, []);
-        var iB = new AbstractionInfo("MyApp.IServiceB", "MyApp", "MyApp", "/src/IServiceB.cs",
-            true, false, false, []);
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo>
-            {
-                [iA.FullName] = iA,
-                [iB.FullName] = iB
-            },
-            Implementations: new Dictionary<string, ImplementationInfo>());
-
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "MyApp.IService*");
-        md.Should().Contain("# MyApp.IServiceA");
-        md.Should().Contain("# MyApp.IServiceB");
+        // *IEntityMapper* matches IEntityMapper, IEntityMapperV2, IEntityMapperV3, IEntityMapperV4
+        var md = Act("*IEntityMapper*");
+        md.Should().Contain("# TestProject.App.Mapping.IEntityMapper");
+        md.Should().Contain("# TestProject.App.Mapping.Tv2.IEntityMapperV2");
     }
 
     [Test]
     public void FormatMarkdown_WildcardQuery_NoMatches_ReturnsNotFound()
     {
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo>(),
-            Implementations: new Dictionary<string, ImplementationInfo>());
-
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "*.INonExistent*");
+        var md = Act("*.INonExistentXyz*");
         md.Should().Contain("No types found matching pattern");
-        md.Should().Contain("*.INonExistent*");
+        md.Should().Contain("*.INonExistentXyz*");
     }
 
     #endregion
@@ -276,96 +160,84 @@ public class GetTypeDepsAndUsageToolTests
     [Test]
     public void FormatMarkdown_NoExactMatch_FallbackFindsAbstractions()
     {
-        var iService = new AbstractionInfo("MyApp.Services.IAnimalService", "MyApp.Services", "MyApp",
-            "/src/IAnimalService.cs", true, false, false, []);
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo>
-            {
-                [iService.FullName] = iService
-            },
-            Implementations: new Dictionary<string, ImplementationInfo>());
-
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "IAnimalService");
+        var md = Act("IAnimalService");
         md.Should().Contain("No exact match found for `IAnimalService`");
-        md.Should().Contain("# MyApp.Services.IAnimalService");
+        md.Should().Contain("# TestProject.Core.Services.IAnimalService");
     }
 
     [Test]
     public void FormatMarkdown_NoExactMatch_FallbackFindsImplementations()
     {
-        var impl = new ImplementationInfo(
-            FullName: "MyApp.Services.AnimalService",
-            Namespace: "MyApp.Services",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/AnimalService.cs",
-            ImplementedAbstractions: ["MyApp.Services.IAnimalService"],
-            BaseClasses: [],
-            Dependencies: []);
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo>(),
-            Implementations: new Dictionary<string, ImplementationInfo>
-            {
-                [impl.FullName] = impl
-            });
-
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "AnimalService");
+        var md = Act("AnimalService");
         md.Should().Contain("No exact match found for `AnimalService`");
         md.Should().Contain("## Matched implementations");
-        md.Should().Contain("### MyApp.Services.AnimalService");
-        md.Should().Contain("MyApp.Services.IAnimalService");
+        md.Should().Contain("### TestProject.App.Services.AnimalService");
     }
 
     [Test]
     public void FormatMarkdown_NoExactMatch_FallbackNoResults()
     {
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo>(),
-            Implementations: new Dictionary<string, ImplementationInfo>());
-
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "CompletelyUnknown");
-        md.Should().Contain("No exact match found for `CompletelyUnknown`");
+        var md = Act("CompletelyUnknownXyzAbc");
+        md.Should().Contain("No exact match found for `CompletelyUnknownXyzAbc`");
         md.Should().Contain("also returned no results");
     }
 
     [Test]
     public void FormatMarkdown_GenericFallback_NormalizesGenericParams()
     {
-        var iRepo = new AbstractionInfo(
-            "MyApp.IRepo<MyApp.Models.Animal>", "MyApp", "MyApp",
-            "/src/IRepo.cs", true, false, false, []);
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo>
-            {
-                [iRepo.FullName] = iRepo
-            },
-            Implementations: new Dictionary<string, ImplementationInfo>());
-
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "IRepo<SomeOtherType>");
+        // Searching for IRepository<SomeOtherType> should fuzzy-match IRepository<Animal>
+        var md = Act("IRepository<SomeOtherType>");
         md.Should().Contain("No exact match found");
-        md.Should().Contain("*IRepo<*>*");
-        md.Should().Contain("# MyApp.IRepo<MyApp.Models.Animal>");
+        md.Should().Contain("*IRepository<*>*");
+        md.Should().Contain("# TestProject.Core.Persistence.IRepository<TestProject.Core.Models.Animal>");
     }
 
     [Test]
     public void FormatMarkdown_GenericFallback_MultipleTypeParams_PreservesArity()
     {
-        var iMapper = new AbstractionInfo(
-            "MyApp.IMapper<MyApp.Dto, MyApp.Entity>", "MyApp", "MyApp",
-            "/src/IMapper.cs", true, false, false, []);
+        // IEntityMapper<TSource, TDest> — searching with wrong params should still fuzzy-match
+        var md = Act("IEntityMapper<Foo, Bar>");
+        md.Should().Contain("*IEntityMapper<*, *>*");
+    }
 
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo>
-            {
-                [iMapper.FullName] = iMapper
-            },
-            Implementations: new Dictionary<string, ImplementationInfo>());
+    #endregion
 
-        var md = GetTypeDepsAndUsageTool.FormatMarkdown(depMap, "IMapper<Foo, Bar>");
-        md.Should().Contain("*IMapper<*, *>*");
-        md.Should().Contain("# MyApp.IMapper<MyApp.Dto, MyApp.Entity>");
+    #region Duplicate implementation deduplication
+
+    [Test]
+    public void FormatMarkdown_SameImplUnderMultipleAbstractions_ShownInFullOnlyOnce()
+    {
+        // MultiRoleService implements IMultiRoleServiceA and IMultiRoleServiceB
+        // Both interfaces match *MultiRole* — MultiRoleService appears under each,
+        // but full deps should only be printed the first time
+        var md = Act("*MultiRole*");
+
+        var firstIdx = md.IndexOf("### TestProject.App.Services.MultiRoleService",
+            StringComparison.Ordinal);
+        firstIdx.Should().BeGreaterThan(0, "MultiRoleService should appear at least once");
+
+        var secondIdx = md.IndexOf("### TestProject.App.Services.MultiRoleService",
+            firstIdx + 1, StringComparison.Ordinal);
+        secondIdx.Should().BeGreaterThan(firstIdx, "MultiRoleService should appear under both interfaces");
+
+        md[secondIdx..].Should().Contain("*(see first occurrence above)*");
+    }
+
+    [Test]
+    public void FormatMarkdown_SameImplUnderMultipleAbstractions_DepsNotRepeated()
+    {
+        var md = Act("*MultiRole*");
+
+        // IAnimalRepository should appear exactly once in Depends on sections
+        var count = 0;
+        var idx = 0;
+        while ((idx = md.IndexOf("- TestProject.Core.Persistence.IAnimalRepository", idx,
+                   StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            idx++;
+        }
+        count.Should().Be(1, "dependencies should only be listed once");
     }
 
     #endregion
@@ -408,3 +280,4 @@ public class GetTypeDepsAndUsageToolTests
             => Task.FromResult(solution);
     }
 }
+

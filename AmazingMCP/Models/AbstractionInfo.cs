@@ -14,4 +14,9 @@ public record AbstractionInfo(
     bool IsAbstractClass,
     bool IsStaticClass,
     /// <summary>Full names of all known source-defined implementations.</summary>
-    IReadOnlyList<string> Implementations);
+    IReadOnlyList<string> Implementations,
+    /// <summary>
+    /// For closed generic abstractions (e.g. ITracer&lt;FooService&gt;): the open generic display name
+    /// (e.g. "Bwin...ITracer&lt;TService&gt;"). Null for non-generic or open generic abstractions.
+    /// </summary>
+    string? OpenGenericFullName = null);

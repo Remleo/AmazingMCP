@@ -11,10 +11,11 @@ namespace AmazingMCP.Tools;
 public static class GetTypeDepsAndUsageTool
 {
     [McpServerTool(Name = "get_type_deps_and_usage", ReadOnly = true), Description(
-        "Returns full dependency and usage details for types matching the query. " +
-        "Supports exact full name, partial name, and '*' wildcard patterns. " +
-        "For each matched abstraction shows: implementations with all dependencies and member usages; " +
-        "and which other implementations use this abstraction. Output is Markdown.")]
+        "Look up any type by name to see who implements it, what it depends on, and who uses it. " +
+        "Supports exact full name, partial name, and `*` wildcard patterns. " +
+        "For each matched abstraction shows: implementations with their full dependency tree and member-level call details; " +
+        "and which other types use this abstraction (grouped by their own abstraction). " +
+        "Ideal for impact analysis, understanding a specific interface, or tracing a dependency chain.")]
     public static async Task<string> GetTypeDepsAndUsage(
         DependencyMapService dependencyMapService,
         IDependencyAggregator dependencyAggregator,
@@ -177,48 +178,19 @@ public static class GetTypeDepsAndUsageTool
             {
                 sb.AppendLine($"- {dep.AbstractionFullName}");
                 foreach (var usage in dep.Usages)
-                {
-                    var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
-                    var label = usage.Kind == MemberUsageKind.PropertyGet
-                        ? $"{usage.MemberName} {{get}}"
-                        : usage.Kind == MemberUsageKind.PropertySet
-                            ? $"{usage.MemberName} {{set}}"
-                            : $"{usage.MemberName}()";
-                    sb.AppendLine($"  --- [{kind}] {label}");
-                }
+                    sb.AppendLine(FormatUsageLine(usage));
             }
             sb.AppendLine();
         }
 
-        // Used by
-        var usedBy = depMap.Implementations.Values
-            .Where(i => i.Dependencies.Any(d =>
-                d.AbstractionFullName == implFullName && d.Usages.Count > 0))
-            .ToList();
+        // Used by — no collapse needed here (we're looking at a concrete impl, not an abstraction)
+        var usedBy = BuildUsedByIndex(depMap)[implFullName];
 
         if (usedBy.Count > 0)
         {
             sb.AppendLine("## Used by");
             sb.AppendLine();
-            var byAbstraction = usedBy
-                .SelectMany(i => i.ImplementedAbstractions.Select(a => (Abstraction: a, Impl: i)))
-                .GroupBy(x => x.Abstraction)
-                .OrderBy(g => g.Key);
-            var standalone = usedBy.Where(i => i.ImplementedAbstractions.Count == 0).ToList();
-
-            foreach (var group in byAbstraction)
-            {
-                sb.AppendLine($"### {group.Key}");
-                foreach (var (_, i) in group.OrderBy(x => x.Impl.FullName))
-                    AppendImplUsages(sb, i, implFullName);
-                sb.AppendLine();
-            }
-            if (standalone.Count > 0)
-            {
-                sb.AppendLine("### (standalone)");
-                foreach (var i in standalone.OrderBy(x => x.FullName))
-                    AppendImplUsages(sb, i, implFullName);
-            }
+            AppendUsedByGroups(sb, usedBy, implFullName);
         }
 
         return sb.ToString().TrimEnd();
@@ -229,26 +201,57 @@ public static class GetTypeDepsAndUsageTool
         List<string> abstractionNames,
         IDependencyAggregator? aggregator)
     {
+        // Build collapse structures once for this result set
+        var openToClosedIndex = GenericCollapseHelper.BuildOpenToClosedIndex(depMap.ClosedToOpenGenericMap);
+        var (finalNames, collapsedCloseds) = GenericCollapseHelper.Collapse(
+            abstractionNames, depMap.ClosedToOpenGenericMap, openToClosedIndex);
+
+        // Build used-by index once: abstractionFullName → list of implementations that use it
+        var usedByIndex = BuildUsedByIndex(depMap);
+
+        // Track already-printed implementations to avoid repeating full dep lists
+        var printedImpls = new HashSet<string>();
+
         var sb = new StringBuilder();
 
-        foreach (var abstractionFullName in abstractionNames)
+        foreach (var abstractionFullName in finalNames)
         {
             if (!depMap.Abstractions.TryGetValue(abstractionFullName, out var abstraction)) continue;
+
+            // Collect all effective names: open generic + its collapsed closeds (if any)
+            var effectiveNames = GenericCollapseHelper
+                .GetEffectiveAbstractionNames(abstractionFullName, collapsedCloseds)
+                .ToList();
 
             sb.AppendLine($"# {abstractionFullName}");
             sb.AppendLine();
 
-            if (abstraction.Implementations.Count > 0)
+            // Implementations: from the abstraction itself + all collapsed closeds
+            var allImplNames = effectiveNames
+                .SelectMany(n => depMap.Abstractions.TryGetValue(n, out var a) ? a.Implementations : [])
+                .Distinct()
+                .OrderBy(n => n)
+                .ToList();
+
+            if (allImplNames.Count > 0)
             {
                 sb.AppendLine("## Implementations");
                 sb.AppendLine();
 
-                foreach (var implName in abstraction.Implementations)
+                foreach (var implName in allImplNames)
                 {
                     sb.AppendLine($"### {implName}");
 
                     if (!depMap.Implementations.TryGetValue(implName, out var impl))
                     {
+                        sb.AppendLine();
+                        continue;
+                    }
+
+                    // If this impl was already printed in full earlier — show a short reference
+                    if (!printedImpls.Add(implName))
+                    {
+                        sb.AppendLine("*(see first occurrence above)*");
                         sb.AppendLine();
                         continue;
                     }
@@ -268,59 +271,26 @@ public static class GetTypeDepsAndUsageTool
                     {
                         sb.AppendLine($"- {dep.AbstractionFullName}");
                         foreach (var usage in dep.Usages)
-                        {
-                            var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
-                            var label = usage.Kind == MemberUsageKind.PropertyGet
-                                ? $"{usage.MemberName} {{get}}"
-                                : usage.Kind == MemberUsageKind.PropertySet
-                                    ? $"{usage.MemberName} {{set}}"
-                                    : $"{usage.MemberName}()";
-                            sb.AppendLine($"  --- [{kind}] {label}");
-                        }
+                            sb.AppendLine(FormatUsageLine(usage));
                     }
 
                     sb.AppendLine();
                 }
             }
 
-            // Used by section
-            var usedBy = depMap.Implementations.Values
-                .Where(impl =>
-                {
-                    var dep = impl.Dependencies.FirstOrDefault(d => d.AbstractionFullName == abstractionFullName);
-                    return dep is not null && dep.Usages.Count > 0;
-                })
+            // Used by: aggregate across all effective names
+            var usedByAll = effectiveNames
+                .SelectMany(n => usedByIndex.TryGetValue(n, out var list) ? list : [])
+                .DistinctBy(i => i.FullName)
                 .ToList();
 
-            if (usedBy.Count > 0)
+            if (usedByAll.Count > 0)
             {
                 sb.AppendLine("## Used by");
                 sb.AppendLine();
 
-                var byAbstraction = usedBy
-                    .SelectMany(impl => impl.ImplementedAbstractions
-                        .Select(a => (Abstraction: a, Impl: impl)))
-                    .GroupBy(x => x.Abstraction)
-                    .OrderBy(g => g.Key);
-
-                var standalone = usedBy
-                    .Where(impl => impl.ImplementedAbstractions.Count == 0)
-                    .ToList();
-
-                foreach (var group in byAbstraction)
-                {
-                    sb.AppendLine($"### {group.Key}");
-                    foreach (var (_, impl) in group.OrderBy(x => x.Impl.FullName))
-                        AppendImplUsages(sb, impl, abstractionFullName);
-                    sb.AppendLine();
-                }
-
-                if (standalone.Count > 0)
-                {
-                    sb.AppendLine("### (standalone)");
-                    foreach (var impl in standalone.OrderBy(i => i.FullName))
-                        AppendImplUsages(sb, impl, abstractionFullName);
-                }
+                // For "Used by" we show usages for any of the effective abstraction names
+                AppendUsedByGroupsMulti(sb, usedByAll, effectiveNames);
             }
 
             sb.AppendLine();
@@ -329,22 +299,118 @@ public static class GetTypeDepsAndUsageTool
         return sb.ToString().TrimEnd();
     }
 
-    static void AppendImplUsages(StringBuilder sb, ImplementationInfo impl, string abstractionFullName)
+    // ─── Used by helpers ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a reverse index: abstractionFullName → implementations that use it (with usages > 0).
+    /// O(n) build.
+    /// </summary>
+    static IReadOnlyDictionary<string, List<ImplementationInfo>> BuildUsedByIndex(DependencyMapResult depMap)
     {
-        sb.AppendLine($"- {impl.FullName}");
-        var dep = impl.Dependencies.FirstOrDefault(d => d.AbstractionFullName == abstractionFullName);
-        if (dep is null) return;
-        foreach (var usage in dep.Usages)
+        var index = new Dictionary<string, List<ImplementationInfo>>();
+        foreach (var impl in depMap.Implementations.Values)
         {
-            var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
-            var label = usage.Kind == MemberUsageKind.PropertyGet
-                ? $"{usage.MemberName} {{get}}"
-                : usage.Kind == MemberUsageKind.PropertySet
-                    ? $"{usage.MemberName} {{set}}"
-                    : $"{usage.MemberName}()";
-            sb.AppendLine($"  --- [{kind}] {label}");
+            foreach (var dep in impl.Dependencies)
+            {
+                if (dep.Usages.Count == 0) continue;
+                if (!index.TryGetValue(dep.AbstractionFullName, out var list))
+                    index[dep.AbstractionFullName] = list = [];
+                list.Add(impl);
+            }
+        }
+        return index;
+    }
+
+    static void AppendUsedByGroups(
+        StringBuilder sb,
+        List<ImplementationInfo> usedBy,
+        string abstractionFullName)
+    {
+        var byAbstraction = usedBy
+            .SelectMany(i => i.ImplementedAbstractions.Select(a => (Abstraction: a, Impl: i)))
+            .GroupBy(x => x.Abstraction)
+            .OrderBy(g => g.Key);
+        var standalone = usedBy.Where(i => i.ImplementedAbstractions.Count == 0).ToList();
+
+        foreach (var group in byAbstraction)
+        {
+            sb.AppendLine($"### {group.Key}");
+            foreach (var (_, i) in group.OrderBy(x => x.Impl.FullName))
+                AppendImplUsages(sb, i, [abstractionFullName]);
+            sb.AppendLine();
+        }
+        if (standalone.Count > 0)
+        {
+            sb.AppendLine("### (standalone)");
+            foreach (var i in standalone.OrderBy(x => x.FullName))
+                AppendImplUsages(sb, i, [abstractionFullName]);
         }
     }
+
+    /// <summary>
+    /// Like AppendUsedByGroups but collects usages across multiple abstraction names
+    /// (open generic + its collapsed closeds).
+    /// </summary>
+    static void AppendUsedByGroupsMulti(
+        StringBuilder sb,
+        List<ImplementationInfo> usedBy,
+        IReadOnlyList<string> abstractionNames)
+    {
+        var byAbstraction = usedBy
+            .SelectMany(i => i.ImplementedAbstractions.Select(a => (Abstraction: a, Impl: i)))
+            .GroupBy(x => x.Abstraction)
+            .OrderBy(g => g.Key);
+        var standalone = usedBy.Where(i => i.ImplementedAbstractions.Count == 0).ToList();
+
+        foreach (var group in byAbstraction)
+        {
+            sb.AppendLine($"### {group.Key}");
+            foreach (var (_, i) in group.OrderBy(x => x.Impl.FullName))
+                AppendImplUsages(sb, i, abstractionNames);
+            sb.AppendLine();
+        }
+        if (standalone.Count > 0)
+        {
+            sb.AppendLine("### (standalone)");
+            foreach (var i in standalone.OrderBy(x => x.FullName))
+                AppendImplUsages(sb, i, abstractionNames);
+        }
+    }
+
+    static void AppendImplUsages(
+        StringBuilder sb,
+        ImplementationInfo impl,
+        IReadOnlyList<string> abstractionNames)
+    {
+        sb.AppendLine($"- {impl.FullName}");
+        // Collect usages across all effective abstraction names (dedup by member)
+        var usages = abstractionNames
+            .SelectMany(name =>
+            {
+                var dep = impl.Dependencies.FirstOrDefault(d => d.AbstractionFullName == name);
+                return dep?.Usages ?? [];
+            })
+            .DistinctBy(u => (u.MemberName, u.Kind))
+            .ToList();
+
+        foreach (var usage in usages)
+            sb.AppendLine(FormatUsageLine(usage));
+    }
+
+    // ─── Formatting helpers ──────────────────────────────────────────────────
+
+    static string UsageKind(MemberUsage usage) =>
+        usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
+
+    static string UsageLabel(MemberUsage usage) => usage.Kind switch
+    {
+        MemberUsageKind.PropertyGet => $"{usage.MemberName} {{get}}",
+        MemberUsageKind.PropertySet => $"{usage.MemberName} {{set}}",
+        _ => $"{usage.MemberName}()"
+    };
+
+    static string FormatUsageLine(MemberUsage usage) =>
+        $"  - [{UsageKind(usage)}] {UsageLabel(usage)}";
 
     internal static Regex WildcardToRegex(string pattern)
     {

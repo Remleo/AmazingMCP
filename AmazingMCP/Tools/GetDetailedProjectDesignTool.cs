@@ -15,9 +15,11 @@ public static class GetDetailedProjectDesignTool
         "\n\n<<... truncated output ...>> Please try to use more specific namespaces, `includeDependencyUsage: false` or `includeImplementations: false`";
 
     [McpServerTool(Name = "get_detailed_project_design", ReadOnly = true), Description(
-        "Returns a detailed view of abstractions and their implementations for the specified namespace groups. " +
-        "Each abstraction entry shows its implementations, their dependencies, and (optionally) which members are called on each dependency. " +
-        "Use `get_project_design` first to discover available groups and their namespaces. Output is Markdown.")]
+        "Drill down into specific namespace groups after calling `get_project_design`. " +
+        "Shows every abstraction in the selected namespaces with its implementations, " +
+        "all dependencies (resolved recursively through base class chains), and exact member calls. " +
+        "Supports `*` wildcard in namespace patterns. " +
+        "Use `includeDependencyUsage: false` or `includeImplementations: false` to reduce output size.")]
     public static async Task<string> GetDetailedProjectDesign(
         DependencyMapService dependencyMapService,
         IDependencyAggregator dependencyAggregator,
@@ -62,8 +64,14 @@ public static class GetDetailedProjectDesignTool
         if (matchedAbstractions.Count == 0)
             return $"No abstractions found matching the provided namespace pattern(s): {string.Join(", ", forNamespaces)}";
 
+        // Build collapse structures for dependency names in output
+        var openToClosedIndex = GenericCollapseHelper.BuildOpenToClosedIndex(depMap.ClosedToOpenGenericMap);
+
         var sb = new StringBuilder();
         sb.AppendLine("# Detailed Project Design");
+        sb.AppendLine();
+        sb.AppendLine($"> Namespaces: `{string.Join("`, `", forNamespaces)}`");
+        sb.AppendLine($"> Abstractions found: {matchedAbstractions.Count}");
         sb.AppendLine();
 
         foreach (var abstraction in matchedAbstractions)
@@ -89,10 +97,12 @@ public static class GetDetailedProjectDesignTool
 
             if (includeDependencyUsage || hasDeps)
             {
-                sb.AppendLine();
                 sb.AppendLine("### Depends on");
 
-                var shownDeps = new HashSet<string>();
+                // Collect raw dep names first, then collapse closed generics
+                var rawDepNames = new List<string>();
+                var rawDepUsages = new Dictionary<string, List<MemberUsage>>();
+
                 foreach (var implName in abstraction.Implementations)
                 {
                     if (!depMap.Implementations.TryGetValue(implName, out _)) continue;
@@ -103,22 +113,45 @@ public static class GetDetailedProjectDesignTool
 
                     foreach (var dep in allUsages)
                     {
-                        if (!shownDeps.Add(dep.AbstractionFullName)) continue;
-
-                        sb.AppendLine($"- {dep.AbstractionFullName}");
-
-                        if (includeDependencyUsage && dep.Usages.Count > 0)
+                        if (!rawDepUsages.ContainsKey(dep.AbstractionFullName))
                         {
-                            foreach (var usage in dep.Usages)
-                            {
-                                var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
-                                var label = usage.Kind == MemberUsageKind.PropertyGet
-                                    ? $"{usage.MemberName} {{get}}"
-                                    : usage.Kind == MemberUsageKind.PropertySet
-                                        ? $"{usage.MemberName} {{set}}"
-                                        : $"{usage.MemberName}()";
-                                sb.AppendLine($"  --- [{kind}] {label}");
-                            }
+                            rawDepNames.Add(dep.AbstractionFullName);
+                            rawDepUsages[dep.AbstractionFullName] = [];
+                        }
+                        foreach (var u in dep.Usages)
+                            rawDepUsages[dep.AbstractionFullName].Add(u);
+                    }
+                }
+
+                // Collapse closed generics in the dep list:
+                // always collapse if the open generic exists in abstractions
+                var (finalDepNames, collapsedDeps) = CollapseDepNames(
+                    rawDepNames, depMap.ClosedToOpenGenericMap, openToClosedIndex, depMap.Abstractions);
+
+                foreach (var depName in finalDepNames)
+                {
+                    // Aggregate usages: from the dep itself + any collapsed closeds
+                    var effectiveDepNames = GenericCollapseHelper
+                        .GetEffectiveAbstractionNames(depName, collapsedDeps);
+
+                    var aggregatedUsages = effectiveDepNames
+                        .SelectMany(n => rawDepUsages.TryGetValue(n, out var u) ? u : [])
+                        .DistinctBy(u => (u.MemberName, u.Kind))
+                        .ToList();
+
+                    sb.AppendLine($"- {depName}");
+
+                    if (includeDependencyUsage && aggregatedUsages.Count > 0)
+                    {
+                        foreach (var usage in aggregatedUsages)
+                        {
+                            var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
+                            var label = usage.Kind == MemberUsageKind.PropertyGet
+                                ? $"{usage.MemberName} {{get}}"
+                                : usage.Kind == MemberUsageKind.PropertySet
+                                    ? $"{usage.MemberName} {{set}}"
+                                    : $"{usage.MemberName}()";
+                            sb.AppendLine($"  - [{kind}] {label}");
                         }
                     }
                 }
@@ -138,5 +171,56 @@ public static class GetDetailedProjectDesignTool
     {
         var escaped = Regex.Escape(pattern).Replace(@"\*", ".*");
         return new Regex($"^{escaped}$", RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>
+    /// Collapses closed generic dep names into their open generic when the open generic
+    /// exists in abstractions — regardless of whether it's in the current match.
+    /// Used for Depends on sections where we always want to show the canonical name.
+    /// </summary>
+    static (List<string> FinalNames, IReadOnlyDictionary<string, List<string>> CollapsedCloseds)
+        CollapseDepNames(
+            IReadOnlyList<string> depNames,
+            IReadOnlyDictionary<string, string>? closedToOpenMap,
+            IReadOnlyDictionary<string, List<string>> openToClosedIndex,
+            IReadOnlyDictionary<string, AbstractionInfo> abstractions)
+    {
+        if (closedToOpenMap is null || closedToOpenMap.Count == 0)
+            return (depNames.ToList(), new Dictionary<string, List<string>>());
+
+        var collapsedCloseds = new Dictionary<string, List<string>>();
+        var skipped = new HashSet<string>();
+        var openGenericsToAdd = new List<string>();
+
+        foreach (var name in depNames)
+        {
+            if (!closedToOpenMap.TryGetValue(name, out var openName)) continue;
+            // Collapse if open generic exists in abstractions
+            if (!abstractions.ContainsKey(openName)) continue;
+
+            skipped.Add(name);
+            if (!collapsedCloseds.TryGetValue(openName, out var list))
+            {
+                collapsedCloseds[openName] = list = [];
+                // Open generic may not be in depNames — add it
+                if (!depNames.Contains(openName))
+                    openGenericsToAdd.Add(openName);
+            }
+            list.Add(name);
+        }
+
+        var finalNames = depNames
+            .Where(n => !skipped.Contains(n))
+            .Concat(openGenericsToAdd)
+            .ToList();
+
+        // Also collapse ALL closeds of each open generic (not just those in depNames)
+        foreach (var openName in collapsedCloseds.Keys.ToList())
+        {
+            if (!openToClosedIndex.TryGetValue(openName, out var allCloseds)) continue;
+            collapsedCloseds[openName] = allCloseds;
+        }
+
+        return (finalNames, collapsedCloseds);
     }
 }

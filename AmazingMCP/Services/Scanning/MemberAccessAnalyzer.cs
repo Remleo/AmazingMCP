@@ -6,7 +6,7 @@ namespace AmazingMCP.Services.Scanning;
 
 public class MemberAccessAnalyzer : IMemberAccessAnalyzer
 {
-    public (INamedTypeSymbol ContainingType, string MemberName, MemberUsageKind Kind)?
+    public (RawTypeInfo TypeInfo, string MemberName, MemberUsageKind Kind)?
         AnalyzeAccess(MemberAccessExpressionSyntax memberAccess, SemanticModel model)
     {
         // Skip if this is the target of an invocation — handled by InvocationAnalyzer
@@ -18,16 +18,16 @@ public class MemberAccessAnalyzer : IMemberAccessAnalyzer
         if (model.GetSymbolInfo(memberAccess).Symbol is not IPropertySymbol prop) return null;
         if (prop.ContainingType is not { } containingType) return null;
 
-        return (containingType, prop.Name, MemberUsageKind.PropertyGet);
+        return (RawTypeInfo.From(containingType), prop.Name, MemberUsageKind.PropertyGet);
     }
 
-    public (INamedTypeSymbol ContainingType, string MemberName)?
+    public (RawTypeInfo TypeInfo, string MemberName)?
         AnalyzeAssignment(AssignmentExpressionSyntax assignment, SemanticModel model)
     {
         if (assignment.Left is not MemberAccessExpressionSyntax memberAccess) return null;
         if (model.GetSymbolInfo(memberAccess).Symbol is not IPropertySymbol prop) return null;
         if (prop.ContainingType is not { } containingType) return null;
 
-        return (containingType, prop.Name);
+        return (RawTypeInfo.From(containingType), prop.Name);
     }
 }

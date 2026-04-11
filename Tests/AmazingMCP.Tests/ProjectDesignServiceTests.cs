@@ -417,9 +417,9 @@ public class ProjectDesignServiceTests
         var md = GetProjectDesignTool.FormatMarkdown(result);
 
         // assert
-        md.Should().Contain("→ TestProject.Core.Persistence");
-        md.Should().Contain("→ TestProject.Core.Notifications");
-        md.Should().Contain("→ TestProject.Core.EventHandling");
+        md.Should().Contain("- TestProject.Core.Persistence");
+        md.Should().Contain("- TestProject.Core.Notifications");
+        md.Should().Contain("- TestProject.Core.EventHandling");
     }
 
     [Test]

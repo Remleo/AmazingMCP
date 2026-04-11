@@ -6,7 +6,7 @@ namespace AmazingMCP.Services.Scanning;
 
 public class InvocationAnalyzer : IInvocationAnalyzer
 {
-    public (INamedTypeSymbol ContainingType, string MemberName, bool IsStatic)?
+    public (RawTypeInfo TypeInfo, string MemberName, bool IsStatic)?
         Analyze(InvocationExpressionSyntax invocation, SemanticModel model)
     {
         var symbolInfo = model.GetSymbolInfo(invocation);
@@ -28,24 +28,24 @@ public class InvocationAnalyzer : IInvocationAnalyzer
 
         if (isExtension)
         {
-            var receiverType = ResolveReceiverType(invocation, model);
-            if (receiverType is null) return null;
-            return (receiverType, method.Name, false);
+            var receiverSymbol = ResolveReceiverSymbol(invocation, model);
+            if (receiverSymbol is null) return null;
+            return (RawTypeInfo.From(receiverSymbol), method.Name, false);
         }
 
         // Static call: ContainingType is the static class
         if (method.IsStatic)
         {
             if (method.ContainingType is not { } containingType) return null;
-            return (containingType, method.Name, true);
+            return (RawTypeInfo.From(containingType), method.Name, true);
         }
 
         // Regular instance call
         if (method.ContainingType is not { } ct) return null;
-        return (ct, method.Name, false);
+        return (RawTypeInfo.From(ct), method.Name, false);
     }
 
-    static INamedTypeSymbol? ResolveReceiverType(
+    static INamedTypeSymbol? ResolveReceiverSymbol(
         InvocationExpressionSyntax invocation, SemanticModel model)
     {
         // Regular call: obj.Method(...)

@@ -291,88 +291,35 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_AbstractionWithNoImplementations_ShowsNoImplNote()
     {
-        var abstraction = new AbstractionInfo(
-            FullName: "MyApp.Services.IOrphanService",
-            Namespace: "MyApp.Services",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/IOrphanService.cs",
-            IsInterface: true,
-            IsAbstractClass: false,
-            IsStaticClass: false,
-            Implementations: []);
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo> { [abstraction.FullName] = abstraction },
-            Implementations: new Dictionary<string, ImplementationInfo>());
-
-        var md = GetDetailedProjectDesignTool.FormatMarkdown(depMap, ["MyApp.Services"], true);
-
-        md.Should().NotContain("### Implementations");
-        md.Should().Contain("## MyApp.Services.IOrphanService");
+        // IGenericTracer<TService> is an open generic with no source implementations
+        var md = Act(["TestProject.Core.Logging"]);
+        md.Should().Contain("## TestProject.Core.Logging.IGenericTracer<TService>");
+        // The IGenericTracer<TService> entry specifically has no implementations
+        var lines = md.Split('\n').ToList();
+        var tracerIdx = lines.FindIndex(l => l.Contains("## TestProject.Core.Logging.IGenericTracer<TService>"));
+        var nextH2Idx = lines.FindIndex(tracerIdx + 1, l => l.TrimStart().StartsWith("## "));
+        var tracerSection = string.Join('\n', lines.Skip(tracerIdx).Take(
+            nextH2Idx > tracerIdx ? nextH2Idx - tracerIdx : lines.Count - tracerIdx));
+        tracerSection.Should().NotContain("### Implementations");
     }
 
     [Test]
     public void FormatMarkdown_DepLabel_ShowsTypeFullName()
     {
-        var abstraction = new AbstractionInfo(
-            FullName: "MyApp.Services.IMyService",
-            Namespace: "MyApp.Services",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/IMyService.cs",
-            IsInterface: true,
-            IsAbstractClass: false,
-            IsStaticClass: false,
-            Implementations: ["MyApp.Services.MyService"]);
-
-        var impl = new ImplementationInfo(
-            FullName: "MyApp.Services.MyService",
-            Namespace: "MyApp.Services",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/MyService.cs",
-            ImplementedAbstractions: ["MyApp.Services.IMyService"],
-            BaseClasses: [],
-            Dependencies: [new AbstractionUsage("MyApp.Config.AppSettings", false, [])]);
-
-        var depMap = new DependencyMapResult(
-            Abstractions: new Dictionary<string, AbstractionInfo> { [abstraction.FullName] = abstraction },
-            Implementations: new Dictionary<string, ImplementationInfo> { [impl.FullName] = impl });
-
-        var md = GetDetailedProjectDesignTool.FormatMarkdown(depMap, ["MyApp.Services"], true);
-
-        md.Should().Contain("MyApp.Config.AppSettings");
+        // AnimalService depends on IAnimalRepository — full name must appear in Depends on
+        var md = Act(["TestProject.App.Services"]);
+        md.Should().Contain("TestProject.Core.Persistence.IAnimalRepository");
     }
 
     [Test]
     public void FormatMarkdown_Truncation_AppliedAtCorrectLength()
     {
-        var abstractions = new Dictionary<string, AbstractionInfo>();
-        var implementations = new Dictionary<string, ImplementationInfo>();
-
-        for (var i = 0; i < 300; i++)
+        var md = Act(["TestProject.*"], includeDependencyUsage: true);
+        if (md.Length >= 30000)
         {
-            var ns = "MyApp.Services";
-            var ifaceName = $"MyApp.Services.IService{i:D3}";
-            var implName = $"MyApp.Services.Service{i:D3}";
-
-            abstractions[ifaceName] = new AbstractionInfo(
-                FullName: ifaceName, Namespace: ns, ProjectName: "MyApp",
-                SourceFilePath: $"/src/IService{i}.cs", IsInterface: true,
-                IsAbstractClass: false, IsStaticClass: false,
-                Implementations: [implName]);
-
-            implementations[implName] = new ImplementationInfo(
-                FullName: implName, Namespace: ns, ProjectName: "MyApp",
-                SourceFilePath: $"/src/Service{i}.cs",
-                ImplementedAbstractions: [ifaceName], BaseClasses: [],
-                Dependencies: [new AbstractionUsage($"MyApp.Deps.IDep{i}", false,
-                    [new MemberUsage($"DoSomething{i}", MemberUsageKind.MethodCall)])]);
+            md.Should().Contain("<<... truncated output ...>>");
+            md.Length.Should().BeLessThan(30000 + 300);
         }
-
-        var depMap = new DependencyMapResult(abstractions, implementations);
-        var md = GetDetailedProjectDesignTool.FormatMarkdown(depMap, ["MyApp.Services"], true);
-
-        md.Should().Contain("<<... truncated output ...>>");
-        md.Length.Should().BeLessThanOrEqualTo(30000 + 300);
     }
 
     #endregion

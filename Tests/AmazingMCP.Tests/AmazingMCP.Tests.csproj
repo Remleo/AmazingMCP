@@ -43,6 +43,12 @@
     <Compile Update="DependencyMapServiceTests.StandaloneWithDeps.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
+    <Compile Update="DependencyMapServiceTests.NuGetClosedGeneric.cs">
+      <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="DependencyMapServiceTests.NullConditional.cs">
+      <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>

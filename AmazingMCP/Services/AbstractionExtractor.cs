@@ -6,19 +6,28 @@ namespace AmazingMCP.Services;
 public class AbstractionExtractor : IAbstractionExtractor
 {
     public AbstractionInfo BuildAbstractionInfo(
-        INamedTypeSymbol symbol,
+        RawTypeInfo typeInfo,
         string projectName,
         IReadOnlyList<string> implementations)
     {
         return new AbstractionInfo(
-            FullName: symbol.ToDisplayString(),
-            Namespace: symbol.ContainingNamespace?.ToDisplayString() ?? "",
+            FullName: typeInfo.FullName,
+            Namespace: typeInfo.Namespace,
             ProjectName: projectName,
-            SourceFilePath: GetSourcePath(symbol),
-            IsInterface: symbol.TypeKind == TypeKind.Interface,
-            IsAbstractClass: symbol.TypeKind == TypeKind.Class && symbol.IsAbstract,
-            IsStaticClass: symbol.TypeKind == TypeKind.Class && symbol.IsStatic,
-            Implementations: implementations);
+            SourceFilePath: typeInfo.SourceFilePath,
+            IsInterface: typeInfo.IsInterface,
+            IsAbstractClass: typeInfo.IsAbstractClass,
+            IsStaticClass: typeInfo.IsStaticClass,
+            Implementations: implementations,
+            OpenGenericFullName: typeInfo.OpenGenericFullName);
+    }
+
+    public AbstractionInfo BuildAbstractionInfo(
+        INamedTypeSymbol symbol,
+        string projectName,
+        IReadOnlyList<string> implementations)
+    {
+        return BuildAbstractionInfo(RawTypeInfo.From(symbol), projectName, implementations);
     }
 
     public INamedTypeSymbol? FindClosedGenericInterface(string ifaceName, List<SourceType> classes)
@@ -40,12 +49,10 @@ public class AbstractionExtractor : IAbstractionExtractor
                         && t.Symbol.ToDisplayString() == originalDefName)
             .OrderBy(t =>
             {
-                var path = GetSourcePath(t.Symbol) ?? "";
+                var path = t.Symbol.DeclaringSyntaxReferences
+                    .FirstOrDefault()?.SyntaxTree.FilePath ?? "";
                 return path.Contains(t.ProjectName, StringComparison.OrdinalIgnoreCase) ? 0 : 1;
             })
             .FirstOrDefault()?.ProjectName ?? "";
     }
-
-    static string? GetSourcePath(INamedTypeSymbol symbol) =>
-        symbol.DeclaringSyntaxReferences.FirstOrDefault()?.SyntaxTree.FilePath;
 }

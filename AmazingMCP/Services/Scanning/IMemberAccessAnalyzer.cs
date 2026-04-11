@@ -10,14 +10,14 @@ namespace AmazingMCP.Services.Scanning;
 public interface IMemberAccessAnalyzer
 {
     /// <summary>
-    /// Returns (containingType, memberName, kind) for a property access, or null if not applicable.
+    /// Returns (typeInfo, memberName, kind) for a property access, or null if not applicable.
     /// </summary>
-    (INamedTypeSymbol ContainingType, string MemberName, MemberUsageKind Kind)?
+    (RawTypeInfo TypeInfo, string MemberName, MemberUsageKind Kind)?
         AnalyzeAccess(MemberAccessExpressionSyntax memberAccess, SemanticModel model);
 
     /// <summary>
-    /// Returns (containingType, memberName) for a property set via assignment, or null if not applicable.
+    /// Returns (typeInfo, memberName) for a property set via assignment, or null if not applicable.
     /// </summary>
-    (INamedTypeSymbol ContainingType, string MemberName)?
+    (RawTypeInfo TypeInfo, string MemberName)?
         AnalyzeAssignment(AssignmentExpressionSyntax assignment, SemanticModel model);
 }

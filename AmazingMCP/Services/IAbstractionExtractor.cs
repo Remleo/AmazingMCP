@@ -4,12 +4,20 @@ using Microsoft.CodeAnalysis;
 namespace AmazingMCP.Services;
 
 /// <summary>
-/// Builds AbstractionInfo records from type symbols.
+/// Builds AbstractionInfo records from type symbols or RawTypeInfo.
 /// </summary>
 public interface IAbstractionExtractor
 {
     /// <summary>
-    /// Builds an AbstractionInfo for a source-defined or external type symbol.
+    /// Builds an AbstractionInfo from a RawTypeInfo (no Roslyn dependency at call site).
+    /// </summary>
+    AbstractionInfo BuildAbstractionInfo(
+        RawTypeInfo typeInfo,
+        string projectName,
+        IReadOnlyList<string> implementations);
+
+    /// <summary>
+    /// Builds an AbstractionInfo directly from a Roslyn symbol (used during Phase 2 source type collection).
     /// </summary>
     AbstractionInfo BuildAbstractionInfo(
         INamedTypeSymbol symbol,
