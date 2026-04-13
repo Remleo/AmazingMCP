@@ -28,8 +28,8 @@ public static class GetDetailedProjectDesignTool
         [Description(
             "Namespaces to include. Supports exact match and '*' wildcard anywhere. At least one entry is required.")]
         string[] forNamespaces,
-        [Description("When true (default), shows which methods and properties are called on each dependency.")]
-        bool includeDependencyUsage = true,
+        [Description("When false (default), shows which methods and properties are called on each dependency.")]
+        bool includeDependencyUsage = false,
         [Description("When true (default), shows the list of implementations for each abstraction.")]
         bool includeImplementations = true,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")] string? solutionPath = null,
@@ -145,13 +145,12 @@ public static class GetDetailedProjectDesignTool
                     {
                         foreach (var usage in aggregatedUsages)
                         {
-                            var kind = usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
                             var label = usage.Kind == MemberUsageKind.PropertyGet
                                 ? $"{usage.MemberName} {{get}}"
                                 : usage.Kind == MemberUsageKind.PropertySet
                                     ? $"{usage.MemberName} {{set}}"
                                     : $"{usage.MemberName}()";
-                            sb.AppendLine($"  - [{kind}] {label}");
+                            sb.AppendLine($"  - {label}");
                         }
                     }
                 }

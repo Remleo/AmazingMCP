@@ -165,15 +165,14 @@ public class GetDetailedProjectDesignToolTests
     public void FormatMarkdown_IncludeDependencyUsage_True_ShowsUsages()
     {
         var md = Act(["TestProject.App.Messaging"], includeDependencyUsage: true);
-        md.Should().MatchRegex(@"\[call\]|\[prop\]");
+        md.Should().MatchRegex(@"\w+\(\)|\w+ \{get\}|\w+ \{set\}");
     }
 
     [Test]
     public void FormatMarkdown_IncludeDependencyUsage_False_HidesUsages()
     {
         var md = Act(["TestProject.App.Messaging"], includeDependencyUsage: false);
-        md.Should().NotContain("[call]");
-        md.Should().NotContain("[prop]");
+        md.Should().NotMatchRegex(@"  - \w+\(\)");
         md.Should().Contain("### Depends on");
     }
 
@@ -201,7 +200,7 @@ public class GetDetailedProjectDesignToolTests
     {
         var md = Act(["TestProject.App.Messaging"], includeImplementations: false, includeDependencyUsage: true);
         md.Should().Contain("### Depends on");
-        md.Should().MatchRegex(@"\[call\]|\[prop\]");
+        md.Should().MatchRegex(@"\w+\(\)|\w+ \{get\}|\w+ \{set\}");
     }
 
     #endregion

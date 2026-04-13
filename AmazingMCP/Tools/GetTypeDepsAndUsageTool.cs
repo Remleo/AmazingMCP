@@ -399,9 +399,6 @@ public static class GetTypeDepsAndUsageTool
 
     // ─── Formatting helpers ──────────────────────────────────────────────────
 
-    static string UsageKind(MemberUsage usage) =>
-        usage.Kind == MemberUsageKind.MethodCall ? "call" : "prop";
-
     static string UsageLabel(MemberUsage usage) => usage.Kind switch
     {
         MemberUsageKind.PropertyGet => $"{usage.MemberName} {{get}}",
@@ -410,7 +407,7 @@ public static class GetTypeDepsAndUsageTool
     };
 
     static string FormatUsageLine(MemberUsage usage) =>
-        $"  - [{UsageKind(usage)}] {UsageLabel(usage)}";
+        $"  - {UsageLabel(usage)}";
 
     internal static Regex WildcardToRegex(string pattern)
     {
