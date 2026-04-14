@@ -10,6 +10,7 @@ The server opens `.sln`/`.slnx` files, compiles projects in memory, and enables 
 
 - [DependencyMap — solution dependency map](docs/DependencyMap.md)
 - [ProjectDesign — high-level solution design map](docs/ProjectDesign.md)
+- [FileStructure — file structure outline](docs/FileStructure.md)
 
 ## MCP Tools
 
@@ -20,6 +21,7 @@ The server opens `.sln`/`.slnx` files, compiles projects in memory, and enables 
 | `get_type_deps_and_usage` | Full dependency and usage info for a type (exact, wildcard, fuzzy search) |
 | `query_symbol` | Type search by name (including NuGet), with partial match support |
 | `get_symbol_info` | Detailed type info: properties, methods, base types, nested types (including NuGet) |
+| `get_file_structure` | Structural outline of a `.cs` file: namespaces, types, members with line/column positions — no implementations |
 
 ## Stack
 
@@ -44,3 +46,4 @@ The server opens `.sln`/`.slnx` files, compiles projects in memory, and enables 
 - Workspace is cached with file watchers: `.cs` files are recompiled incrementally, `.csproj`/`.sln` changes invalidate the cache
 - `DependencyMapService` results are cached separately (sliding expiration 2 hours)
 - Dependencies are aggregated recursively across base class chains via `IDependencyAggregator`
+- `get_file_structure` uses Roslyn SyntaxTree parsing only (no compilation) — works on any `.cs` file without a solution context

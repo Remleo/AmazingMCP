@@ -15,6 +15,7 @@ builder.Services.AddSingleton<IWorkspaceProvider>(sp => sp.GetRequiredService<Wo
 builder.Services.AddSingleton<SolutionResolver>();
 builder.Services.AddSingleton<RoslynSymbolService>();
 builder.Services.AddSingleton<SymbolInfoService>();
+builder.Services.AddSingleton<FileStructureService>();
 
 // Scanning
 builder.Services.AddSingleton<ITypeFilter, TypeFilter>();
