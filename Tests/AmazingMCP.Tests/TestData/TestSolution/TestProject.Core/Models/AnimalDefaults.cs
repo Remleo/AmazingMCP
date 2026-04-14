@@ -2,6 +2,14 @@ namespace TestProject.Core.Models;
 
 public class AnimalDefaults
 {
+    public string DisplayLabel = "default";
+    public readonly int MaxRetries = 3;
+    internal string InternalTag = "tag";
+
+    public AnimalDefaults() { }
+    public AnimalDefaults(string displayLabel) { DisplayLabel = displayLabel; }
+    internal AnimalDefaults(string displayLabel, int maxRetries) { DisplayLabel = displayLabel; MaxRetries = maxRetries; }
+
     public const int MaxNameLength = 100;
     public const string DefaultPrefix = "Animal_";
 

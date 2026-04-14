@@ -18,7 +18,7 @@ public static class QuerySymbolTool
     public static async Task<string> QuerySymbol(
         RoslynSymbolService roslyn,
         SolutionResolver solutionResolver,
-        [Description("Absolute path to the workspace (project root) directory")] string workspacePath,
+        [Description("Absolute path to the directory where the .sln/.slnx file is located")] string solutionWorkspacePath,
         [Description("Type name (or part of it) to search for")] string query,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")] string? solutionPath = null,
         [Description("When false (default), only exact matches are returned if any exist. " +
@@ -26,7 +26,7 @@ public static class QuerySymbolTool
         bool includePartialMatches = false,
         CancellationToken ct = default)
     {
-        var (resolved, error) = solutionResolver.Resolve(workspacePath, solutionPath);
+        var (resolved, error) = solutionResolver.Resolve(solutionWorkspacePath, solutionPath);
         if (resolved is null)
             return error!;
 

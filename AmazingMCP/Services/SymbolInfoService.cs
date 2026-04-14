@@ -115,6 +115,41 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
             }
         }
 
+        var instanceFields = type.GetMembers()
+            .OfType<IFieldSymbol>()
+            .Where(f => !f.IsStatic && !f.IsConst
+                        && f.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
+            .ToList();
+
+        if (instanceFields.Count > 0)
+        {
+            sb.AppendLine($"{prefix}Fields:");
+            foreach (var f in instanceFields)
+            {
+                var vis = f.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
+                var ro = f.IsReadOnly ? "readonly " : "";
+                sb.AppendLine($"{prefix}  {vis}{ro}{f.Type.ToDisplayString()} {f.Name}");
+            }
+        }
+
+        var constructors = type.GetMembers()
+            .OfType<IMethodSymbol>()
+            .Where(m => m.MethodKind == MethodKind.Constructor
+                        && m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
+            .ToList();
+
+        if (constructors.Count > 0)
+        {
+            sb.AppendLine($"{prefix}Constructors:");
+            foreach (var c in constructors)
+            {
+                var vis = c.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
+                var parameters = string.Join(", ",
+                    c.Parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}"));
+                sb.AppendLine($"{prefix}  {vis}{type.Name}({parameters})");
+            }
+        }
+
         var properties = type.GetMembers()
             .OfType<IPropertySymbol>()
             .Where(p => p.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)

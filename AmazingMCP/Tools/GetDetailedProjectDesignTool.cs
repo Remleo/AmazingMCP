@@ -24,7 +24,7 @@ public static class GetDetailedProjectDesignTool
         DependencyMapService dependencyMapService,
         IDependencyAggregator dependencyAggregator,
         SolutionResolver solutionResolver,
-        [Description("Absolute path to the workspace (project root) directory")] string workspacePath,
+        [Description("Absolute path to the directory where the .sln/.slnx file is located")] string solutionWorkspacePath,
         [Description(
             "Namespaces to include. Supports exact match and '*' wildcard anywhere. At least one entry is required.")]
         string[] forNamespaces,
@@ -38,7 +38,7 @@ public static class GetDetailedProjectDesignTool
         if (forNamespaces is null || forNamespaces.Length == 0)
             return "Error: `forNamespaces` must contain at least one namespace pattern.";
 
-        var (resolved, error) = solutionResolver.Resolve(workspacePath, solutionPath);
+        var (resolved, error) = solutionResolver.Resolve(solutionWorkspacePath, solutionPath);
         if (resolved is null) return error!;
 
         var depMap = await dependencyMapService.BuildMapAsync(resolved, ct);

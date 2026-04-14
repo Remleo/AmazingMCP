@@ -20,12 +20,12 @@ public static class GetTypeDepsAndUsageTool
         DependencyMapService dependencyMapService,
         IDependencyAggregator dependencyAggregator,
         SolutionResolver solutionResolver,
-        [Description("Absolute path to the workspace (project root) directory")] string workspacePath,
+        [Description("Absolute path to the directory where the .sln/.slnx file is located")] string solutionWorkspacePath,
         [Description("Type query: full name, partial name, or '*' wildcard patterns.")] string typeQuery,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")] string? solutionPath = null,
         CancellationToken ct = default)
     {
-        var (resolved, error) = solutionResolver.Resolve(workspacePath, solutionPath);
+        var (resolved, error) = solutionResolver.Resolve(solutionWorkspacePath, solutionPath);
         if (resolved is null) return error!;
 
         var depMap = await dependencyMapService.BuildMapAsync(resolved, ct);
