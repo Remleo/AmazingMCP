@@ -16,6 +16,7 @@ builder.Services.AddSingleton<SolutionResolver>();
 builder.Services.AddSingleton<RoslynSymbolService>();
 builder.Services.AddSingleton<SymbolInfoService>();
 builder.Services.AddSingleton<FileStructureService>();
+builder.Services.AddSingleton<FilteredSourceService>();
 
 // Scanning
 builder.Services.AddSingleton<ITypeFilter, TypeFilter>();

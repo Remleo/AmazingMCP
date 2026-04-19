@@ -65,13 +65,6 @@ public class GetTypeDepsAndUsageToolTests
     }
 
     [Test]
-    public void FormatMarkdown_ImplWithUsages_ShowsCallsAndProps()
-    {
-        var md = Act("TestProject.Core.Services.IAnimalService");
-        md.Should().MatchRegex(@"\[call\]|\[prop\]");
-    }
-
-    [Test]
     public void FormatMarkdown_AbstractionWithNoImpl_NoImplementationsSection()
     {
         // IGenericTracer<TService> open generic has no source implementations

@@ -14,63 +14,65 @@ the agent calls `get_file_structure` first, then reads only the specific member 
 
 ## Output format
 
-Each entry appears in source order with a position marker:
+Each entry is the original declaration from source (with body stripped), followed by a position marker:
 
 ```
-[line:6, +180 lines, col:1]   — multi-line element: start line, line count, start column
-[line:10, col:5]              — single-line element: start line, start column
+[lines:95 +54]   — multi-line element: start line, line count
+[line:28]         — single-line element: start line only
 ```
 
-The `+N lines` value is the exact `limit` to pass to `readFile(path, line, limit)` — no math needed.
+The `+N` value is the exact `limit` to pass to `readFile(path, line, limit)` — no math needed.
 
 ## What is included
 
 | Element | Notes |
 |---|---|
+| `usings` | Collapsed into one line: range from first to last `using`, comments between are included in the range |
 | `namespace` | File-scoped and block-scoped |
-| `class` / `interface` / `struct` / `record` | Full signature: modifiers, type params, base list, constraints |
+| `class` / `interface` / `struct` / `record` | Original signature from source, body stripped |
 | `enum` | All values with explicit initializers |
-| Fields | All access levels, including `private`, `readonly`, `static` |
+| Fields | All access levels including `private`, `readonly`, `static`, with initializers |
 | Constants | `const` fields with their values |
 | Constructors | Full parameter list, `: base()` / `: this()` initializer |
-| Methods | Full signature: modifiers, return type, type params, parameters, constraints |
-| Properties | Accessor list (`{ get; set; }`, `{ get; init; }`, expression-body shown as `{ get; }`) |
+| Methods | Full signature, body stripped, terminated with `;` |
+| Properties | Auto-properties kept as-is; expression-body shown as `{ get; }`; block-body accessors reduced to `{ get; set; }` |
 | Indexers | Parameter list + accessors |
 | Events | `event` keyword + type + name |
 | Operators | `operator` and conversion operators |
 | Destructors | `~ClassName()` |
 | Nested types | Recursively, with increased indentation |
 | Attributes | Printed on the line before the member they decorate |
-| `#region` | Shown as encountered in source order |
+| XML doc `<summary>` | Printed as `/// text` before the member, max 200 chars, truncated with `…` |
 
 Private members **are included** — unlike `get_symbol_info` which filters by accessibility.
 
 ## Example output
 
 ```
-namespace TestProject.App.Services  [line:7, +35 lines, col:1]
-    public class AnimalService : IAnimalService  [line:9, +33 lines, col:1]
-        readonly IAnimalRepository _repository  [line:11, col:32]
-        readonly INotificationService _notification  [line:12, col:35]
-        readonly AnimalSettings _settings  [line:13, col:29]
-        public AnimalService(
-        IAnimalRepository repository,
-        INotificationService notification,
-        IOptions<AnimalSettings> settings)  [line:15, +8 lines, col:5]
-        public Animal? GetById(int id)  [line:25, +1 lines, col:5]
-        public IReadOnlyList<Animal> GetByKind(AnimalKind kind)  [line:28, +1 lines, col:5]
-        public void Add(Animal animal)  [line:31, +10 lines, col:5]
+usings  [lines:4 +18]
+namespace Bwin.Sports.Aggregation.KafkaClient.Consumer  [lines:24 +1061]
+    public class MessageConsumer : IMessageConsumer  [lines:26 +1058]
+        private static readonly TimeSpan ConsumeTimeout = TimeSpan.FromSeconds(5);  [line:31]
+        /// Kafka default for max.poll.interval.ms (300 000 ms). Used as a fallback...
+        private static readonly TimeSpan DefaultMaxPollInterval = TimeSpan.FromMilliseconds(300_000);  [line:38]
+        private readonly ILogger logger;  [line:60]
+        public event EventHandler<ConsumerGroupInfo>? OnConsumerGroupInfo;  [line:93]
+        public MessageConsumer( KafkaConsumerConfig configuration, ...);  [lines:95 +54]
+        public async Task StartAsync(CancellationToken cancellationToken);  [lines:151 +50]
+        private void UpdateStatistics(string json);  [lines:776 +89]
 ```
 
 ## Typical agent workflow
 
 ```
 1. get_file_structure(filePath)          → see all members with positions
-2. readFile(filePath, line=31, limit=10) → read only Add() method body
+2. readFile(filePath, line=776, limit=89) → read only UpdateStatistics() method body
 ```
 
 ## Implementation notes
 
 - Uses `CSharpSyntaxTree.ParseText` — no MSBuild, no compilation, instant
+- Signatures are taken directly from source text with bodies stripped, preserving original formatting
+- XML doc `<summary>` is extracted from leading trivia, normalized to single line, capped at 200 chars
 - Accepts both absolute and relative paths (`Path.GetFullPath` is applied)
 - Returns `"File not found: <path>"` if the file does not exist

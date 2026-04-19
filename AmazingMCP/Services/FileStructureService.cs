@@ -1,4 +1,5 @@
 using System.Text;
+using AmazingMCP.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -7,6 +8,23 @@ namespace AmazingMCP.Services;
 
 public class FileStructureService
 {
+    // ── public API ─────────────────────────────────────────────────────────────
+
+    public List<FileStructureItem> GetItems(string filePath)
+    {
+        filePath = Path.GetFullPath(filePath);
+        if (!File.Exists(filePath)) return [];
+
+        var source = File.ReadAllText(filePath);
+        var tree   = CSharpSyntaxTree.ParseText(source, path: filePath);
+        var root   = tree.GetRoot();
+
+        var items = new List<FileStructureItem>();
+        CollectUsingsItem(root, items);
+        CollectNodes(root.ChildNodes(), items);
+        return items;
+    }
+
     public string GetStructure(string filePath)
     {
         filePath = Path.GetFullPath(filePath);
@@ -20,11 +38,164 @@ public class FileStructureService
 
         var sb = new StringBuilder();
         AppendUsings(root, sb);
-        WalkMembers(root.ChildNodes(), sb, indent: 0);
+        WalkNodes(root.ChildNodes(), sb, indent: 0);
         return sb.ToString().TrimEnd();
     }
 
-    // ── usings ─────────────────────────────────────────────────────────────────
+    // ── item collection ────────────────────────────────────────────────────────
+
+    static void CollectUsingsItem(SyntaxNode root, List<FileStructureItem> items)
+    {
+        var usings = root.DescendantNodes()
+            .OfType<UsingDirectiveSyntax>()
+            .ToList();
+
+        if (usings.Count == 0) return;
+
+        var first     = usings[0].GetLocation().GetLineSpan();
+        var last      = usings[^1].GetLocation().GetLineSpan();
+        var startLine = first.StartLinePosition.Line + 1;
+        var endLine   = last.EndLinePosition.Line + 1;
+
+        items.Add(new FileStructureItem
+        {
+            SymbolString       = "usings",
+            Kind               = FileStructureItemKind.Usings,
+            StartLine          = startLine,
+            EndLine            = endLine,
+            DeclarationLine    = startLine,
+            DeclarationEndLine = startLine
+        });
+    }
+
+    static void CollectNodes(IEnumerable<SyntaxNode> nodes, List<FileStructureItem> items)
+    {
+        foreach (var node in nodes)
+        {
+            switch (node)
+            {
+                case FileScopedNamespaceDeclarationSyntax fsns:
+                    items.Add(MakeItem(Sig(fsns), FileStructureItemKind.Namespace, fsns));
+                    CollectNodes(fsns.Members, items);
+                    break;
+
+                case NamespaceDeclarationSyntax ns:
+                    items.Add(MakeItem(Sig(ns), FileStructureItemKind.Namespace, ns));
+                    CollectNodes(ns.Members, items);
+                    break;
+
+                case TypeDeclarationSyntax type:
+                    items.Add(MakeItem(Sig(type), FileStructureItemKind.Type, type));
+                    CollectNodes(type.Members, items);
+                    break;
+
+                case EnumDeclarationSyntax enumDecl:
+                    items.Add(MakeItem(Sig(enumDecl), FileStructureItemKind.Type, enumDecl));
+                    foreach (var member in enumDecl.Members)
+                        items.Add(MakeItem(member.ToString().Trim(), FileStructureItemKind.Member, member));
+                    break;
+
+                case MemberDeclarationSyntax member:
+                    CollectMemberItem(member, items);
+                    break;
+            }
+        }
+    }
+
+    static void CollectMemberItem(MemberDeclarationSyntax member, List<FileStructureItem> items)
+    {
+        var sig = member switch
+        {
+            PropertyDeclarationSyntax prop when IsAutoProperty(prop)
+                => prop.ToString().Trim(),
+            PropertyDeclarationSyntax prop when prop.ExpressionBody is not null
+                => StripExpressionBodyProp(prop),
+            PropertyDeclarationSyntax prop
+                => StripPropertyBodies(prop),
+            IndexerDeclarationSyntax idx when idx.ExpressionBody is not null
+                => StripBodyNode(idx, idx.ExpressionBody),
+            IndexerDeclarationSyntax idx when idx.AccessorList is not null
+                => StripAccessorBodies(idx, idx.AccessorList),
+            EventDeclarationSyntax ev
+                => StripBodyNode(ev, ev.AccessorList),
+            ConstructorDeclarationSyntax ctor
+                => StripBody(ctor, ctor.Body, ctor.ExpressionBody),
+            MethodDeclarationSyntax m
+                => StripBody(m, m.Body, m.ExpressionBody),
+            OperatorDeclarationSyntax op
+                => StripBody(op, op.Body, op.ExpressionBody),
+            ConversionOperatorDeclarationSyntax conv
+                => StripBody(conv, conv.Body, conv.ExpressionBody),
+            DestructorDeclarationSyntax dtor
+                => StripBody(dtor, dtor.Body, dtor.ExpressionBody),
+            _ => member.ToString().Trim()
+        };
+
+        if (!string.IsNullOrWhiteSpace(sig))
+            items.Add(MakeItem(sig, FileStructureItemKind.Member, member));
+    }
+
+    static FileStructureItem MakeItem(string symbolString, FileStructureItemKind kind, SyntaxNode node)
+    {
+        var nodeSpan  = node.GetLocation().GetLineSpan();
+        var nodeEnd   = nodeSpan.EndLinePosition.Line + 1;
+        var declLine  = nodeSpan.StartLinePosition.Line + 1;
+
+        // DeclarationEndLine: last line of the header before the opening brace
+        var declEndLine = node switch
+        {
+            TypeDeclarationSyntax t when t.OpenBraceToken != default
+                => t.OpenBraceToken.GetLocation().GetLineSpan().StartLinePosition.Line, // line before {
+            NamespaceDeclarationSyntax ns when ns.OpenBraceToken != default
+                => ns.OpenBraceToken.GetLocation().GetLineSpan().StartLinePosition.Line,
+            FileScopedNamespaceDeclarationSyntax fsns
+                => fsns.SemicolonToken.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
+            EnumDeclarationSyntax e when e.OpenBraceToken != default
+                => e.OpenBraceToken.GetLocation().GetLineSpan().StartLinePosition.Line,
+            _ => declLine
+        };
+        // ensure at least declLine
+        if (declEndLine < declLine) declEndLine = declLine;
+
+        // StartLine: include leading xmldoc/attribute trivia
+        var startLine = LeadingTriviaStartLine(node);
+
+        return new FileStructureItem
+        {
+            SymbolString       = symbolString,
+            Kind               = kind,
+            StartLine          = startLine,
+            EndLine            = nodeEnd,
+            DeclarationLine    = declLine,
+            DeclarationEndLine = declEndLine
+        };
+    }
+
+    /// Returns the first line of leading doc-comment or attribute trivia, or the node's own start line.
+    static int LeadingTriviaStartLine(SyntaxNode node)
+    {
+        // Check for leading xmldoc trivia
+        var leading = node.GetLeadingTrivia();
+        foreach (var trivia in leading)
+        {
+            if (trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)
+             || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
+            {
+                return trivia.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+            }
+        }
+
+        // If member has attribute lists, use the first attribute's start line
+        if (node is MemberDeclarationSyntax memberDecl && memberDecl.AttributeLists.Count > 0)
+        {
+            var firstAttr = memberDecl.AttributeLists[0];
+            return firstAttr.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+        }
+
+        return node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+    }
+
+    // ── usings block ───────────────────────────────────────────────────────────
 
     static void AppendUsings(SyntaxNode root, StringBuilder sb)
     {
@@ -34,350 +205,320 @@ public class FileStructureService
 
         if (usings.Count == 0) return;
 
-        var first = usings[0].GetLocation().GetLineSpan();
-        var last  = usings[^1].GetLocation().GetLineSpan();
-
+        var first     = usings[0].GetLocation().GetLineSpan();
+        var last      = usings[^1].GetLocation().GetLineSpan();
         var startLine = first.StartLinePosition.Line + 1;
         var endLine   = last.EndLinePosition.Line + 1;
-        var col       = first.StartLinePosition.Character + 1;
         var lines     = endLine - startLine;
 
-        var pos = lines > 0
-            ? $"[line:{startLine}, +{lines} lines, col:{col}]"
-            : $"[line:{startLine}, col:{col}]";
+        var pos = lines > 0 ? $"[lines:{startLine} +{lines}]" : $"[line:{startLine}]";
 
         sb.AppendLine($"usings  {pos}");
     }
 
-    // ── position helpers ───────────────────────────────────────────────────────
+    // ── tree walk ──────────────────────────────────────────────────────────────
 
-    static string Pos(SyntaxNode node)
-    {
-        var span      = node.GetLocation().GetLineSpan();
-        var startLine = span.StartLinePosition.Line + 1;
-        var endLine   = span.EndLinePosition.Line + 1;
-        var col       = span.StartLinePosition.Character + 1;
-        var lines     = endLine - startLine;
-
-        return lines > 0
-            ? $"[line:{startLine}, +{lines} lines, col:{col}]"
-            : $"[line:{startLine}, col:{col}]";
-    }
-
-    static string PosToken(SyntaxToken token)
-    {
-        var span = token.GetLocation().GetLineSpan();
-        var line = span.StartLinePosition.Line + 1;
-        var col  = span.StartLinePosition.Character + 1;
-        return $"[line:{line}, col:{col}]";
-    }
-
-    static string Indent(int level) => new(' ', level * 4);
-
-    // ── walk ───────────────────────────────────────────────────────────────────
-
-    static void WalkMembers(IEnumerable<SyntaxNode> nodes, StringBuilder sb, int indent)
+    static void WalkNodes(IEnumerable<SyntaxNode> nodes, StringBuilder sb, int indent)
     {
         foreach (var node in nodes)
         {
             switch (node)
             {
                 case FileScopedNamespaceDeclarationSyntax fsns:
-                    sb.AppendLine($"{Indent(indent)}namespace {fsns.Name}  {Pos(fsns)}");
-                    WalkMembers(fsns.Members, sb, indent + 1);
+                    sb.AppendLine($"{Pad(indent)}{Sig(fsns)}  {Pos(fsns)}");
+                    WalkNodes(fsns.Members, sb, indent + 1);
                     break;
 
                 case NamespaceDeclarationSyntax ns:
-                    sb.AppendLine($"{Indent(indent)}namespace {ns.Name}  {Pos(ns)}");
-                    WalkMembers(ns.Members, sb, indent + 1);
+                    sb.AppendLine($"{Pad(indent)}{Sig(ns)}  {Pos(ns)}");
+                    WalkNodes(ns.Members, sb, indent + 1);
                     break;
-
                 case TypeDeclarationSyntax type:
-                    AppendType(type, sb, indent);
+                    foreach (var a in type.AttributeLists)
+                        sb.AppendLine($"{Pad(indent)}{a.ToString().Trim()}  {Pos(a)}");
+                    AppendXmlDoc(type, sb, indent);
+                    sb.AppendLine($"{Pad(indent)}{Sig(type)}  {Pos(type)}");
+                    WalkNodes(type.Members, sb, indent + 1);
                     break;
 
                 case EnumDeclarationSyntax enumDecl:
-                    AppendEnum(enumDecl, sb, indent);
+                    foreach (var a in enumDecl.AttributeLists)
+                        sb.AppendLine($"{Pad(indent)}{a.ToString().Trim()}  {Pos(a)}");
+                    AppendXmlDoc(enumDecl, sb, indent);
+                    sb.AppendLine($"{Pad(indent)}{Sig(enumDecl)}  {Pos(enumDecl)}");
+                    foreach (var member in enumDecl.Members)
+                        sb.AppendLine($"{Pad(indent + 1)}{member.ToString().Trim()}  {Pos(member)}");
+                    break;
+
+                case MemberDeclarationSyntax member:
+                    AppendMember(member, sb, indent);
                     break;
             }
         }
     }
 
-    static void AppendType(TypeDeclarationSyntax type, StringBuilder sb, int indent)
-    {
-        foreach (var attrList in type.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var sig = BuildTypeSignature(type);
-        sb.AppendLine($"{Indent(indent)}{sig}  {Pos(type)}");
-
-        foreach (var member in type.Members)
-            AppendMember(member, sb, indent + 1);
-    }
-
-    static void AppendEnum(EnumDeclarationSyntax enumDecl, StringBuilder sb, int indent)
-    {
-        foreach (var attrList in enumDecl.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var mods = enumDecl.Modifiers.ToString();
-        var sig  = string.IsNullOrEmpty(mods)
-            ? $"enum {enumDecl.Identifier}"
-            : $"{mods} enum {enumDecl.Identifier}";
-        sb.AppendLine($"{Indent(indent)}{sig}  {Pos(enumDecl)}");
-
-        foreach (var member in enumDecl.Members)
-        {
-            var val = member.EqualsValue is not null ? $" = {member.EqualsValue.Value}" : "";
-            sb.AppendLine($"{Indent(indent + 1)}{member.Identifier}{val}  {PosToken(member.Identifier)}");
-        }
-    }
-
     static void AppendMember(MemberDeclarationSyntax member, StringBuilder sb, int indent)
     {
-        switch (member)
+        var sig = member switch
         {
-            case TypeDeclarationSyntax nested:
-                AppendType(nested, sb, indent);
-                break;
+            // keep auto-properties as-is (no body to strip)
+            PropertyDeclarationSyntax prop when IsAutoProperty(prop)
+                => prop.ToString().Trim(),
 
-            case EnumDeclarationSyntax nestedEnum:
-                AppendEnum(nestedEnum, sb, indent);
-                break;
+            // expression-body property: strip the expression, keep `=> ...` replaced with `{ get; }`
+            PropertyDeclarationSyntax prop when prop.ExpressionBody is not null
+                => StripExpressionBodyProp(prop),
 
-            case FieldDeclarationSyntax field:
-                AppendField(field, sb, indent);
-                break;
+            // block-body properties: strip accessor bodies
+            PropertyDeclarationSyntax prop
+                => StripPropertyBodies(prop),
 
-            case PropertyDeclarationSyntax prop:
-                AppendProperty(prop, sb, indent);
-                break;
+            // indexers
+            IndexerDeclarationSyntax idx when idx.ExpressionBody is not null
+                => StripBodyNode(idx, idx.ExpressionBody),
+            IndexerDeclarationSyntax idx when idx.AccessorList is not null
+                => StripAccessorBodies(idx, idx.AccessorList),
 
-            case ConstructorDeclarationSyntax ctor:
-                AppendConstructor(ctor, sb, indent);
-                break;
+            // events with accessor bodies
+            EventDeclarationSyntax ev
+                => StripBodyNode(ev, ev.AccessorList),
 
-            case MethodDeclarationSyntax method:
-                AppendMethod(method, sb, indent);
-                break;
+            // constructors / methods / operators / destructors
+            ConstructorDeclarationSyntax ctor
+                => StripBody(ctor, ctor.Body, ctor.ExpressionBody),
+            MethodDeclarationSyntax m
+                => StripBody(m, m.Body, m.ExpressionBody),
+            OperatorDeclarationSyntax op
+                => StripBody(op, op.Body, op.ExpressionBody),
+            ConversionOperatorDeclarationSyntax conv
+                => StripBody(conv, conv.Body, conv.ExpressionBody),
+            DestructorDeclarationSyntax dtor
+                => StripBody(dtor, dtor.Body, dtor.ExpressionBody),
 
-            case OperatorDeclarationSyntax op:
-                AppendOperator(op, sb, indent);
-                break;
+            // fields, event fields, constants — keep as-is
+            _ => member.ToString().Trim()
+        };
 
-            case ConversionOperatorDeclarationSyntax conv:
-                AppendConversionOperator(conv, sb, indent);
-                break;
+        if (string.IsNullOrWhiteSpace(sig)) return;
 
-            case IndexerDeclarationSyntax indexer:
-                AppendIndexer(indexer, sb, indent);
-                break;
+        // Strip leading attributes and xmldoc from sig — they are rendered separately below.
+        // sig is built from member.ToString() which includes attribute lists and leading trivia.
+        // We need only the part starting after the last attribute list.
+        sig = StripLeadingAttributesFromSig(member, sig);
 
-            case EventDeclarationSyntax ev:
-                AppendEvent(ev, sb, indent);
-                break;
+        if (string.IsNullOrWhiteSpace(sig)) return;
 
-            case EventFieldDeclarationSyntax evField:
-                AppendEventField(evField, sb, indent);
-                break;
+        // 1. xmldoc comment (if any)
+        AppendXmlDoc(member, sb, indent);
 
-            case DestructorDeclarationSyntax dtor:
-                AppendDestructor(dtor, sb, indent);
-                break;
-        }
+        // 2. attributes (no position marker — they are part of the member block)
+        foreach (var attrList in member.AttributeLists)
+            sb.AppendLine($"{Pad(indent)}{attrList.ToString().Trim()}");
+
+        // 3. member signature with position spanning the full member including xmldoc and attributes
+        sb.AppendLine($"{Pad(indent)}{sig}  {PosWithLeadingTrivia(member)}");
     }
 
-    // ── member formatters ──────────────────────────────────────────────────────
-
-    static void AppendField(FieldDeclarationSyntax field, StringBuilder sb, int indent)
+    /// Removes leading attribute lists (and any whitespace) from a sig string that was produced
+    /// via member.ToString(). The attributes are rendered separately, so we only want the
+    /// declaration part (return type, name, parameters, etc.).
+    static string StripLeadingAttributesFromSig(MemberDeclarationSyntax member, string sig)
     {
-        foreach (var attrList in field.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
+        if (member.AttributeLists.Count == 0) return sig;
 
-        var mods     = field.Modifiers.ToString();
-        var typeName = field.Declaration.Type;
+        // Find the span of the last attribute list relative to the member node start.
+        var lastAttr    = member.AttributeLists[^1];
+        var memberStart = member.Span.Start;
+        var attrEnd     = lastAttr.Span.End;
+        var relEnd      = attrEnd - memberStart;
 
-        foreach (var variable in field.Declaration.Variables)
+        if (relEnd <= 0 || relEnd >= sig.Length) return sig;
+
+        // member.ToString() starts at member.Span.Start (no leading trivia).
+        return NormalizeWhitespace(sig[relEnd..]);
+    }
+
+    // ── signature extraction ───────────────────────────────────────────────────
+
+    /// Namespace / type header: everything up to (not including) the opening brace or semicolon.
+    static string Sig(SyntaxNode node)
+    {
+        // Use ToString() — excludes leading trivia (doc comments, attributes above)
+        var text      = node.ToString();
+        var nodeStart = node.Span.Start;
+
+        var tokenStart = node switch
         {
-            var init = variable.Initializer is not null ? $" {variable.Initializer}" : "";
-            var sig  = string.IsNullOrEmpty(mods)
-                ? $"{typeName} {variable.Identifier}{init}"
-                : $"{mods} {typeName} {variable.Identifier}{init}";
-            sb.AppendLine($"{Indent(indent)}{sig}  {PosToken(variable.Identifier)}");
-        }
+            FileScopedNamespaceDeclarationSyntax fsns => fsns.SemicolonToken.Span.Start,
+            NamespaceDeclarationSyntax ns             => ns.OpenBraceToken.Span.Start,
+            TypeDeclarationSyntax t                   => t.OpenBraceToken.Span.Start,
+            EnumDeclarationSyntax e                   => e.OpenBraceToken.Span.Start,
+            _                                         => -1
+        };
+
+        if (tokenStart < 0) return NormalizeWhitespace(text);
+
+        var relIdx = tokenStart - nodeStart;
+        if (relIdx <= 0 || relIdx > text.Length) return NormalizeWhitespace(text);
+
+        return NormalizeWhitespace(text[..relIdx]);
     }
 
-    static void AppendProperty(PropertyDeclarationSyntax prop, StringBuilder sb, int indent)
+    static bool IsAutoProperty(PropertyDeclarationSyntax prop)
     {
-        foreach (var attrList in prop.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var mods      = prop.Modifiers.ToString();
-        var accessors = FormatPropertyAccessors(prop);
-        var sig       = string.IsNullOrEmpty(mods)
-            ? $"{prop.Type} {prop.Identifier} {accessors}"
-            : $"{mods} {prop.Type} {prop.Identifier} {accessors}";
-        sb.AppendLine($"{Indent(indent)}{sig}  {Pos(prop)}");
+        if (prop.ExpressionBody is not null) return false;
+        if (prop.AccessorList is null) return false;
+        return prop.AccessorList.Accessors.All(a => a.Body is null && a.ExpressionBody is null);
     }
 
-    static void AppendConstructor(ConstructorDeclarationSyntax ctor, StringBuilder sb, int indent)
+    static string StripExpressionBodyProp(PropertyDeclarationSyntax prop)
     {
-        foreach (var attrList in ctor.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var mods    = ctor.Modifiers.ToString();
-        var parms   = ctor.ParameterList.ToString();
-        var init    = ctor.Initializer is not null ? $" {ctor.Initializer}" : "";
-        var sig     = string.IsNullOrEmpty(mods)
-            ? $"{ctor.Identifier}{parms}{init}"
-            : $"{mods} {ctor.Identifier}{parms}{init}";
-        sb.AppendLine($"{Indent(indent)}{sig}  {Pos(ctor)}");
+        // Replace `=> expr` with `{ get; }`
+        var text     = prop.ToString();
+        var relStart = prop.ExpressionBody!.Span.Start - prop.Span.Start;
+        if (relStart <= 0 || relStart > text.Length) return NormalizeWhitespace(text);
+        return NormalizeWhitespace(text[..relStart].TrimEnd()) + " { get; }";
     }
 
-    static void AppendMethod(MethodDeclarationSyntax method, StringBuilder sb, int indent)
+    /// Strip block bodies from each accessor, keep the accessor keyword + modifiers.
+    static string StripPropertyBodies(PropertyDeclarationSyntax prop)
     {
-        foreach (var attrList in method.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var mods        = method.Modifiers.ToString();
-        var typeParams  = method.TypeParameterList?.ToString() ?? "";
-        var parms       = method.ParameterList.ToString();
-        var constraints = method.ConstraintClauses.Count > 0
-            ? " " + string.Join(" ", method.ConstraintClauses.Select(c => c.ToString()))
-            : "";
-        var sig = string.IsNullOrEmpty(mods)
-            ? $"{method.ReturnType} {method.Identifier}{typeParams}{parms}{constraints}"
-            : $"{mods} {method.ReturnType} {method.Identifier}{typeParams}{parms}{constraints}";
-        sb.AppendLine($"{Indent(indent)}{sig}  {Pos(method)}");
-    }
-
-    static void AppendOperator(OperatorDeclarationSyntax op, StringBuilder sb, int indent)
-    {
-        foreach (var attrList in op.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var mods = op.Modifiers.ToString();
-        var sig  = string.IsNullOrEmpty(mods)
-            ? $"{op.ReturnType} operator {op.OperatorToken}{op.ParameterList}"
-            : $"{mods} {op.ReturnType} operator {op.OperatorToken}{op.ParameterList}";
-        sb.AppendLine($"{Indent(indent)}{sig}  {Pos(op)}");
-    }
-
-    static void AppendConversionOperator(ConversionOperatorDeclarationSyntax conv, StringBuilder sb, int indent)
-    {
-        foreach (var attrList in conv.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var mods = conv.Modifiers.ToString();
-        var sig  = string.IsNullOrEmpty(mods)
-            ? $"{conv.ImplicitOrExplicitKeyword} operator {conv.Type}{conv.ParameterList}"
-            : $"{mods} {conv.ImplicitOrExplicitKeyword} operator {conv.Type}{conv.ParameterList}";
-        sb.AppendLine($"{Indent(indent)}{sig}  {Pos(conv)}");
-    }
-
-    static void AppendIndexer(IndexerDeclarationSyntax indexer, StringBuilder sb, int indent)
-    {
-        foreach (var attrList in indexer.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var mods      = indexer.Modifiers.ToString();
-        var accessors = FormatIndexerAccessors(indexer);
-        var sig       = string.IsNullOrEmpty(mods)
-            ? $"{indexer.Type} this{indexer.ParameterList} {accessors}"
-            : $"{mods} {indexer.Type} this{indexer.ParameterList} {accessors}";
-        sb.AppendLine($"{Indent(indent)}{sig}  {Pos(indexer)}");
-    }
-
-    static void AppendEvent(EventDeclarationSyntax ev, StringBuilder sb, int indent)
-    {
-        foreach (var attrList in ev.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var mods = ev.Modifiers.ToString();
-        var sig  = string.IsNullOrEmpty(mods)
-            ? $"event {ev.Type} {ev.Identifier}"
-            : $"{mods} event {ev.Type} {ev.Identifier}";
-        sb.AppendLine($"{Indent(indent)}{sig}  {Pos(ev)}");
-    }
-
-    static void AppendEventField(EventFieldDeclarationSyntax evField, StringBuilder sb, int indent)
-    {
-        foreach (var attrList in evField.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var mods = evField.Modifiers.ToString();
-        foreach (var variable in evField.Declaration.Variables)
-        {
-            var sig = string.IsNullOrEmpty(mods)
-                ? $"event {evField.Declaration.Type} {variable.Identifier}"
-                : $"{mods} event {evField.Declaration.Type} {variable.Identifier}";
-            sb.AppendLine($"{Indent(indent)}{sig}  {PosToken(variable.Identifier)}");
-        }
-    }
-
-    static void AppendDestructor(DestructorDeclarationSyntax dtor, StringBuilder sb, int indent)
-    {
-        foreach (var attrList in dtor.AttributeLists)
-            sb.AppendLine($"{Indent(indent)}{attrList.ToFullString().Trim()}  {PosToken(attrList.OpenBracketToken)}");
-
-        var mods = dtor.Modifiers.ToString();
-        var sig  = string.IsNullOrEmpty(mods)
-            ? $"~{dtor.Identifier}()"
-            : $"{mods} ~{dtor.Identifier}()";
-        sb.AppendLine($"{Indent(indent)}{sig}  {Pos(dtor)}");
-    }
-
-    // ── signature builders ─────────────────────────────────────────────────────
-
-    static string BuildTypeSignature(TypeDeclarationSyntax type)
-    {
-        var mods        = type.Modifiers.ToString();
-        var keyword     = type.Keyword.ToString();
-        var name        = type.Identifier.ToString();
-        var typeParams  = type.TypeParameterList?.ToString() ?? "";
-        var bases       = type.BaseList is not null ? $" {type.BaseList}" : "";
-        var constraints = type.ConstraintClauses.Count > 0
-            ? " " + string.Join(" ", type.ConstraintClauses.Select(c => c.ToString()))
-            : "";
-
-        return string.IsNullOrEmpty(mods)
-            ? $"{keyword} {name}{typeParams}{bases}{constraints}"
-            : $"{mods} {keyword} {name}{typeParams}{bases}{constraints}";
-    }
-
-    static string FormatPropertyAccessors(PropertyDeclarationSyntax prop)
-    {
-        if (prop.ExpressionBody is not null)
-            return "{ get; }";
-
         if (prop.AccessorList is null)
-            return "";
+            return NormalizeWhitespace(prop.ToString().Trim());
 
-        var parts = prop.AccessorList.Accessors.Select(a =>
+        var text     = prop.ToString();
+        var relStart = prop.AccessorList.Span.Start - prop.Span.Start;
+        var result   = new StringBuilder();
+
+        result.Append(text[..relStart].TrimEnd());
+        result.Append(" { ");
+        foreach (var accessor in prop.AccessorList.Accessors)
         {
-            var mods    = a.Modifiers.ToString();
-            var keyword = a.Keyword.ToString();
-            return string.IsNullOrEmpty(mods) ? $"{keyword};" : $"{mods} {keyword};";
-        });
-
-        return "{ " + string.Join(" ", parts) + " }";
+            if (accessor.Modifiers.Count > 0) result.Append(accessor.Modifiers + " ");
+            result.Append(accessor.Keyword);
+            result.Append("; ");
+        }
+        result.Append('}');
+        return NormalizeWhitespace(result.ToString());
     }
 
-    static string FormatIndexerAccessors(IndexerDeclarationSyntax indexer)
+    static string StripAccessorBodies(IndexerDeclarationSyntax idx, AccessorListSyntax accessorList)
     {
-        if (indexer.ExpressionBody is not null)
-            return "{ get; }";
+        var text     = idx.ToString();
+        var relStart = accessorList.Span.Start - idx.Span.Start;
+        var result   = new StringBuilder();
 
-        if (indexer.AccessorList is null)
-            return "";
-
-        var parts = indexer.AccessorList.Accessors.Select(a =>
+        result.Append(text[..relStart].TrimEnd());
+        result.Append(" { ");
+        foreach (var accessor in accessorList.Accessors)
         {
-            var mods    = a.Modifiers.ToString();
-            var keyword = a.Keyword.ToString();
-            return string.IsNullOrEmpty(mods) ? $"{keyword};" : $"{mods} {keyword};";
-        });
-
-        return "{ " + string.Join(" ", parts) + " }";
+            if (accessor.Modifiers.Count > 0) result.Append(accessor.Modifiers + " ");
+            result.Append(accessor.Keyword);
+            result.Append("; ");
+        }
+        result.Append('}');
+        return NormalizeWhitespace(result.ToString());
     }
+
+    /// Replace body/expressionBody span with `;`.
+    static string StripBody(SyntaxNode node, BlockSyntax? body, ArrowExpressionClauseSyntax? exprBody)
+    {
+        SyntaxNode? toRemove = (SyntaxNode?)body ?? exprBody;
+        if (toRemove is null)
+            return NormalizeWhitespace(node.ToString().Trim());
+
+        var text     = node.ToString();
+        var relStart = toRemove.Span.Start - node.Span.Start;
+
+        if (relStart <= 0 || relStart > text.Length)
+            return NormalizeWhitespace(text.Trim());
+
+        return NormalizeWhitespace(text[..relStart].TrimEnd().TrimEnd(';').TrimEnd()) + ";";
+    }
+
+    /// Replace a child node span entirely (e.g. event accessor list).
+    static string StripBodyNode(SyntaxNode parent, SyntaxNode? child)
+    {
+        if (child is null) return NormalizeWhitespace(parent.ToString().Trim());
+        var text     = parent.ToString();
+        var relStart = child.Span.Start - parent.Span.Start;
+        if (relStart <= 0 || relStart > text.Length)
+            return NormalizeWhitespace(text.Trim());
+        return NormalizeWhitespace(text[..relStart].TrimEnd().TrimEnd(';').TrimEnd()) + ";";
+    }
+
+    // ── position ───────────────────────────────────────────────────────────────
+
+    static string Pos(SyntaxNode node)
+    {
+        var span      = node.GetLocation().GetLineSpan();
+        var startLine = span.StartLinePosition.Line + 1;
+        var endLine   = span.EndLinePosition.Line + 1;
+        var lines     = endLine - startLine;
+
+        return lines > 0 ? $"[lines:{startLine} +{lines}]" : $"[line:{startLine}]";
+    }
+
+    /// Like Pos, but startLine includes leading xmldoc/attribute trivia.
+    static string PosWithLeadingTrivia(SyntaxNode node)
+    {
+        var span      = node.GetLocation().GetLineSpan();
+        var endLine   = span.EndLinePosition.Line + 1;
+        var startLine = LeadingTriviaStartLine(node);
+        var lines     = endLine - startLine;
+
+        return lines > 0 ? $"[lines:{startLine} +{lines}]" : $"[line:{startLine}]";
+    }
+
+    // ── xml doc summary ────────────────────────────────────────────────────────
+
+    static void AppendXmlDoc(SyntaxNode node, StringBuilder sb, int indent)
+    {
+        var summary = ExtractSummary(node);
+        if (summary is null) return;
+        sb.AppendLine($"{Pad(indent)}/// {summary}");
+    }
+
+    static string? ExtractSummary(SyntaxNode node)
+    {
+        var trivia = node.GetLeadingTrivia()
+            .FirstOrDefault(t => t.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)
+                              || t.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia));
+
+        if (trivia == default) return null;
+
+        var xml = trivia.GetStructure();
+        if (xml is null) return null;
+
+        // find <summary>...</summary>
+        var summaryElement = xml.DescendantNodes()
+            .OfType<XmlElementSyntax>()
+            .FirstOrDefault(e => e.StartTag.Name.LocalName.Text == "summary");
+
+        if (summaryElement is null) return null;
+
+        // collect all text content inside <summary>
+        var text = string.Concat(
+            summaryElement.Content
+                .Select(c => c switch
+                {
+                    XmlTextSyntax t => string.Concat(t.TextTokens.Select(tok => tok.ValueText)),
+                    _ => ""
+                }));
+
+        // normalize whitespace
+        text = System.Text.RegularExpressions.Regex.Replace(text.Trim(), @"\s+", " ");
+
+        if (string.IsNullOrWhiteSpace(text)) return null;
+
+        return text.Length > 200 ? text[..200] + "…" : text;
+    }
+
+    // ── helpers ────────────────────────────────────────────────────────────────
+
+    static string Pad(int indent) => new(' ', indent * 4);
+
+    /// Collapse runs of whitespace/newlines into a single space.
+    static string NormalizeWhitespace(string s) =>
+        System.Text.RegularExpressions.Regex.Replace(s.Trim(), @"\s+", " ");
 }
