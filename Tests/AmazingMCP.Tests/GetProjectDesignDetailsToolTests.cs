@@ -40,7 +40,7 @@ public class GetDetailedProjectDesignToolTests
     }
 
     string Act(string[] forNamespaces, bool includeDependencyUsage = true, bool includeImplementations = true) =>
-        GetDetailedProjectDesignTool.FormatMarkdown(
+        GetProjectDesignDetailsTool.FormatMarkdown(
             _depMap, forNamespaces, includeDependencyUsage, includeImplementations, new DependencyAggregator());
 
     #region Namespace filtering — exact match
@@ -232,7 +232,7 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void WildcardToRegex_ExactMatch_MatchesExact()
     {
-        var regex = GetDetailedProjectDesignTool.WildcardToRegex("MyApp.Services");
+        var regex = GetProjectDesignDetailsTool.WildcardToRegex("MyApp.Services");
         regex.IsMatch("MyApp.Services").Should().BeTrue();
         regex.IsMatch("MyApp.Services.Extra").Should().BeFalse();
         regex.IsMatch("Other.MyApp.Services").Should().BeFalse();
@@ -241,7 +241,7 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void WildcardToRegex_SuffixWildcard_MatchesChildren()
     {
-        var regex = GetDetailedProjectDesignTool.WildcardToRegex("MyApp.*");
+        var regex = GetProjectDesignDetailsTool.WildcardToRegex("MyApp.*");
         regex.IsMatch("MyApp.Services").Should().BeTrue();
         regex.IsMatch("MyApp.Services.Handlers").Should().BeTrue();
         regex.IsMatch("MyApp").Should().BeFalse();
@@ -251,7 +251,7 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void WildcardToRegex_PrefixWildcard_MatchesBySuffix()
     {
-        var regex = GetDetailedProjectDesignTool.WildcardToRegex("*.Services");
+        var regex = GetProjectDesignDetailsTool.WildcardToRegex("*.Services");
         regex.IsMatch("MyApp.Services").Should().BeTrue();
         regex.IsMatch("Other.Services").Should().BeTrue();
         regex.IsMatch("MyApp.Services.Extra").Should().BeFalse();
@@ -261,7 +261,7 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void WildcardToRegex_MiddleWildcard_MatchesCorrectly()
     {
-        var regex = GetDetailedProjectDesignTool.WildcardToRegex("MyApp.*.Services");
+        var regex = GetProjectDesignDetailsTool.WildcardToRegex("MyApp.*.Services");
         regex.IsMatch("MyApp.Core.Services").Should().BeTrue();
         regex.IsMatch("MyApp.App.Services").Should().BeTrue();
         regex.IsMatch("MyApp.Services").Should().BeFalse();
@@ -271,7 +271,7 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void WildcardToRegex_CaseInsensitive()
     {
-        var regex = GetDetailedProjectDesignTool.WildcardToRegex("myapp.services");
+        var regex = GetProjectDesignDetailsTool.WildcardToRegex("myapp.services");
         regex.IsMatch("MyApp.Services").Should().BeTrue();
         regex.IsMatch("MYAPP.SERVICES").Should().BeTrue();
     }
@@ -283,7 +283,7 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void FormatMarkdown_EmptyNamespaces_ReturnsError()
     {
-        var md = GetDetailedProjectDesignTool.FormatMarkdown(_depMap, [], true);
+        var md = GetProjectDesignDetailsTool.FormatMarkdown(_depMap, [], true);
         md.Should().Contain("No abstractions found");
     }
 
@@ -323,6 +323,106 @@ public class GetDetailedProjectDesignToolTests
 
     #endregion
 
+    #region XmlDoc summary
+
+    [Test]
+    public void FormatMarkdown_AbstractionWithXmlDocSummary_ShowsSummaryUnderHeader()
+    {
+        var md = Act(["TestProject.Core.Services"]);
+
+        // IAnimalService has a summary — it should appear right after the ## header
+        var lines = md.Split('\n').Select(l => l.Trim()).ToList();
+        var headerIdx = lines.FindIndex(l => l == "## TestProject.Core.Services.IAnimalService");
+        headerIdx.Should().BeGreaterThan(-1, "IAnimalService header must be present");
+
+        var summaryLine = lines[headerIdx + 1];
+        summaryLine.Should().StartWith("> ");
+        summaryLine.Should().Contain("animal");
+    }
+
+    [Test]
+    public void FormatMarkdown_AbstractionWithXmlDocSummary_SummaryAppearsInOutput()
+    {
+        var md = Act(["TestProject.Core.Persistence"]);
+
+        // IAnimalRepository has a summary
+        md.Should().Contain("Repository for animal entities");
+    }
+
+    [Test]
+    public void FormatMarkdown_AbstractionWithoutXmlDocSummary_NoSummaryLine()
+    {
+        var md = Act(["TestProject.Core.Persistence"]);
+
+        // IRepository<T> has no summary — no blockquote line should follow its header
+        var lines = md.Split('\n').Select(l => l.Trim()).ToList();
+        var headerIdx = lines.FindIndex(l => l.StartsWith("## TestProject.Core.Persistence.IRepository<"));
+        headerIdx.Should().BeGreaterThan(-1, "IRepository<T> header must be present");
+
+        // The line immediately after the header should NOT be a blockquote summary
+        if (headerIdx + 1 < lines.Count)
+            lines[headerIdx + 1].Should().NotStartWith("> ");
+    }
+
+    [Test]
+    public void FormatMarkdown_TruncatedSummary_EndsWithTruncatedMarker()
+    {
+        // ExtractXmlDocSummary stores the full text; FormatMarkdown truncates at 2000 chars
+        var longText = new string('x', 2001);
+        var abstraction = new AbstractionInfo
+        {
+            FullName = "My.Ns.IFoo",
+            Namespace = "My.Ns",
+            ProjectName = "MyProject",
+            SourceFilePath = "/fake/IFoo.cs",
+            IsInterface = true,
+            IsAbstractClass = false,
+            IsStaticClass = false,
+            Implementations = [],
+            XmlDocSummary = longText
+        };
+
+        var depMap = new DependencyMapResult(
+            new Dictionary<string, AbstractionInfo> { [abstraction.FullName] = abstraction },
+            new Dictionary<string, ImplementationInfo>(),
+            null);
+
+        var md = GetProjectDesignDetailsTool.FormatMarkdown(depMap, ["My.Ns"], false, true, null);
+
+        md.Should().Contain("<<truncated>>");
+        var lines = md.Split('\n').Select(l => l.Trim()).ToList();
+        var headerIdx = lines.FindIndex(l => l == "## My.Ns.IFoo");
+        headerIdx.Should().BeGreaterThan(-1, "abstraction header must be present");
+        var summaryLine = lines[headerIdx + 1];
+        summaryLine.Should().StartWith("> ");
+        summaryLine.Should().EndWith("<<truncated>>");
+    }
+
+    [Test]
+    public void ExtractXmlDocSummary_LongSummary_StoredInFull()
+    {
+        // The extractor must NOT truncate — full text is preserved in the data structure
+        var longText = new string('x', 2001);
+        var xml = $"<member><summary>{longText}</summary></member>";
+        var result = AbstractionExtractor.ExtractXmlDocSummary(xml);
+
+        result.Should().NotBeNull();
+        result!.Length.Should().Be(2001);
+        result.Should().NotContain("<<truncated>>");
+    }
+
+    [Test]
+    public void ExtractXmlDocSummary_ShortSummary_NoTruncationMarker()
+    {
+        var xml = "<member><summary>Short summary.</summary></member>";
+        var result = AbstractionExtractor.ExtractXmlDocSummary(xml);
+
+        result.Should().Be("Short summary.");
+        result.Should().NotContain("<<truncated>>");
+    }
+
+    #endregion
+
     #region get_project_design FormatMarkdown — intro block
 
     [Test]
@@ -332,7 +432,7 @@ public class GetDetailedProjectDesignToolTests
             _depMap, CompilationHelper.SolutionPath, new DependencyAggregator());
         var md = GetProjectDesignTool.FormatMarkdown(result);
 
-        md.Should().Contain("get_detailed_project_design");
+        md.Should().Contain("get_project_design_details");
         md.Should().Contain("forNamespaces");
         md.Should().Contain("FullNamespace");
         md.Should().Contain("*");

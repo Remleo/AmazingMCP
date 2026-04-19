@@ -308,16 +308,18 @@ public class DependencyMapService(
             if (!abstractions.ContainsKey(openGenericFullName)
                 && !missingOpenGenerics.ContainsKey(openGenericFullName))
             {
-                missingOpenGenerics[openGenericFullName] = new AbstractionInfo(
-                    FullName: openGenericFullName,
-                    Namespace: abstraction.Namespace,
-                    ProjectName: abstraction.ProjectName,
-                    SourceFilePath: abstraction.SourceFilePath,
-                    IsInterface: abstraction.IsInterface,
-                    IsAbstractClass: abstraction.IsAbstractClass,
-                    IsStaticClass: abstraction.IsStaticClass,
-                    Implementations: [],
-                    OpenGenericFullName: null);
+                missingOpenGenerics[openGenericFullName] = new AbstractionInfo
+                {
+                    FullName = openGenericFullName,
+                    Namespace = abstraction.Namespace,
+                    ProjectName = abstraction.ProjectName,
+                    SourceFilePath = abstraction.SourceFilePath,
+                    IsInterface = abstraction.IsInterface,
+                    IsAbstractClass = abstraction.IsAbstractClass,
+                    IsStaticClass = abstraction.IsStaticClass,
+                    Implementations = [],
+                    OpenGenericFullName = null
+                };
             }
         }
 

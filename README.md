@@ -17,7 +17,7 @@ The server opens `.sln`/`.slnx` files, compiles projects in memory, and enables 
 | Tool | Description |
 |---|---|
 | `get_project_design` | High-level map: abstraction groups by namespace and inter-group dependencies |
-| `get_detailed_project_design` | Detailed view of abstractions and implementations for specified namespace groups (supports `*` wildcard) |
+| `get_project_design_details` | Detailed view of abstractions and implementations for specified namespace groups (supports `*` wildcard) |
 | `get_type_deps_and_usage` | Full dependency and usage info for a type (exact, wildcard, fuzzy search) |
 | `query_symbol` | Type search by name (including NuGet), with partial match support |
 | `get_symbol_info` | Detailed type info: properties, methods, base types, nested types (including NuGet) |

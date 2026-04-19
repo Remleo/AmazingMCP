@@ -10,11 +10,10 @@ namespace AmazingMCP.Tools;
 public static class GetProjectDesignTool
 {
     [McpServerTool(Name = "get_project_design", ReadOnly = true), Description(
-        "START HERE when exploring an unfamiliar codebase. " +
-        "Returns the high-level architecture map: all abstraction groups organized by namespace, " +
-        "their sizes, and inter-group dependency graph. " +
-        "Use this to understand the overall structure before diving into details. " +
-        "Then call `get_detailed_project_design` with specific namespaces to drill down.")]
+        "The best starting point for understanding how a project is designed. " +
+        "Gives a helicopter view of the entire codebase — its key building blocks, how they are organized, and how they relate to each other. " +
+        "Highly recommended before making any non-trivial changes or exploring an unfamiliar codebase. " +
+        "Follow up with `get_project_design_details` to dive deeper into specific areas.")]
     public static async Task<string> GetProjectDesign(
         ProjectDesignService projectDesignService,
         SolutionResolver solutionResolver,
@@ -36,7 +35,7 @@ public static class GetProjectDesignTool
         sb.AppendLine("# Project Design");
         sb.AppendLine();
         sb.AppendLine("> Each group is shown as: `## ShortName (FullNamespace)`");
-        sb.AppendLine("> To get detailed info for specific groups, call `get_detailed_project_design` with `forNamespaces`.");
+        sb.AppendLine("> To get detailed info for specific groups, call `get_project_design_details` with `forNamespaces`.");
         sb.AppendLine("> Use the `FullNamespace` value directly, or use `*` as a wildcard anywhere (e.g. `MyApp.App.*`, `*.Mapping`, `MyApp.*.Services`).");
         sb.AppendLine();
 

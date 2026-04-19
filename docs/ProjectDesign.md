@@ -50,7 +50,7 @@ NuGet dependencies are resolved to the external library's namespace (e.g., `Auto
 # Project Design
 
 > Each group is shown as: `## ShortName (FullNamespace)`
-> To get detailed info for specific groups, call `get_detailed_project_design` with `forNamespaces`.
+> To get detailed info for specific groups, call `get_project_design_details` with `forNamespaces`.
 > Use the `FullNamespace` value directly, or use `*` as a wildcard anywhere (e.g. `MyApp.App.*`, `*.Mapping`, `MyApp.*.Services`).
 
 ## Configuration (TestProject.Core.Configuration)

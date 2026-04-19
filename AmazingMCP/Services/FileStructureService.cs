@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using AmazingMCP.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -6,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace AmazingMCP.Services;
 
-public class FileStructureService
+public partial class FileStructureService
 {
     // ── public API ─────────────────────────────────────────────────────────────
 
@@ -507,7 +508,7 @@ public class FileStructureService
                 }));
 
         // normalize whitespace
-        text = System.Text.RegularExpressions.Regex.Replace(text.Trim(), @"\s+", " ");
+        text = WhitespaceRegex().Replace(text.Trim(), " ");
 
         if (string.IsNullOrWhiteSpace(text)) return null;
 
@@ -520,5 +521,8 @@ public class FileStructureService
 
     /// Collapse runs of whitespace/newlines into a single space.
     static string NormalizeWhitespace(string s) =>
-        System.Text.RegularExpressions.Regex.Replace(s.Trim(), @"\s+", " ");
+        WhitespaceRegex().Replace(s.Trim(), " ");
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 }

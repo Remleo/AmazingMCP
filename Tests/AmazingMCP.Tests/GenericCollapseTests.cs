@@ -10,7 +10,7 @@ using NUnit.Framework;
 namespace AmazingMCP.Tests;
 
 /// <summary>
-/// Tests for closed→open generic collapsing in GetTypeDepsAndUsageTool and GetDetailedProjectDesignTool.
+/// Tests for closed→open generic collapsing in GetTypeDepsAndUsageTool and GetProjectDesignDetailsTool.
 ///
 /// Test data: IGenericTracer&lt;TService&gt; (open generic, source-defined in TestProject.Core.Logging)
 ///   - IGenericTracer&lt;TracedServiceA&gt; — used by TracedServiceA via tracer?.Trace(...)
@@ -55,7 +55,7 @@ public class GenericCollapseTests
         GetTypeDepsAndUsageTool.FormatMarkdown(_depMap, typeQuery, new DependencyAggregator());
 
     string ActDetailed(string[] forNamespaces) =>
-        GetDetailedProjectDesignTool.FormatMarkdown(
+        GetProjectDesignDetailsTool.FormatMarkdown(
             _depMap, forNamespaces, includeDependencyUsage: true,
             includeImplementations: true, aggregator: new DependencyAggregator());
 
@@ -151,7 +151,7 @@ public class GenericCollapseTests
         md.Should().Contain(TracedServiceB);
     }
 
-    // ─── GetDetailedProjectDesignTool — Depends on collapsing ───────────────
+    // ─── GetProjectDesignDetailsTool — Depends on collapsing ───────────────
 
     [Test]
     public void DetailedProjectDesign_DependsOn_ClosedGenericCollapsedToOpen()

@@ -8,16 +8,16 @@ using ModelContextProtocol.Server;
 namespace AmazingMCP.Tools;
 
 [McpServerToolType]
-public static class GetDetailedProjectDesignTool
+public static class GetProjectDesignDetailsTool
 {
     const int MaxOutputLength = 30000;
+    const int MaxSummaryLength = 2000;
     const string TruncationSuffix =
         "\n\n<<... truncated output ...>> Please try to use more specific namespaces, `includeDependencyUsage: false` or `includeImplementations: false`";
 
-    [McpServerTool(Name = "get_detailed_project_design", ReadOnly = true), Description(
-        "Drill down into specific namespace groups after calling `get_project_design`. " +
-        "Shows every abstraction in the selected namespaces with its implementations, " +
-        "all dependencies (resolved recursively through base class chains), and exact member calls. " +
+    [McpServerTool(Name = "get_project_design_details", ReadOnly = true), Description(
+        "Deep-dives into the design of specific namespace groups to help understand how the project is structured. " +
+        "Call after `get_project_design` to explore areas of interest in detail. " +
         "Supports `*` wildcard in namespace patterns. " +
         "Use `includeDependencyUsage: false` or `includeImplementations: false` to reduce output size.")]
     public static async Task<string> GetDetailedProjectDesign(
@@ -77,6 +77,14 @@ public static class GetDetailedProjectDesignTool
         foreach (var abstraction in matchedAbstractions)
         {
             sb.AppendLine($"## {abstraction.FullName}");
+
+            if (!string.IsNullOrEmpty(abstraction.XmlDocSummary))
+            {
+                var summary = abstraction.XmlDocSummary.Length > MaxSummaryLength
+                    ? abstraction.XmlDocSummary[..MaxSummaryLength] + " <<truncated>>"
+                    : abstraction.XmlDocSummary;
+                sb.AppendLine($"> {summary}");
+            }
 
             if (abstraction.Implementations.Count == 0)
             {

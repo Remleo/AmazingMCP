@@ -464,25 +464,29 @@ public class ProjectDesignServiceTests
     public void BuildFromDependencyMap_NuGetAbstraction_NotInGroups()
     {
         // arrange — nuget type has SourceFilePath = null
-        var nugetAbstraction = new AbstractionInfo(
-            FullName: "Acme.Sdk.IExternalService",
-            Namespace: "Acme.Sdk",
-            ProjectName: "Acme.Sdk",
-            SourceFilePath: null,
-            IsInterface: true,
-            IsAbstractClass: false,
-            IsStaticClass: false,
-            Implementations: ["MyApp.Services.MyService"]);
+        var nugetAbstraction = new AbstractionInfo
+        {
+            FullName = "Acme.Sdk.IExternalService",
+            Namespace = "Acme.Sdk",
+            ProjectName = "Acme.Sdk",
+            SourceFilePath = null,
+            IsInterface = true,
+            IsAbstractClass = false,
+            IsStaticClass = false,
+            Implementations = ["MyApp.Services.MyService"]
+        };
 
-        var sourceAbstraction = new AbstractionInfo(
-            FullName: "MyApp.Services.IMyService",
-            Namespace: "MyApp.Services",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/MyApp/Services/IMyService.cs",
-            IsInterface: true,
-            IsAbstractClass: false,
-            IsStaticClass: false,
-            Implementations: ["MyApp.Services.MyService"]);
+        var sourceAbstraction = new AbstractionInfo
+        {
+            FullName = "MyApp.Services.IMyService",
+            Namespace = "MyApp.Services",
+            ProjectName = "MyApp",
+            SourceFilePath = "/src/MyApp/Services/IMyService.cs",
+            IsInterface = true,
+            IsAbstractClass = false,
+            IsStaticClass = false,
+            Implementations = ["MyApp.Services.MyService"]
+        };
 
         var impl = new ImplementationInfo(
             FullName: "MyApp.Services.MyService",
@@ -516,35 +520,41 @@ public class ProjectDesignServiceTests
     public void BuildFromDependencyMap_NuGetAbstraction_DependencyStillResolvedToItsNamespace()
     {
         // arrange
-        var nugetAbstraction = new AbstractionInfo(
-            FullName: "Acme.Sdk.IExternalService",
-            Namespace: "Acme.Sdk",
-            ProjectName: "Acme.Sdk",
-            SourceFilePath: null,
-            IsInterface: true,
-            IsAbstractClass: false,
-            IsStaticClass: false,
-            Implementations: ["MyApp.Services.MyService"]);
+        var nugetAbstraction = new AbstractionInfo
+        {
+            FullName = "Acme.Sdk.IExternalService",
+            Namespace = "Acme.Sdk",
+            ProjectName = "Acme.Sdk",
+            SourceFilePath = null,
+            IsInterface = true,
+            IsAbstractClass = false,
+            IsStaticClass = false,
+            Implementations = ["MyApp.Services.MyService"]
+        };
 
-        var sourceAbstraction = new AbstractionInfo(
-            FullName: "MyApp.Services.IMyService",
-            Namespace: "MyApp.Services",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/MyApp/Services/IMyService.cs",
-            IsInterface: true,
-            IsAbstractClass: false,
-            IsStaticClass: false,
-            Implementations: ["MyApp.Services.MyService"]);
+        var sourceAbstraction = new AbstractionInfo
+        {
+            FullName = "MyApp.Services.IMyService",
+            Namespace = "MyApp.Services",
+            ProjectName = "MyApp",
+            SourceFilePath = "/src/MyApp/Services/IMyService.cs",
+            IsInterface = true,
+            IsAbstractClass = false,
+            IsStaticClass = false,
+            Implementations = ["MyApp.Services.MyService"]
+        };
 
-        var consumerAbstraction = new AbstractionInfo(
-            FullName: "MyApp.Application.IConsumer",
-            Namespace: "MyApp.Application",
-            ProjectName: "MyApp",
-            SourceFilePath: "/src/MyApp/Application/IConsumer.cs",
-            IsInterface: true,
-            IsAbstractClass: false,
-            IsStaticClass: false,
-            Implementations: ["MyApp.Application.Consumer"]);
+        var consumerAbstraction = new AbstractionInfo
+        {
+            FullName = "MyApp.Application.IConsumer",
+            Namespace = "MyApp.Application",
+            ProjectName = "MyApp",
+            SourceFilePath = "/src/MyApp/Application/IConsumer.cs",
+            IsInterface = true,
+            IsAbstractClass = false,
+            IsStaticClass = false,
+            Implementations = ["MyApp.Application.Consumer"]
+        };
 
         var consumerImpl = new ImplementationInfo(
             FullName: "MyApp.Application.Consumer",
