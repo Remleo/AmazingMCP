@@ -15,8 +15,8 @@ public static class ReadLargeCsFileTool
     public static string ReadLargeCsFile(
         FilteredSourceService filteredSource,
         [Description("Absolute path to the .cs file")] string filePath,
-        [Description("Wildcard filter patterns, e.g. [\"*Async*\", \"usings\", \"*public*\"]. Pass null or empty to return the full file.")]
-        string[]? filters = null)
+        [Description("Wildcard filter patterns, e.g. [\"*Async*\", \"usings\", \"*public*\"]. Pass empty array to return the full file.")]
+        string[] filters = null)
     {
         var result = filteredSource.GetFilteredSource(filePath, filters);
         if (result.Contains("No matches found"))

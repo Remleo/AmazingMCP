@@ -54,7 +54,7 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
 
-        result.Should().MatchRegex(@"namespace TestProject\.App\.Helpers\s+\[lines?:\d+");
+        result.Should().MatchRegex(@"/\*\[lines?:\d+[^\]]*\]\*/ namespace TestProject\.App\.Helpers");
     }
 
     // ── class signature ────────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
 
-        result.Should().MatchRegex(@"class AnimalService.*\[lines:\d+ \+\d+\]");
+        result.Should().MatchRegex(@"/\*\[lines:\d+ \+\d+\]\*/ .*class AnimalService");
     }
 
     // ── interface ──────────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
 
-        result.Should().MatchRegex(@"_repository;\s+\[line:\d+\]");
+        result.Should().MatchRegex(@"/\*\[line:\d+\]\*/ .*_repository;");
     }
 
     // ── constructors ───────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
 
-        result.Should().MatchRegex(@"Format\(string input\);\s+\[line:\d+\]");
+        result.Should().MatchRegex(@"/\*\[line:\d+\]\*/ .*Format\(string input\);");
     }
 
     [Test]
@@ -343,7 +343,7 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
 
-        result.Should().MatchRegex(@"Format\(string input\);\s+\[line:\d+\]");
+        result.Should().MatchRegex(@"/\*\[line:\d+\]\*/ .*Format\(string input\);");
         result.Should().NotMatchRegex(@"Format\(string input\).*\+\d+");
     }
 
@@ -352,7 +352,7 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
 
-        result.Should().MatchRegex(@"\[lines:\d+ \+\d+\]");
+        result.Should().MatchRegex(@"/\*\[lines:\d+ \+\d+\]\*/");
         result.Should().Contain("AnimalService(");
     }
 
@@ -372,8 +372,8 @@ public class FileStructureServiceTests
         var result = _sut.GetStructure(FilePath("Helpers", "AnimalFormatter.cs"));
 
         var lines     = result.Split('\n');
-        var usingsIdx = Array.FindIndex(lines, l => l.TrimStart().StartsWith("usings"));
-        var nsIdx     = Array.FindIndex(lines, l => l.TrimStart().StartsWith("namespace"));
+        var usingsIdx = Array.FindIndex(lines, l => l.TrimStart().StartsWith("/*[") && l.Contains("]*/ usings"));
+        var nsIdx     = Array.FindIndex(lines, l => l.TrimStart().StartsWith("/*[") && l.Contains("namespace"));
 
         usingsIdx.Should().BeGreaterThanOrEqualTo(0);
         nsIdx.Should().BeGreaterThan(usingsIdx);
@@ -384,7 +384,7 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Helpers", "AnimalFormatter.cs"));
 
-        result.Should().MatchRegex(@"usings\s+\[lines?:\d+");
+        result.Should().MatchRegex(@"/\*\[lines?:\d+[^\]]*\]\*/ usings");
     }
 
     [Test]
@@ -392,18 +392,16 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Helpers", "AnimalFormatter.cs"));
 
-        result.Should().MatchRegex(@"usings\s+\[lines?:\d+");
+        result.Should().MatchRegex(@"/\*\[lines?:\d+[^\]]*\]\*/ usings");
     }
 
     [Test]
     public void GetStructure_FileWithNoUsings_NoUsingsLine()
     {
-        // IEntityMapper.cs has no usings — the "usings  [line:N]" entry must not appear
         var result = _sut.GetStructure(FilePath("Mapping", "IEntityMapper.cs"));
 
-        // only the structural "usings  [line:N]" line should be absent — footer may mention the word
         var lines = result.Split('\n');
-        lines.Should().NotContain(l => System.Text.RegularExpressions.Regex.IsMatch(l.Trim(), @"^usings\s+\["));
+        lines.Should().NotContain(l => System.Text.RegularExpressions.Regex.IsMatch(l.Trim(), @"^/\*\[.*\]\*/ usings"));
     }
 
     [Test]
@@ -412,7 +410,7 @@ public class FileStructureServiceTests
         var result = _sut.GetStructure(FilePath("Helpers", "FileStructureUsingsFixture.cs"));
 
         // First using = line 2, last using = line 6 → +4
-        result.Should().MatchRegex(@"usings\s+\[lines:2 \+4\]");
+        result.Should().MatchRegex(@"/\*\[lines:2 \+4\]\*/ usings");
     }
 
     [Test]
@@ -420,10 +418,13 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Helpers", "FileStructureUsingsFixture.cs"));
 
-        // comments inside the usings block must NOT appear as separate entries
-        // (/// doc comments on types are printed as summary lines, not raw comment lines)
+        // Raw comment lines (// or /* not part of position markers) must not appear as separate entries.
+        // Position markers have the form: /* [lines:N +M] */ or /* [line:N] */
         var lines = result.Split('\n');
         lines.Should().NotContain(l => l.TrimStart().StartsWith("//") && !l.TrimStart().StartsWith("///"));
-        lines.Should().NotContain(l => l.TrimStart().StartsWith("/*"));
+        // /* lines that are NOT position markers should not appear
+        lines.Should().NotContain(l =>
+            l.TrimStart().StartsWith("/*") &&
+            !System.Text.RegularExpressions.Regex.IsMatch(l.TrimStart(), @"^/\*\[lines?:\d+"));
     }
 }
