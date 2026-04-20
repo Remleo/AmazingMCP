@@ -5,13 +5,22 @@ using Microsoft.Extensions.Hosting;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services
-    .AddMcpServer(options =>
-    {
-        options.ServerInfo = new() { Name = "AmazingMCP.Launcher", Version = "1.0.0" };
-    })
+    .AddMcpServer(options => { options.ServerInfo = new() { Name = "AmazingMCP.Launcher", Version = "1.0.0" }; })
     .WithStdioServerTransport();
 
-builder.Services.AddHostedService<AmazingMcpHostService>();
+// Extract --urls value from launcher args to forward to the child process
+var urlsArg = string.Empty;
+for (var i = 0; i < args.Length - 1; i++)
+{
+    if (args[i].Equals("--urls", StringComparison.OrdinalIgnoreCase))
+    {
+        urlsArg = $"--urls \"{args[i + 1]}\"";
+        break;
+    }
+}
+
+builder.Services.AddHostedService(sp =>
+    new AmazingMcpHostService(sp.GetRequiredService<IHostApplicationLifetime>(), urlsArg));
 
 var app = builder.Build();
 await app.RunAsync();
@@ -19,26 +28,24 @@ await app.RunAsync();
 /// <summary>
 /// Hosted service that starts the main AmazingMCP HTTP server as a child process.
 /// </summary>
-public class AmazingMcpHostService : IHostedService, IDisposable
+public class AmazingMcpHostService(IHostApplicationLifetime lifetime, string urlsArg) : IHostedService, IDisposable
 {
-    private readonly IHostApplicationLifetime _lifetime;
-    private Process? _process;
-
-    public AmazingMcpHostService(IHostApplicationLifetime lifetime)
-    {
-        _lifetime = lifetime;
-    }
+    Process? _process;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         const string projectDir = @"C:\dotNet\AmazingMCP\AmazingMCP";
+
+        var arguments = string.IsNullOrEmpty(urlsArg)
+            ? $"run --project \"{projectDir}\""
+            : $"run --project \"{projectDir}\" {urlsArg}";
 
         _process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"run --project \"{projectDir}\"",
+                Arguments = arguments,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -52,14 +59,14 @@ public class AmazingMcpHostService : IHostedService, IDisposable
             if (!_process.Start())
             {
                 await Console.Error.WriteLineAsync("Failed to start AmazingMCP process.");
-                _lifetime.StopApplication();
+                lifetime.StopApplication();
                 return;
             }
         }
         catch (Exception ex)
         {
             await Console.Error.WriteLineAsync($"Failed to start AmazingMCP process: {ex.Message}");
-            _lifetime.StopApplication();
+            lifetime.StopApplication();
             return;
         }
 
@@ -78,7 +85,7 @@ public class AmazingMcpHostService : IHostedService, IDisposable
             var stderr = await _process.StandardError.ReadToEndAsync(cancellationToken);
             await Console.Error.WriteLineAsync(
                 $"AmazingMCP process exited immediately with code {_process.ExitCode}.{(string.IsNullOrWhiteSpace(stderr) ? "" : $"\n{stderr}")}");
-            _lifetime.StopApplication();
+            lifetime.StopApplication();
         }
     }
 
@@ -94,7 +101,7 @@ public class AmazingMcpHostService : IHostedService, IDisposable
         _process?.Dispose();
     }
 
-    private void KillProcess()
+    void KillProcess()
     {
         if (_process is null || _process.HasExited)
             return;
