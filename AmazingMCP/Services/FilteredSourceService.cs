@@ -8,7 +8,7 @@ public class FilteredSourceService(FileStructureService fileStructure)
     const string CutMarker   = "// << ... cut ... >>";
     const int    MaxTypeLines = 200;
 
-    public string GetFilteredSource(string filePath, string[] filters)
+    public string GetFilteredSource(string filePath, string[]? filters)
     {
         filePath = Path.GetFullPath(filePath);
 
@@ -16,7 +16,14 @@ public class FilteredSourceService(FileStructureService fileStructure)
             return $"File not found: {filePath}";
 
         if (filters is not { Length: > 0 })
-            return "No filters specified.";
+        {
+            var fileInfo = new FileInfo(filePath);
+            if (fileInfo.Length > 30_000)
+                return $"File is too large ({fileInfo.Length:N0} chars) to return without filters. " +
+                       "Use wildcard `filters` to select specific members, or call `read_cs_file_digest` to see the compact outline.";
+
+            return File.ReadAllText(filePath);
+        }
 
         var sourceLines = File.ReadAllLines(filePath);
         var items       = fileStructure.GetItems(filePath);

@@ -11,12 +11,12 @@ public static class ReadLargeCsFileTool
         "IMPORTANT: USE THIS to read source code from large .cs files instead of loading the full file. " +
         "Returns only the members matching the given wildcard filters, with skipped sections replaced by '// << ... cut ... >>'. " +
         "Filters match against full member signatures (name, return type, parameters). " +
-        "If unsure what members exist, call read_cs_file_digest first.")]
+        "If unsure what members exist, call read_cs_file_digest first. ")]
     public static string ReadLargeCsFile(
         FilteredSourceService filteredSource,
         [Description("Absolute path to the .cs file")] string filePath,
-        [Description("Wildcard filter patterns, e.g. [\"*Async*\", \"usings\", \"*public*\"]")]
-        string[] filters)
+        [Description("Wildcard filter patterns, e.g. [\"*Async*\", \"usings\", \"*public*\"]. Pass null or empty to return the full file.")]
+        string[]? filters = null)
     {
         var result = filteredSource.GetFilteredSource(filePath, filters);
         if (result.Contains("No matches found"))
