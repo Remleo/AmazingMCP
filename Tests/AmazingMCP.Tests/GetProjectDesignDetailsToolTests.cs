@@ -125,7 +125,7 @@ public class GetDetailedProjectDesignToolTests
     public void FormatMarkdown_ContainsHeader()
     {
         var md = Act(["TestProject.App.Mapping"]);
-        md.Should().StartWith("# Detailed Project Design");
+        md.Should().StartWith("# Project Design Details");
     }
 
     [Test]
@@ -428,8 +428,8 @@ public class GetDetailedProjectDesignToolTests
     [Test]
     public void GetProjectDesignTool_FormatMarkdown_ContainsIntroBlock()
     {
-        var result = ProjectDesignService.BuildFromDependencyMap(
-            _depMap, CompilationHelper.SolutionPath, new DependencyAggregator());
+        var result = new ProjectDesignService(null!, new DependencyAggregator())
+            .BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath);
         var md = GetProjectDesignTool.FormatMarkdown(result);
 
         md.Should().Contain("get_project_design_details");

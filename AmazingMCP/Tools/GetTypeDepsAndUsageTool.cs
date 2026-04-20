@@ -14,7 +14,7 @@ public static class GetTypeDepsAndUsageTool
         "Look up any type by name to see who implements it, what it depends on, and who uses it. " +
         "Supports exact full name, partial name, and `*` wildcard patterns. " +
         "For each matched abstraction shows: implementations with their full dependency tree and member-level call details; " +
-        "and which other types use this abstraction (grouped by their own abstraction). " +
+        "and which other types use this abstraction. " +
         "Ideal for impact analysis, understanding a specific interface, or tracing a dependency chain.")]
     public static async Task<string> GetTypeDepsAndUsage(
         DependencyMapService dependencyMapService,

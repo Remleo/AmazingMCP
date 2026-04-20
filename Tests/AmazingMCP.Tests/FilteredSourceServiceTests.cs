@@ -140,6 +140,96 @@ public class FilteredSourceServiceTests
     }
 
     [Test]
+    public void GetFilteredSource_GapShorterThanCutMarker_OriginalLinesEmittedInsteadOfMarker()
+    {
+        // arrange — file where the gap between two matched members is a single short line
+        // (e.g. just a blank line or a closing brace — fewer chars than the cut marker)
+        var tempFile = Path.GetTempFileName() + ".cs";
+        try
+        {
+            // Gap between the two methods is one blank line (0 chars) — shorter than marker
+            File.WriteAllText(tempFile,
+                "public class Foo\n" +
+                "{\n" +
+                "    public void A() { }\n" +
+                "\n" +
+                "    public void B() { }\n" +
+                "}\n");
+
+            // act — match only A and B, leaving the blank-line gap between them
+            var result = _sut.GetFilteredSource(tempFile, ["*void A*", "*void B*"]);
+
+            // assert — gap is shorter than marker, so no cut marker should appear
+            result.Should().NotContain("// << ... cut ... >>");
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Test]
+    public void GetFilteredSource_TrailingContentShorterThanCutMarker_OriginalLinesEmittedInsteadOfMarker()
+    {
+        // arrange — file where the trailing content after the last matched range
+        // is shorter than the cut marker (e.g. just a closing brace)
+        var tempFile = Path.GetTempFileName() + ".cs";
+        try
+        {
+            // After matching "void A", the trailing part is just "}" — 1 char, shorter than marker
+            File.WriteAllText(tempFile,
+                "public class Foo\n" +
+                "{\n" +
+                "    public void A() { }\n" +
+                "}\n");
+
+            // act — match only the method, not the closing brace of the class
+            var result = _sut.GetFilteredSource(tempFile, ["*void A*"]);
+
+            // assert — trailing "}" is shorter than marker, so no cut marker at the end
+            result.Should().NotContain("// << ... cut ... >>");
+            result.Should().Contain("}");
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Test]
+    public void GetFilteredSource_GapLongerThanCutMarker_CutMarkerInserted()
+    {
+        // arrange — file where the gap between two matched members is long enough
+        // to justify replacing with the cut marker
+        var tempFile = Path.GetTempFileName() + ".cs";
+        try
+        {
+            // Gap is 3 lines of real code — definitely longer than the 20-char marker
+            File.WriteAllText(tempFile,
+                "public class Foo\n" +
+                "{\n" +
+                "    public void A() { }\n" +
+                "\n" +
+                "    // some long comment that exceeds the cut marker length\n" +
+                "    private int _field1;\n" +
+                "    private int _field2;\n" +
+                "\n" +
+                "    public void B() { }\n" +
+                "}\n");
+
+            // act
+            var result = _sut.GetFilteredSource(tempFile, ["*void A*", "*void B*"]);
+
+            // assert — gap is long, cut marker must be used
+            result.Should().Contain("// << ... cut ... >>");
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Test]
     public void GetFilteredSource_AllSectionsMatched_NoCutMarker()
     {
         // arrange — build a temp file with no namespace so everything is matchable

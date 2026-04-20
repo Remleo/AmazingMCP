@@ -68,7 +68,7 @@ public static class GetProjectDesignDetailsTool
         var openToClosedIndex = GenericCollapseHelper.BuildOpenToClosedIndex(depMap.ClosedToOpenGenericMap);
 
         var sb = new StringBuilder();
-        sb.AppendLine("# Detailed Project Design");
+        sb.AppendLine("# Project Design Details");
         sb.AppendLine();
         sb.AppendLine($"> Namespaces: `{string.Join("`, `", forNamespaces)}`");
         sb.AppendLine($"> Abstractions found: {matchedAbstractions.Count}");

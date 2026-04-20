@@ -42,7 +42,7 @@ public class ProjectDesignServiceTests
     }
 
     ProjectDesignResult Act() =>
-        ProjectDesignService.BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath, _aggregator);
+        new ProjectDesignService(null!, _aggregator).BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath);
 
     #region Flat groups — no project split
 
@@ -509,7 +509,8 @@ public class ProjectDesignServiceTests
             });
 
         // act
-        var result = ProjectDesignService.BuildFromDependencyMap(depMap, "/fake/solution.slnx", new DependencyAggregator());
+        var result = new ProjectDesignService(null!, new DependencyAggregator())
+            .BuildFromDependencyMap(depMap, "/fake/solution.slnx");
 
         // assert — NuGet group must not appear in the main list
         result.Groups.Should().NotContain(g => g.FullName == "Acme.Sdk");
@@ -578,7 +579,8 @@ public class ProjectDesignServiceTests
             });
 
         // act
-        var result = ProjectDesignService.BuildFromDependencyMap(depMap, "/fake/solution.slnx", new DependencyAggregator());
+        var result = new ProjectDesignService(null!, new DependencyAggregator())
+            .BuildFromDependencyMap(depMap, "/fake/solution.slnx");
 
         // assert — Application group depends on Acme.Sdk namespace (NuGet), even though it's not in groups
         var appGroup = result.Groups.Single(g => g.FullName == "MyApp.Application");

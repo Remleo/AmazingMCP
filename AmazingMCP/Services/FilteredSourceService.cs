@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.RegularExpressions;
 using AmazingMCP.Models;
 
@@ -67,6 +66,14 @@ public class FilteredSourceService(FileStructureService fileStructure)
         _                               => true   // Usings, Member
     };
 
+    static string[] GetLines(string[] sourceLines, int from, int to)
+    {
+        from = Math.Max(1, from);
+        to   = Math.Min(sourceLines.Length, to);
+        if (from > to) return [];
+        return sourceLines[(from - 1)..to];
+    }
+
     static Regex WildcardToRegex(string pattern)
     {
         var parts   = pattern.Split('*');
@@ -103,36 +110,14 @@ public class FilteredSourceService(FileStructureService fileStructure)
         List<(int Start, int End)> ranges,
         List<(int Start, int End)> declRanges)
     {
-        // Remove decl ranges already fully covered by a matched range
-        var uncoveredDecls = declRanges
-            .Where(d => !ranges.Any(r => d.Start >= r.Start && d.End <= r.End))
-            .ToList();
+        var allRanges = MergeWithDeclarations(ranges, declRanges);
 
-        // Combine and re-merge
-        var allRanges = ranges
-            .Concat(uncoveredDecls)
-            .OrderBy(r => r.Start)
-            .ToList();
-
-        if (allRanges.Count > 0)
-            allRanges = MergeRanges(allRanges);
-
-        // Collect output lines
         var output  = new List<string>();
         var prevEnd = 0;
 
         foreach (var (start, end) in allRanges)
         {
-            if (start > prevEnd + 1)
-            {
-                // remove trailing blank lines before cut marker
-                while (output.Count > 0 && string.IsNullOrWhiteSpace(output[^1]))
-                    output.RemoveAt(output.Count - 1);
-
-                if (output.Count > 0) output.Add("");
-                output.Add(CutMarker);
-                output.Add("");
-            }
+            AppendGap(output, sourceLines, prevEnd + 1, start - 1);
 
             for (var line = start; line <= end; line++)
                 output.Add(sourceLines[line - 1]);
@@ -140,18 +125,65 @@ public class FilteredSourceService(FileStructureService fileStructure)
             prevEnd = end;
         }
 
-        // trailing cut if file has non-empty lines after last range
-        var hasTrailingContent = Enumerable.Range(prevEnd + 1, sourceLines.Length - prevEnd)
-            .Any(i => i >= 1 && i <= sourceLines.Length && !string.IsNullOrWhiteSpace(sourceLines[i - 1]));
+        AppendTrailing(output, sourceLines, prevEnd + 1);
 
-        if (hasTrailingContent)
+        return string.Join(Environment.NewLine, output).TrimEnd();
+    }
+
+    static List<(int Start, int End)> MergeWithDeclarations(
+        List<(int Start, int End)> ranges,
+        List<(int Start, int End)> declRanges)
+    {
+        var uncoveredDecls = declRanges
+            .Where(d => !ranges.Any(r => d.Start >= r.Start && d.End <= r.End));
+
+        var allRanges = ranges
+            .Concat(uncoveredDecls)
+            .OrderBy(r => r.Start)
+            .ToList();
+
+        return allRanges.Count > 0 ? MergeRanges(allRanges) : allRanges;
+    }
+
+    static void AppendGap(List<string> output, string[] sourceLines, int from, int to)
+    {
+        if (from > to) return;
+
+        var gapLines = GetLines(sourceLines, from, to);
+        if (gapLines.Sum(l => l.Length) <= CutMarker.Length)
         {
-            while (output.Count > 0 && string.IsNullOrWhiteSpace(output[^1]))
-                output.RemoveAt(output.Count - 1);
+            // Gap is shorter than the marker itself — emit original lines
+            output.AddRange(gapLines);
+        }
+        else
+        {
+            TrimTrailingBlanks(output);
+            if (output.Count > 0) output.Add("");
+            output.Add(CutMarker);
+            output.Add("");
+        }
+    }
+
+    static void AppendTrailing(List<string> output, string[] sourceLines, int from)
+    {
+        var trailingLines = GetLines(sourceLines, from, sourceLines.Length);
+        if (trailingLines.All(l => string.IsNullOrWhiteSpace(l))) return;
+
+        if (trailingLines.Sum(l => l.Length) <= CutMarker.Length)
+        {
+            output.AddRange(trailingLines);
+        }
+        else
+        {
+            TrimTrailingBlanks(output);
             output.Add("");
             output.Add(CutMarker);
         }
+    }
 
-        return string.Join(Environment.NewLine, output).TrimEnd();
+    static void TrimTrailingBlanks(List<string> output)
+    {
+        while (output.Count > 0 && string.IsNullOrWhiteSpace(output[^1]))
+            output.RemoveAt(output.Count - 1);
     }
 }

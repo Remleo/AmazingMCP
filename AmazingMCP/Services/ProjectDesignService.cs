@@ -13,13 +13,12 @@ public class ProjectDesignService(
         string solutionPath, CancellationToken ct = default)
     {
         var depMap = await dependencyMapService.BuildMapAsync(solutionPath, ct);
-        return BuildFromDependencyMap(depMap, solutionPath, dependencyAggregator);
+        return BuildFromDependencyMap(depMap, solutionPath);
     }
 
-    internal static ProjectDesignResult BuildFromDependencyMap(
+    internal ProjectDesignResult BuildFromDependencyMap(
         DependencyMapResult depMap,
-        string solutionPath,
-        IDependencyAggregator aggregator)
+        string solutionPath)
     {
         var rootNamespaces = ResolveRootNamespaces(solutionPath);
         var sortedRoots = rootNamespaces.Values
@@ -49,8 +48,7 @@ public class ProjectDesignService(
         foreach (var (ns, abstractions) in groups.OrderBy(kv => kv.Key))
         {
             var abstractionSet = abstractions.Select(a => a.FullName).ToHashSet();
-            var rawExternalDeps = CollectExternalDependencies(
-                abstractions, depMap, abstractionSet, aggregator);
+            var rawExternalDeps = CollectExternalDependencies(abstractions, depMap, abstractionSet);
 
             var depGroups = new HashSet<string>();
             foreach (var dep in rawExternalDeps)
@@ -70,36 +68,34 @@ public class ProjectDesignService(
         return new ProjectDesignResult(result);
     }
 
-    static HashSet<string> CollectExternalDependencies(
+    HashSet<string> CollectExternalDependencies(
         List<AbstractionInfo> abstractions,
         DependencyMapResult depMap,
-        HashSet<string> groupAbstractionSet,
-        IDependencyAggregator aggregator)
+        HashSet<string> groupAbstractionSet)
     {
         var externalDeps = new HashSet<string>();
 
         foreach (var abstraction in abstractions)
         {
             foreach (var implName in abstraction.Implementations)
-                CollectDepsFromImplChain(implName, depMap, groupAbstractionSet, externalDeps, aggregator);
+                CollectDepsFromImplChain(implName, depMap, groupAbstractionSet, externalDeps);
 
             // Standalone: abstraction is its own implementation
             if (!abstraction.IsInterface && !abstraction.IsAbstractClass)
-                CollectDepsFromImplChain(abstraction.FullName, depMap, groupAbstractionSet, externalDeps, aggregator);
+                CollectDepsFromImplChain(abstraction.FullName, depMap, groupAbstractionSet, externalDeps);
         }
 
         return externalDeps;
     }
 
-    static void CollectDepsFromImplChain(
+    void CollectDepsFromImplChain(
         string implName,
         DependencyMapResult depMap,
         HashSet<string> groupAbstractionSet,
-        HashSet<string> externalDeps,
-        IDependencyAggregator aggregator)
+        HashSet<string> externalDeps)
     {
         // Use aggregator to get all usages including base class chain
-        var allUsages = aggregator.GetAllUsages(implName, depMap);
+        var allUsages = dependencyAggregator.GetAllUsages(implName, depMap);
         foreach (var usage in allUsages)
         {
             if (!groupAbstractionSet.Contains(usage.AbstractionFullName) &&
