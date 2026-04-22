@@ -9,7 +9,7 @@ using NUnit.Framework;
 
 namespace AmazingMCP.Tests;
 
-public class GetDetailedProjectDesignToolTests
+public class GetProjectDesignDetailsToolTests
 {
     DependencyMapResult _depMap = null!;
     CachedSolution _cachedSolution = null!;

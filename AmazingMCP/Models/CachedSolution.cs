@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.CodeAnalysis.Text;
@@ -10,6 +11,7 @@ public sealed class CachedSolution(
     List<(string ProjectName, Compilation Compilation)> compilations) : IDisposable
 {
     readonly Lock _lock = new();
+    readonly ConcurrentDictionary<string, bool> _dirtyFiles = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<(string ProjectName, Compilation Compilation)> Compilations
     {
@@ -22,22 +24,37 @@ public sealed class CachedSolution(
     }
 
     /// <summary>
-    /// Finds the document by file path, replaces its text, and recompiles only the affected project.
-    /// Returns true if the document was found and updated.
+    /// Marks a file as dirty. Compilation will be deferred until <see cref="EnsureUpToDateAsync"/> is called.
     /// </summary>
-    public async Task<bool> UpdateDocumentAsync(string filePath)
+    public void MarkDirty(string filePath) => _dirtyFiles.TryAdd(filePath, false);
+
+    /// <summary>
+    /// If there are dirty files, updates their text in the solution and recompiles only the affected projects.
+    /// No-op if nothing is dirty.
+    /// </summary>
+    public async Task EnsureUpToDateAsync()
     {
+        if (_dirtyFiles.IsEmpty) return;
+
+        var files = _dirtyFiles.Keys.ToList();
+        foreach (var f in files) _dirtyFiles.TryRemove(f, out _);
+
+        // Update solution text for all dirty files
         lock (_lock)
         {
-            var docId = solution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
-            if (docId is null) return false;
+            foreach (var filePath in files)
+            {
+                var docId = solution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
+                if (docId is null) continue;
 
-            var text = SourceText.From(File.ReadAllText(filePath));
-            solution = solution.WithDocumentText(docId, text);
+                var text = SourceText.From(File.ReadAllText(filePath));
+                solution = solution.WithDocumentText(docId, text);
+            }
         }
 
-        // Recompile only the affected project(s)
-        var projectIds = solution.GetDocumentIdsWithFilePath(filePath)
+        // Collect unique affected project IDs
+        var projectIds = files
+            .SelectMany(f => solution.GetDocumentIdsWithFilePath(f))
             .Select(d => d.ProjectId)
             .Distinct();
 
@@ -58,9 +75,6 @@ public sealed class CachedSolution(
                     compilations.Add((project.Name, newCompilation));
             }
         }
-
-        return true;
     }
-
     public void Dispose() => workspace.Dispose();
 }

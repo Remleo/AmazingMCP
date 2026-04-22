@@ -12,7 +12,7 @@ public class DependencyMapService(
     IAbstractionExtractor abstractionExtractor,
     IMemoryCache cache)
 {
-    static readonly TimeSpan SlidingExpiration = TimeSpan.FromHours(2);
+    static readonly TimeSpan SlidingExpiration = TimeSpan.FromMinutes(20);
 
     public async Task<DependencyMapResult> BuildMapAsync(
         string solutionPath, CancellationToken ct = default)

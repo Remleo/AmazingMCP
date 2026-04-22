@@ -20,7 +20,11 @@ public sealed class WorkspaceProvider(IMemoryCache cache, ILogger<WorkspaceProvi
     public async Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default)
     {
         var key = Path.GetFullPath(solutionPath);
-        if (cache.TryGetValue<CachedSolution>(key, out var existing)) return existing!;
+        if (cache.TryGetValue<CachedSolution>(key, out var existing))
+        {
+            await existing!.EnsureUpToDateAsync();
+            return existing;
+        }
 
         var gate = _loadGates.GetOrAdd(key, _ => new(1, 1));
         await gate.WaitAsync(ct);
@@ -115,20 +119,8 @@ public sealed class WorkspaceProvider(IMemoryCache cache, ILogger<WorkspaceProvi
     {
         if (!cache.TryGetValue<CachedSolution>(solutionKey, out var cached) || cached is null) return;
 
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                var updated = await cached.UpdateDocumentAsync(filePath);
-                if (updated)
-                    logger.LogInformation("Incremental recompile for {File}", filePath);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to incrementally update {File}, invalidating cache", filePath);
-                Invalidate(solutionKey);
-            }
-        });
+        cached.MarkDirty(filePath);
+        logger.LogDebug("Marked dirty: {File}", filePath);
     }
 
     void OnProjectFileChanged(string solutionKey, string filePath)
