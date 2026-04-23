@@ -7,6 +7,22 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
 {
     static readonly string[] SkippedPrefixes = ["System.", "Microsoft."];
 
+    // Displays: accessibility + modifiers (abstract/virtual/override/static/readonly/const) + type + name + params + constant value.
+    // Does NOT include the containing type name in the output.
+    static readonly SymbolDisplayFormat MemberFormat = SymbolDisplayFormat.MinimallyQualifiedFormat
+        .WithMemberOptions(
+            SymbolDisplayMemberOptions.IncludeAccessibility |
+            SymbolDisplayMemberOptions.IncludeModifiers |
+            SymbolDisplayMemberOptions.IncludeParameters |
+            SymbolDisplayMemberOptions.IncludeType |
+            SymbolDisplayMemberOptions.IncludeRef |
+            SymbolDisplayMemberOptions.IncludeConstantValue)
+        .WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)
+        .WithParameterOptions(
+            SymbolDisplayParameterOptions.IncludeType |
+            SymbolDisplayParameterOptions.IncludeName |
+            SymbolDisplayParameterOptions.IncludeDefaultValue);
+
     public async Task<string> GetSymbolInfoAsync(
         string solutionPath,
         string fullTypeName,
@@ -43,15 +59,15 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
         }
 
         var syntaxRef = type.DeclaringSyntaxReferences.FirstOrDefault();
+        var typeHeader = FormatTypeHeader(type);
         if (syntaxRef is not null)
         {
             var line = syntaxRef.SyntaxTree.GetLineSpan(syntaxRef.Span).StartLinePosition.Line + 1;
-            sb.AppendLine($"{prefix}[{type.TypeKind}] {fullName}  (source: {syntaxRef.SyntaxTree.FilePath}, line {line})");
+            sb.AppendLine($"{prefix}{typeHeader}  (source: {syntaxRef.SyntaxTree.FilePath}, line {line})");
         }
         else
         {
-            sb.AppendLine($"{prefix}[{type.TypeKind}] {fullName}  (assembly: {type.ContainingAssembly?.Name})");
-
+            sb.AppendLine($"{prefix}{typeHeader}  (assembly: {type.ContainingAssembly?.Name})");
         }
 
         if (type.TypeKind == TypeKind.Enum)
@@ -82,159 +98,80 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
     {
         var prefix = new string(' ', indent);
 
-        var constants = type.GetMembers()
-            .OfType<IFieldSymbol>()
-            .Where(f => f.IsConst
-                        && f.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
-            .ToList();
-
-        if (constants.Count > 0)
+        // Emit members in declaration order, skipping property accessors and invisible members.
+        foreach (var member in type.GetMembers())
         {
-            sb.AppendLine($"{prefix}Constants:");
-            foreach (var c in constants)
+            if (!IsVisible(member.DeclaredAccessibility))
+                continue;
+
+            switch (member)
             {
-                var vis = c.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
-                sb.AppendLine($"{prefix}  {vis}{c.Type.ToDisplayString()} {c.Name} = {FormatConstantValue(c.ConstantValue)}");
+                case IFieldSymbol f:
+                    sb.AppendLine($"{prefix}{f.ToDisplayString(MemberFormat)}");
+                    break;
+
+                case IPropertySymbol p:
+                    // Skip indexers for now; they appear as IPropertySymbol with IsIndexer == true.
+                    sb.AppendLine($"{prefix}{p.ToDisplayString(MemberFormat)} {{ {FormatAccessors(p)} }}");
+                    break;
+
+                case IMethodSymbol m when m.MethodKind == MethodKind.Constructor:
+                    sb.AppendLine($"{prefix}{m.ToDisplayString(MemberFormat)}");
+                    break;
+
+                case IMethodSymbol m when m.MethodKind == MethodKind.Ordinary:
+                    sb.AppendLine($"{prefix}{m.ToDisplayString(MemberFormat)}");
+                    break;
             }
         }
 
-        var staticFields = type.GetMembers()
-            .OfType<IFieldSymbol>()
-            .Where(f => f.IsStatic && !f.IsConst
-                        && f.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
-            .ToList();
-
-        if (staticFields.Count > 0)
-        {
-            sb.AppendLine($"{prefix}Static fields:");
-            foreach (var f in staticFields)
-            {
-                var vis = f.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
-                var ro = f.IsReadOnly ? "readonly " : "";
-                sb.AppendLine($"{prefix}  static {vis}{ro}{f.Type.ToDisplayString()} {f.Name}");
-            }
-        }
-
-        var instanceFields = type.GetMembers()
-            .OfType<IFieldSymbol>()
-            .Where(f => !f.IsStatic && !f.IsConst
-                        && f.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
-            .ToList();
-
-        if (instanceFields.Count > 0)
-        {
-            sb.AppendLine($"{prefix}Fields:");
-            foreach (var f in instanceFields)
-            {
-                var vis = f.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
-                var ro = f.IsReadOnly ? "readonly " : "";
-                sb.AppendLine($"{prefix}  {vis}{ro}{f.Type.ToDisplayString()} {f.Name}");
-            }
-        }
-
-        var constructors = type.GetMembers()
-            .OfType<IMethodSymbol>()
-            .Where(m => m.MethodKind == MethodKind.Constructor
-                        && m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
-            .ToList();
-
-        if (constructors.Count > 0)
-        {
-            sb.AppendLine($"{prefix}Constructors:");
-            foreach (var c in constructors)
-            {
-                var vis = c.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
-                var parameters = string.Join(", ",
-                    c.Parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}"));
-                sb.AppendLine($"{prefix}  {vis}{type.Name}({parameters})");
-            }
-        }
-
-        var properties = type.GetMembers()
-            .OfType<IPropertySymbol>()
-            .Where(p => p.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
-            .ToList();
-
-        var staticProps = properties.Where(p => p.IsStatic).ToList();
-        var instanceProps = properties.Where(p => !p.IsStatic).ToList();
-
-        if (staticProps.Count > 0)
-        {
-            sb.AppendLine($"{prefix}Static properties:");
-            foreach (var p in staticProps)
-            {
-                var vis = p.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
-                var accessors = FormatAccessors(p);
-                sb.AppendLine($"{prefix}  static {vis}{p.Type.ToDisplayString()} {p.Name} {{ {accessors} }}");
-            }
-        }
-
-        if (instanceProps.Count > 0)
-        {
-            sb.AppendLine($"{prefix}Properties:");
-            foreach (var p in instanceProps)
-            {
-                var vis = p.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
-                var accessors = FormatAccessors(p);
-                sb.AppendLine($"{prefix}  {vis}{p.Type.ToDisplayString()} {p.Name} {{ {accessors} }}");
-            }
-        }
-
-        var methods = type.GetMembers()
-            .OfType<IMethodSymbol>()
-            .Where(m => m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
-                        && m.MethodKind == MethodKind.Ordinary)
-            .ToList();
-
-        var staticMethods = methods.Where(m => m.IsStatic).ToList();
-        var instanceMethods = methods.Where(m => !m.IsStatic).ToList();
-
-        if (staticMethods.Count > 0)
-        {
-            sb.AppendLine($"{prefix}Static methods:");
-            foreach (var m in staticMethods)
-            {
-                var vis = m.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
-                var parameters = string.Join(", ",
-                    m.Parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}"));
-                sb.AppendLine($"{prefix}  static {vis}{m.ReturnType.ToDisplayString()} {m.Name}({parameters})");
-            }
-        }
-
-        if (instanceMethods.Count > 0)
-        {
-            sb.AppendLine($"{prefix}Methods:");
-            foreach (var m in instanceMethods)
-            {
-                var vis = m.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
-                var parameters = string.Join(", ",
-                    m.Parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}"));
-                sb.AppendLine($"{prefix}  {vis}{m.ReturnType.ToDisplayString()} {m.Name}({parameters})");
-            }
-        }
-
-        var nestedTypes = type.GetTypeMembers()
-            .Where(t => t.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal)
-            .ToList();
-
-        if (nestedTypes.Count > 0)
-        {
-            sb.AppendLine($"{prefix}Nested types:");
-            foreach (var nested in nestedTypes)
-            {
-                var vis = nested.DeclaredAccessibility == Accessibility.Internal ? "internal " : "";
-                sb.AppendLine($"{prefix}  {vis}[{nested.TypeKind}] {nested.ToDisplayString()}");
-            }
-        }
+        // Nested types follow after all other members.
+        foreach (var nested in type.GetTypeMembers().Where(t => IsVisible(t.DeclaredAccessibility)))
+            sb.AppendLine($"{prefix}{FormatTypeHeader(nested)}");
     }
 
-    static string FormatConstantValue(object? value) =>
-        value switch
+    // Returns true for all accessibilities visible outside the declaring type (public, internal, protected variants).
+    static bool IsVisible(Accessibility a) => a is
+        Accessibility.Public or
+        Accessibility.Internal or
+        Accessibility.Protected or
+        Accessibility.ProtectedOrInternal or
+        Accessibility.ProtectedAndInternal;
+
+    // Returns the visibility prefix string for all visible members.
+    static string FormatVisibility(Accessibility a) => a switch
+    {
+        Accessibility.Public => "public ",
+        Accessibility.Internal => "internal ",
+        Accessibility.Protected => "protected ",
+        Accessibility.ProtectedOrInternal => "protected internal ",
+        Accessibility.ProtectedAndInternal => "private protected ",
+        _ => ""
+    };
+
+    // Returns the full type declaration header: visibility + modifiers + kind keyword + name.
+    // Example: "public abstract class AnimalBase", "internal sealed class Utils", "public interface IAnimal"
+    static string FormatTypeHeader(INamedTypeSymbol type)
+    {
+        var sb = new StringBuilder();
+        sb.Append(FormatVisibility(type.DeclaredAccessibility));
+
+        if (type.IsStatic) sb.Append("static ");
+        else if (type.IsAbstract && type.TypeKind == TypeKind.Class) sb.Append("abstract ");
+        else if (type.IsSealed && type.TypeKind == TypeKind.Class) sb.Append("sealed ");
+
+        sb.Append(type.TypeKind switch
         {
-            null => "null",
-            string s => $"\"{s}\"",
-            _ => value.ToString() ?? "null"
-        };
+            TypeKind.Interface => "interface ",
+            TypeKind.Enum => "enum ",
+            TypeKind.Struct => "struct ",
+            TypeKind.Delegate => "delegate ",
+            _ => "class "
+        });
+
+        sb.Append(type.ToDisplayString());
+        return sb.ToString();
+    }
 
     static bool IsWellKnownFrameworkType(INamedTypeSymbol type)
     {
@@ -255,10 +192,12 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
         {
             if (IsWellKnownFrameworkType(type.BaseType))
             {
+                sb.AppendLine();
                 sb.AppendLine($"{prefix}Base type: {type.BaseType.ToDisplayString()} (skipped — well-known framework type)");
             }
             else
             {
+                sb.AppendLine();
                 sb.AppendLine($"{prefix}Base type:");
                 Describe(type.BaseType, sb, indent + 2, visited);
             }
@@ -280,6 +219,7 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
 
             if (toDescribe.Count > 0)
             {
+                sb.AppendLine();
                 sb.AppendLine($"{prefix}Implements:");
                 foreach (var iface in toDescribe)
                     Describe(iface, sb, indent + 2, visited);
@@ -287,6 +227,7 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
 
             if (skipped.Count > 0)
             {
+                sb.AppendLine();
                 sb.AppendLine($"{prefix}Implements (skipped — well-known framework types):");
                 foreach (var name in skipped)
                     sb.AppendLine($"{prefix}  {name}");

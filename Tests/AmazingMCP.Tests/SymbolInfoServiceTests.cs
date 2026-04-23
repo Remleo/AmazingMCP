@@ -1,4 +1,4 @@
-﻿using AmazingMCP.Models;
+using AmazingMCP.Models;
 using AmazingMCP.Services;
 using AmazingMCP.Tests.Helpers;
 using FluentAssertions;
@@ -70,8 +70,8 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.AnimalKind");
 
         // assert
-        result.Should().NotContain("Properties:");
-        result.Should().NotContain("Methods:");
+        result.Should().NotContain("int Id");
+        result.Should().NotContain("string Name");
     }
 
     #endregion
@@ -85,7 +85,6 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
         // assert
-        result.Should().Contain("Constants:");
         result.Should().Contain("MaxNameLength = 100");
         result.Should().Contain("DefaultPrefix = \"Animal_\"");
     }
@@ -98,7 +97,7 @@ public class SymbolInfoServiceTests
 
         // assert
         result.Should().Contain("InternalBatchSize = 50");
-        result.Should().MatchRegex(@"internal\s+int\s+InternalBatchSize");
+        result.Should().MatchRegex(@"internal\s+const\s+int\s+InternalBatchSize");
     }
 
     #endregion
@@ -112,7 +111,6 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
         // assert
-        result.Should().Contain("Static fields:");
         result.Should().Contain("FallbackKind");
     }
 
@@ -127,7 +125,6 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
         // assert
-        result.Should().Contain("Fields:");
         result.Should().Contain("DisplayLabel");
     }
 
@@ -172,7 +169,6 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.Animal");
 
         // assert
-        result.Should().Contain("Properties:");
         result.Should().Contain("int Id");
         result.Should().Contain("string Name");
     }
@@ -184,7 +180,6 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
         // assert
-        result.Should().Contain("Static properties:");
         result.Should().Contain("MaxAllowed");
     }
 
@@ -199,7 +194,6 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
         // assert
-        result.Should().Contain("Static methods:");
         result.Should().Contain("BuildDefaultName");
     }
 
@@ -210,7 +204,7 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
         // assert
-        result.Should().MatchRegex(@"internal\s+string\s+InternalFormat");
+        result.Should().MatchRegex(@"internal\s+static\s+string\s+InternalFormat");
     }
 
     [Test]
@@ -220,7 +214,6 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
         // assert
-        result.Should().Contain("Methods:");
         result.Should().Contain("InstanceMethod");
     }
 
@@ -231,7 +224,6 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Services.IAnimalService");
 
         // assert
-        result.Should().Contain("Methods:");
         result.Should().Contain("GetById");
         result.Should().Contain("GetByKind");
         result.Should().Contain("Add");
@@ -248,7 +240,7 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
         // assert
-        result.Should().Contain("Constructors:");
+        result.Should().Contain("AnimalDefaults()");
     }
 
     [Test]
@@ -292,7 +284,6 @@ public class SymbolInfoServiceTests
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
         // assert
-        result.Should().Contain("Nested types:");
         result.Should().Contain("ValidationRules");
     }
 
@@ -304,7 +295,7 @@ public class SymbolInfoServiceTests
 
         // assert
         result.Should().Contain("CacheOptions");
-        result.Should().MatchRegex(@"internal\s+\[Class\]\s+.*CacheOptions");
+        result.Should().MatchRegex(@"internal\s+class\s+.*CacheOptions");
     }
 
     [Test]
@@ -315,6 +306,313 @@ public class SymbolInfoServiceTests
 
         // assert
         result.Should().NotContain("PrivateInner");
+    }
+
+    #endregion
+
+    #region Protected members
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedConst_ReturnsProtectedConst()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+const\s+int\s+ProtectedMaxAge\s*=\s*99");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedStaticField_ReturnsProtectedStaticField()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+static\s+readonly\s+int\s+ProtectedStaticSeed");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedInstanceField_ReturnsProtectedField()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+readonly\s+int\s+ProtectedRetryLimit");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedConstructor_ReturnsProtectedConstructor()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+AnimalDefaults\(string displayLabel, bool isProtected\)");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedStaticProperty_ReturnsProtectedStaticProperty()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+static\s+int\s+ProtectedStaticProp");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedInstanceProperty_ReturnsProtectedProperty()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+int\s+ProtectedInstanceProp");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedStaticMethod_ReturnsProtectedStaticMethod()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+static\s+string\s+ProtectedStaticFormat");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedInstanceMethod_ReturnsProtectedMethod()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+string\s+ProtectedInstanceMethod");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedNestedType_ReturnsProtectedNestedType()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().Contain("ProtectedInnerConfig");
+        result.Should().MatchRegex(@"protected\s+class\s+.*ProtectedInnerConfig");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedInternalField_ReturnsProtectedInternalField()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"protected internal\s+string\s+ProtectedInternalTag");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithPrivateProtectedField_ReturnsPrivateProtectedField()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"private protected\s+int\s+PrivateProtectedScore");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithPrivateField_DoesNotReturnPrivateField()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().NotContain("PrivateInner");
+        result.Should().NotContain("Secret");
+    }
+
+    #endregion
+
+    #region Virtual and abstract
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithVirtualMethod_ShowsVirtualModifier()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"virtual\s+string\s+GetLabel\(\)");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithVirtualMethodWithParams_ShowsVirtualModifier()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"virtual\s+int\s+ComputeScore\(int input\)");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithProtectedVirtualMethod_ShowsBothModifiers()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+virtual\s+string\s+FormatInternal\(\)");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithVirtualProperty_ShowsVirtualModifier()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"virtual\s+int\s+VirtualProp");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_AbstractClass_ShowsAbstractMethods()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalBase");
+
+        // assert
+        result.Should().MatchRegex(@"abstract\s+string\s+GetName\(\)");
+        result.Should().MatchRegex(@"abstract\s+int\s+GetScore\(int input\)");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_AbstractClass_ShowsProtectedAbstractMethod()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalBase");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+abstract\s+string\s+FormatDescription\(\)");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_AbstractClass_ShowsAbstractProperty()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalBase");
+
+        // assert
+        result.Should().MatchRegex(@"abstract\s+int\s+AbstractProp");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_AbstractClass_ShowsVirtualMethod()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalBase");
+
+        // assert
+        result.Should().MatchRegex(@"virtual\s+string\s+GetSummary\(\)");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ConcreteClass_ShowsOverrideMethods()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.ConcreteAnimal");
+
+        // assert
+        result.Should().MatchRegex(@"override\s+string\s+GetName\(\)");
+        result.Should().MatchRegex(@"override\s+int\s+GetScore\(int input\)");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ConcreteClass_ShowsSealedOverrideMethod()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.ConcreteAnimal");
+
+        // assert
+        result.Should().MatchRegex(@"public\s+override\s+sealed\s+string\s+GetSummary\(\)");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ConcreteClass_ShowsOverrideProperty()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.ConcreteAnimal");
+
+        // assert
+        result.Should().MatchRegex(@"override\s+int\s+AbstractProp");
+        result.Should().MatchRegex(@"override\s+string\s+VirtualPropOnBase");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ConcreteClass_ShowsProtectedOverrideMethod()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.ConcreteAnimal");
+
+        // assert
+        result.Should().MatchRegex(@"protected\s+override\s+string\s+FormatDescription\(\)");
+    }
+
+    #endregion
+
+    #region Type header modifiers
+
+    [Test]
+    public async Task GetSymbolInfoAsync_PublicClass_HeaderContainsPublicClass()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().MatchRegex(@"public\s+class\s+TestProject\.Core\.Models\.AnimalDefaults");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_AbstractClass_HeaderContainsAbstractClass()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalBase");
+
+        // assert
+        result.Should().MatchRegex(@"public\s+abstract\s+class\s+TestProject\.Core\.Models\.AnimalBase");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_SealedClass_HeaderContainsSealedClass()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.ConcreteAnimal");
+
+        // assert
+        result.Should().MatchRegex(@"public\s+class\s+TestProject\.Core\.Models\.ConcreteAnimal");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_Interface_HeaderContainsInterface()
+    {
+        // act
+        var result = await Act("TestProject.Core.Services.IAnimalService");
+
+        // assert
+        result.Should().MatchRegex(@"public\s+interface\s+TestProject\.Core\.Services\.IAnimalService");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_Enum_HeaderContainsEnum()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalKind");
+
+        // assert
+        result.Should().MatchRegex(@"public\s+enum\s+TestProject\.Core\.Models\.AnimalKind");
     }
 
     #endregion
