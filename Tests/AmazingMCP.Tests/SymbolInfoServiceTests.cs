@@ -15,7 +15,7 @@ public class SymbolInfoServiceTests
     public async Task OneTimeSetUp()
     {
         _cachedSolution = await CompilationHelper.LoadTestSolutionAsync();
-        _sut = new SymbolInfoService(new TestWorkspaceProvider(_cachedSolution));
+        _sut = new SymbolInfoService(new RoslynSymbolService(new TestWorkspaceProvider(_cachedSolution), new WildcardPatternFactory()));
     }
 
     [OneTimeTearDown]

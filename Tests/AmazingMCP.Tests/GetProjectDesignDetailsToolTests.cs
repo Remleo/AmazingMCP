@@ -41,7 +41,7 @@ public class GetProjectDesignDetailsToolTests
 
     string Act(string[] forNamespaces, bool includeDependencyUsage = true, bool includeImplementations = true) =>
         GetProjectDesignDetailsTool.FormatMarkdown(
-            _depMap, forNamespaces, includeDependencyUsage, includeImplementations, new DependencyAggregator());
+            _depMap, forNamespaces, includeDependencyUsage, includeImplementations, new WildcardPatternFactory(), new DependencyAggregator());
 
     #region Namespace filtering — exact match
 
@@ -227,53 +227,53 @@ public class GetProjectDesignDetailsToolTests
 
     #endregion
 
-    #region WildcardToRegex unit tests
+    #region WildcardPattern unit tests
 
     [Test]
-    public void WildcardToRegex_ExactMatch_MatchesExact()
+    public void WildcardPattern_ExactMatch_MatchesExact()
     {
-        var regex = GetProjectDesignDetailsTool.WildcardToRegex("MyApp.Services");
-        regex.IsMatch("MyApp.Services").Should().BeTrue();
-        regex.IsMatch("MyApp.Services.Extra").Should().BeFalse();
-        regex.IsMatch("Other.MyApp.Services").Should().BeFalse();
+        var pattern = new WildcardPatternFactory().CreateForTypeNames("MyApp.Services");
+        pattern.IsMatch("MyApp.Services").Should().BeTrue();
+        pattern.IsMatch("MyApp.Services.Extra").Should().BeFalse();
+        pattern.IsMatch("Other.MyApp.Services").Should().BeFalse();
     }
 
     [Test]
-    public void WildcardToRegex_SuffixWildcard_MatchesChildren()
+    public void WildcardPattern_SuffixWildcard_MatchesChildren()
     {
-        var regex = GetProjectDesignDetailsTool.WildcardToRegex("MyApp.*");
-        regex.IsMatch("MyApp.Services").Should().BeTrue();
-        regex.IsMatch("MyApp.Services.Handlers").Should().BeTrue();
-        regex.IsMatch("MyApp").Should().BeFalse();
-        regex.IsMatch("Other.MyApp.Services").Should().BeFalse();
+        var pattern = new WildcardPatternFactory().CreateForTypeNames("MyApp.*");
+        pattern.IsMatch("MyApp.Services").Should().BeTrue();
+        pattern.IsMatch("MyApp.Services.Handlers").Should().BeTrue();
+        pattern.IsMatch("MyApp").Should().BeFalse();
+        pattern.IsMatch("Other.MyApp.Services").Should().BeFalse();
     }
 
     [Test]
-    public void WildcardToRegex_PrefixWildcard_MatchesBySuffix()
+    public void WildcardPattern_PrefixWildcard_MatchesBySuffix()
     {
-        var regex = GetProjectDesignDetailsTool.WildcardToRegex("*.Services");
-        regex.IsMatch("MyApp.Services").Should().BeTrue();
-        regex.IsMatch("Other.Services").Should().BeTrue();
-        regex.IsMatch("MyApp.Services.Extra").Should().BeFalse();
-        regex.IsMatch("Services").Should().BeFalse();
+        var pattern = new WildcardPatternFactory().CreateForTypeNames("*.Services");
+        pattern.IsMatch("MyApp.Services").Should().BeTrue();
+        pattern.IsMatch("Other.Services").Should().BeTrue();
+        pattern.IsMatch("MyApp.Services.Extra").Should().BeFalse();
+        pattern.IsMatch("Services").Should().BeFalse();
     }
 
     [Test]
-    public void WildcardToRegex_MiddleWildcard_MatchesCorrectly()
+    public void WildcardPattern_MiddleWildcard_MatchesCorrectly()
     {
-        var regex = GetProjectDesignDetailsTool.WildcardToRegex("MyApp.*.Services");
-        regex.IsMatch("MyApp.Core.Services").Should().BeTrue();
-        regex.IsMatch("MyApp.App.Services").Should().BeTrue();
-        regex.IsMatch("MyApp.Services").Should().BeFalse();
-        regex.IsMatch("MyApp.Core.Other").Should().BeFalse();
+        var pattern = new WildcardPatternFactory().CreateForTypeNames("MyApp.*.Services");
+        pattern.IsMatch("MyApp.Core.Services").Should().BeTrue();
+        pattern.IsMatch("MyApp.App.Services").Should().BeTrue();
+        pattern.IsMatch("MyApp.Services").Should().BeFalse();
+        pattern.IsMatch("MyApp.Core.Other").Should().BeFalse();
     }
 
     [Test]
-    public void WildcardToRegex_CaseInsensitive()
+    public void WildcardPattern_CaseInsensitive()
     {
-        var regex = GetProjectDesignDetailsTool.WildcardToRegex("myapp.services");
-        regex.IsMatch("MyApp.Services").Should().BeTrue();
-        regex.IsMatch("MYAPP.SERVICES").Should().BeTrue();
+        var pattern = new WildcardPatternFactory().CreateForTypeNames("myapp.services");
+        pattern.IsMatch("MyApp.Services").Should().BeTrue();
+        pattern.IsMatch("MYAPP.SERVICES").Should().BeTrue();
     }
 
     #endregion

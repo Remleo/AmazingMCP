@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services;
 
-public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
+public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
 {
     static readonly string[] SkippedPrefixes = ["System.", "Microsoft."];
 
@@ -28,18 +28,10 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
         string fullTypeName,
         CancellationToken ct = default)
     {
-        var solution = await workspaceProvider.GetSolutionAsync(solutionPath, ct);
-
-        INamedTypeSymbol? found = null;
-
-        foreach (var (_, compilation) in solution.Compilations)
-        {
-            found = FindType(compilation.GlobalNamespace, fullTypeName);
-            if (found is not null) break;
-        }
+        var (found, error) = await roslynSymbolService.FindExactTypeAsync(solutionPath, fullTypeName, ct);
 
         if (found is null)
-            return $"Type '{fullTypeName}' not found.";
+            return error!;
 
         var sb = new StringBuilder();
         var visited = new HashSet<string>();
@@ -241,43 +233,5 @@ public class SymbolInfoService(IWorkspaceProvider workspaceProvider)
         if (p.GetMethod is not null) parts.Add("get;");
         if (p.SetMethod is not null) parts.Add(p.SetMethod.IsInitOnly ? "init;" : "set;");
         return string.Join(" ", parts);
-    }
-
-    static INamedTypeSymbol? FindType(INamespaceSymbol ns, string fullTypeName)
-    {
-        foreach (var member in ns.GetMembers())
-        {
-            switch (member)
-            {
-                case INamedTypeSymbol type:
-                    if (type.ToDisplayString().Equals(fullTypeName, StringComparison.OrdinalIgnoreCase))
-                        return type;
-
-                    var nested = FindNestedType(type, fullTypeName);
-                    if (nested is not null) return nested;
-                    break;
-
-                case INamespaceSymbol childNs:
-                    var found = FindType(childNs, fullTypeName);
-                    if (found is not null) return found;
-                    break;
-            }
-        }
-
-        return null;
-    }
-
-    static INamedTypeSymbol? FindNestedType(INamedTypeSymbol parent, string fullTypeName)
-    {
-        foreach (var nested in parent.GetTypeMembers())
-        {
-            if (nested.ToDisplayString().Equals(fullTypeName, StringComparison.OrdinalIgnoreCase))
-                return nested;
-
-            var deeper = FindNestedType(nested, fullTypeName);
-            if (deeper is not null) return deeper;
-        }
-
-        return null;
     }
 }

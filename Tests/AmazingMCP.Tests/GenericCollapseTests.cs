@@ -52,12 +52,12 @@ public class GenericCollapseTests
     }
 
     string Act(string typeQuery) =>
-        GetTypeDepsAndUsageTool.FormatMarkdown(_depMap, typeQuery, new DependencyAggregator());
+        GetTypeDepsAndUsageTool.FormatMarkdown(_depMap, typeQuery, new WildcardPatternFactory(), new DependencyAggregator());
 
     string ActDetailed(string[] forNamespaces) =>
         GetProjectDesignDetailsTool.FormatMarkdown(
             _depMap, forNamespaces, includeDependencyUsage: true,
-            includeImplementations: true, aggregator: new DependencyAggregator());
+            includeImplementations: true, wildcardFactory: new WildcardPatternFactory(), aggregator: new DependencyAggregator());
 
     // ─── Preconditions ───────────────────────────────────────────────────────
 

@@ -38,7 +38,7 @@ public class GetTypeDepsAndUsageToolTests
     }
 
     string Act(string typeQuery) =>
-        GetTypeDepsAndUsageTool.FormatMarkdown(_depMap, typeQuery, new DependencyAggregator());
+        GetTypeDepsAndUsageTool.FormatMarkdown(_depMap, typeQuery, new WildcardPatternFactory(), new DependencyAggregator());
 
     #region Exact match
 

@@ -24,6 +24,7 @@ public static class GetProjectDesignDetailsTool
         DependencyMapService dependencyMapService,
         IDependencyAggregator dependencyAggregator,
         SolutionResolver solutionResolver,
+        IWildcardPatternFactory wildcardFactory,
         [Description("Absolute path to the directory where the .sln/.slnx file is located")] string solutionWorkspacePath,
         [Description(
             "Namespaces to include. Supports exact match and '*' wildcard anywhere. At least one entry is required.")]
@@ -42,7 +43,7 @@ public static class GetProjectDesignDetailsTool
         if (resolved is null) return error!;
 
         var depMap = await dependencyMapService.BuildMapAsync(resolved, ct);
-        return FormatMarkdown(depMap, forNamespaces, includeDependencyUsage, includeImplementations, dependencyAggregator);
+        return FormatMarkdown(depMap, forNamespaces, includeDependencyUsage, includeImplementations, wildcardFactory, dependencyAggregator);
     }
 
     internal static string FormatMarkdown(
@@ -50,9 +51,11 @@ public static class GetProjectDesignDetailsTool
         string[] forNamespaces,
         bool includeDependencyUsage,
         bool includeImplementations = true,
+        IWildcardPatternFactory? wildcardFactory = null,
         IDependencyAggregator? aggregator = null)
     {
-        var patterns = forNamespaces.Select(WildcardToRegex).ToList();
+        var factory = wildcardFactory ?? new WildcardPatternFactory();
+        var patterns = forNamespaces.Select(factory.CreateForTypeNames).ToList();
 
         var matchedAbstractions = depMap.Abstractions.Values
             .Where(a => a.SourceFilePath is not null)
@@ -172,12 +175,6 @@ public static class GetProjectDesignDetailsTool
             return result[..MaxOutputLength] + TruncationSuffix;
 
         return result;
-    }
-
-    internal static Regex WildcardToRegex(string pattern)
-    {
-        var escaped = Regex.Escape(pattern).Replace(@"\*", ".*");
-        return new Regex($"^{escaped}$", RegexOptions.IgnoreCase);
     }
 
     /// <summary>

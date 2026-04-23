@@ -3,10 +3,10 @@ using AmazingMCP.Models;
 
 namespace AmazingMCP.Services;
 
-public class FilteredSourceService(FileStructureService fileStructure)
+public class FilteredSourceService(FileStructureService fileStructure, IWildcardPatternFactory wildcardFactory)
 {
-    const string CutMarker   = "// << ... cut ... >>";
-    const int    MaxTypeLines = 200;
+    const string CutMarker = "// << ... cut ... >>";
+    const int MaxTypeLines = 200;
 
     public string GetFilteredSource(string filePath, string[]? filters)
     {
@@ -26,11 +26,11 @@ public class FilteredSourceService(FileStructureService fileStructure)
         }
 
         var sourceLines = File.ReadAllLines(filePath);
-        var items       = fileStructure.GetItems(filePath);
-        var matchers    = filters.Select(WildcardToRegex).ToArray();
+        var items = fileStructure.GetItems(filePath);
+        var matchers = filters.Select(wildcardFactory.CreateGlob).ToArray();
 
         // ── 1. collect matched ranges ──────────────────────────────────────────
-        var seen   = new HashSet<int>();
+        var seen = new HashSet<int>();
         var ranges = new List<(int Start, int End)>();
 
         foreach (var item in items)
@@ -69,30 +69,23 @@ public class FilteredSourceService(FileStructureService fileStructure)
     static bool IsMatchable(FileStructureItem item) => item.Kind switch
     {
         FileStructureItemKind.Namespace => false,
-        FileStructureItemKind.Type      => item.LineCount <= MaxTypeLines,
-        _                               => true   // Usings, Member
+        FileStructureItemKind.Type => item.LineCount <= MaxTypeLines,
+        _ => true // Usings, Member
     };
 
     static string[] GetLines(string[] sourceLines, int from, int to)
     {
         from = Math.Max(1, from);
-        to   = Math.Min(sourceLines.Length, to);
-        if (from > to) return [];
+        to = Math.Min(sourceLines.Length, to);
+        if (from > to) return [ ];
         return sourceLines[(from - 1)..to];
-    }
-
-    static Regex WildcardToRegex(string pattern)
-    {
-        var parts   = pattern.Split('*');
-        var escaped = string.Join(".*", parts.Select(Regex.Escape));
-        return new Regex(escaped, RegexOptions.IgnoreCase | RegexOptions.Singleline);
     }
 
     // ── range merging ──────────────────────────────────────────────────────────
 
     static List<(int Start, int End)> MergeRanges(List<(int Start, int End)> sorted)
     {
-        var result  = new List<(int, int)>();
+        var result = new List<(int, int)>();
         var current = sorted[0];
 
         for (var i = 1; i < sorted.Count; i++)
@@ -106,6 +99,7 @@ public class FilteredSourceService(FileStructureService fileStructure)
                 current = next;
             }
         }
+
         result.Add(current);
         return result;
     }
@@ -119,7 +113,7 @@ public class FilteredSourceService(FileStructureService fileStructure)
     {
         var allRanges = MergeWithDeclarations(ranges, declRanges);
 
-        var output  = new List<string>();
+        var output = new List<string>();
         var prevEnd = 0;
 
         foreach (var (start, end) in allRanges)

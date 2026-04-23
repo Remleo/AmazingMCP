@@ -20,6 +20,7 @@ public static class GetTypeDepsAndUsageTool
         DependencyMapService dependencyMapService,
         IDependencyAggregator dependencyAggregator,
         SolutionResolver solutionResolver,
+        IWildcardPatternFactory wildcardFactory,
         [Description("Absolute path to the directory where the .sln/.slnx file is located")] string solutionWorkspacePath,
         [Description("Type query: full name, partial name, or '*' wildcard patterns.")] string typeQuery,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")] string? solutionPath = null,
@@ -29,17 +30,18 @@ public static class GetTypeDepsAndUsageTool
         if (resolved is null) return error!;
 
         var depMap = await dependencyMapService.BuildMapAsync(resolved, ct);
-        return FormatMarkdown(depMap, typeQuery, dependencyAggregator);
+        return FormatMarkdown(depMap, typeQuery, wildcardFactory, dependencyAggregator);
     }
 
     internal static string FormatMarkdown(
         DependencyMapResult depMap,
         string typeQuery,
+        IWildcardPatternFactory wildcardFactory,
         IDependencyAggregator? aggregator = null)
     {
         if (typeQuery.Contains('*'))
         {
-            var wildcardMatches = FindByWildcard(depMap.Abstractions.Keys, typeQuery);
+            var wildcardMatches = FindByWildcard(depMap.Abstractions.Keys, typeQuery, wildcardFactory);
             return wildcardMatches.Count > 0
                 ? FormatAbstractionResults(depMap, wildcardMatches, aggregator)
                 : $"No types found matching pattern `{typeQuery}`.";
@@ -52,25 +54,25 @@ public static class GetTypeDepsAndUsageTool
         if (depMap.Implementations.ContainsKey(typeQuery))
             return FormatImplementationResult(depMap, typeQuery, aggregator);
 
-        return PerformFallbackSearch(depMap, typeQuery, aggregator);
+        return PerformFallbackSearch(depMap, typeQuery, wildcardFactory, aggregator);
     }
 
-    internal static List<string> FindByWildcard(IEnumerable<string> keys, string pattern)
+    internal static List<string> FindByWildcard(IEnumerable<string> keys, string pattern, IWildcardPatternFactory wildcardFactory)
     {
-        var regex = WildcardToRegex(pattern);
-        return keys.Where(k => regex.IsMatch(k)).OrderBy(k => k).ToList();
+        var compiled = wildcardFactory.CreateForTypeNames(pattern);
+        return keys.Where(k => compiled.IsMatch(k)).OrderBy(k => k).ToList();
     }
 
     internal static string PerformFallbackSearch(
-        DependencyMapResult depMap, string typeQuery, IDependencyAggregator? aggregator)
+        DependencyMapResult depMap, string typeQuery, IWildcardPatternFactory wildcardFactory, IDependencyAggregator? aggregator)
     {
         var fuzzyQuery = NormalizeForFuzzySearch(typeQuery);
-        var regex = WildcardToRegex(fuzzyQuery);
+        var compiled = wildcardFactory.CreateForTypeNames(fuzzyQuery);
 
         var matchedAbstractions = depMap.Abstractions.Keys
-            .Where(k => regex.IsMatch(k)).OrderBy(k => k).ToList();
+            .Where(k => compiled.IsMatch(k)).OrderBy(k => k).ToList();
         var matchedImplementations = depMap.Implementations.Keys
-            .Where(k => regex.IsMatch(k) && !matchedAbstractions.Contains(k))
+            .Where(k => compiled.IsMatch(k) && !matchedAbstractions.Contains(k))
             .OrderBy(k => k).ToList();
 
         if (matchedAbstractions.Count == 0 && matchedImplementations.Count == 0)
@@ -408,13 +410,4 @@ public static class GetTypeDepsAndUsageTool
 
     static string FormatUsageLine(MemberUsage usage) =>
         $"  - {UsageLabel(usage)}";
-
-    internal static Regex WildcardToRegex(string pattern)
-    {
-        var escaped = Regex.Escape(pattern)
-            .Replace(@"\*", ".*")
-            .Replace(@"\<", "<")
-            .Replace(@"\>", ">");
-        return new Regex($"^{escaped}$", RegexOptions.IgnoreCase);
-    }
 }

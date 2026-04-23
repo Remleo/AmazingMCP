@@ -10,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddMemoryCache();
 
 // Infrastructure
+builder.Services.AddSingleton<IWildcardPatternFactory, WildcardPatternFactory>();
 builder.Services.AddSingleton<WorkspaceProvider>();
 builder.Services.AddSingleton<IWorkspaceProvider>(sp => sp.GetRequiredService<WorkspaceProvider>());
 builder.Services.AddSingleton<SolutionResolver>();
