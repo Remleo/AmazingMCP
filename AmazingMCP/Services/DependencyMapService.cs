@@ -12,7 +12,7 @@ public class DependencyMapService(
     IAbstractionExtractor abstractionExtractor,
     IMemoryCache cache)
 {
-    static readonly TimeSpan SlidingExpiration = TimeSpan.FromMinutes(20);
+    static readonly TimeSpan Expiration = TimeSpan.FromMinutes(5);
 
     public async Task<DependencyMapResult> BuildMapAsync(
         string solutionPath, CancellationToken ct = default)
@@ -26,7 +26,7 @@ public class DependencyMapService(
 
         cache.Set(cacheKey, result, new MemoryCacheEntryOptions
         {
-            SlidingExpiration = SlidingExpiration
+            AbsoluteExpirationRelativeToNow = Expiration
         });
 
         return result;
