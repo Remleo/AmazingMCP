@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace AmazingMCP.Services;
 
-public class FileStructureService
+public class FileStructureService : IFileStructureService
 {
     // ── public API ─────────────────────────────────────────────────────────────
 

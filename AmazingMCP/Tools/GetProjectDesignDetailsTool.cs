@@ -21,7 +21,7 @@ public static class GetProjectDesignDetailsTool
         "Supports `*` wildcard in namespace patterns. " +
         "Use `includeDependencyUsage: false` or `includeImplementations: false` to reduce output size.")]
     public static async Task<string> GetDetailedProjectDesign(
-        DependencyMapService dependencyMapService,
+        IDependencyMapService dependencyMapService,
         IDependencyAggregator dependencyAggregator,
         SolutionResolver solutionResolver,
         IWildcardPatternFactory wildcardFactory,

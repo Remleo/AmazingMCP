@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests;
 
 public class FileStructureServiceTests
 {
-    FileStructureService _sut = null!;
+    IFileStructureService _sut = null!;
 
     static string TestProjectAppPath => Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory,

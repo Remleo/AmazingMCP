@@ -17,7 +17,7 @@ public static class GetTypeDepsAndUsageTool
         "and which other types use this abstraction. " +
         "Ideal for impact analysis, understanding a specific interface, or tracing a dependency chain.")]
     public static async Task<string> GetTypeDepsAndUsage(
-        DependencyMapService dependencyMapService,
+        IDependencyMapService dependencyMapService,
         IDependencyAggregator dependencyAggregator,
         SolutionResolver solutionResolver,
         IWildcardPatternFactory wildcardFactory,

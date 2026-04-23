@@ -5,6 +5,7 @@ using AmazingMCP.Tests.Helpers;
 using AmazingMCP.Tools;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
+using NSubstitute;
 using NUnit.Framework;
 
 namespace AmazingMCP.Tests;
@@ -13,6 +14,7 @@ public class ProjectDesignServiceTests
 {
     DependencyMapResult _depMap = null!;
     IDependencyAggregator _aggregator = null!;
+    IDependencyMapService _dependencyMapService = null!;
     CachedSolution _cachedSolution = null!;
     MemoryCache _cache = null!;
 
@@ -32,6 +34,11 @@ public class ProjectDesignServiceTests
             _cache);
 
         _depMap = await depMapService.BuildMapAsync(CompilationHelper.SolutionPath);
+
+        _dependencyMapService = Substitute.For<IDependencyMapService>();
+        _dependencyMapService
+            .BuildMapAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(_depMap);
     }
 
     [OneTimeTearDown]
@@ -42,7 +49,7 @@ public class ProjectDesignServiceTests
     }
 
     ProjectDesignResult Act() =>
-        new ProjectDesignService(null!, _aggregator).BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath);
+        new ProjectDesignService(_dependencyMapService, _aggregator).BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath);
 
     #region Flat groups — no project split
 
@@ -509,7 +516,7 @@ public class ProjectDesignServiceTests
             });
 
         // act
-        var result = new ProjectDesignService(null!, new DependencyAggregator())
+        var result = new ProjectDesignService(_dependencyMapService, new DependencyAggregator())
             .BuildFromDependencyMap(depMap, "/fake/solution.slnx");
 
         // assert — NuGet group must not appear in the main list
@@ -579,7 +586,7 @@ public class ProjectDesignServiceTests
             });
 
         // act
-        var result = new ProjectDesignService(null!, new DependencyAggregator())
+        var result = new ProjectDesignService(_dependencyMapService, new DependencyAggregator())
             .BuildFromDependencyMap(depMap, "/fake/solution.slnx");
 
         // assert — Application group depends on Acme.Sdk namespace (NuGet), even though it's not in groups

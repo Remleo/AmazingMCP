@@ -16,8 +16,8 @@ builder.Services.AddSingleton<IWorkspaceProvider>(sp => sp.GetRequiredService<Wo
 builder.Services.AddSingleton<SolutionResolver>();
 builder.Services.AddSingleton<RoslynSymbolService>();
 builder.Services.AddSingleton<SymbolInfoService>();
-builder.Services.AddSingleton<FileStructureService>();
-builder.Services.AddSingleton<FilteredSourceService>();
+builder.Services.AddSingleton<IFileStructureService, FileStructureService>();
+builder.Services.AddSingleton<IFilteredSourceService, FilteredSourceService>();
 
 // Scanning
 builder.Services.AddSingleton<ITypeFilter, TypeFilter>();
@@ -29,7 +29,7 @@ builder.Services.AddSingleton<IMemberUsageAnalyzer, MemberUsageAnalyzer>();
 builder.Services.AddSingleton<ITypeCollector, TypeCollector>();
 builder.Services.AddSingleton<IAbstractionExtractor, AbstractionExtractor>();
 builder.Services.AddSingleton<IDependencyAggregator, DependencyAggregator>();
-builder.Services.AddSingleton<DependencyMapService>();
+builder.Services.AddSingleton<IDependencyMapService, DependencyMapService>();
 builder.Services.AddSingleton<ProjectDesignService>();
 
 builder.Services

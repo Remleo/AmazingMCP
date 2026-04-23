@@ -10,7 +10,7 @@ public class DependencyMapService(
     ITypeCollector typeCollector,
     IMemberUsageAnalyzer memberUsageAnalyzer,
     IAbstractionExtractor abstractionExtractor,
-    IMemoryCache cache)
+    IMemoryCache cache) : IDependencyMapService
 {
     static readonly TimeSpan Expiration = TimeSpan.FromMinutes(5);
 

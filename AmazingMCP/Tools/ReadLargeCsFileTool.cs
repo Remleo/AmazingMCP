@@ -13,7 +13,7 @@ public static class ReadLargeCsFileTool
         "Filters match against full member signatures (name, return type, parameters). " +
         "If unsure what members exist, call read_cs_file_digest first. ")]
     public static string ReadLargeCsFile(
-        FilteredSourceService filteredSource,
+        IFilteredSourceService filteredSource,
         [Description("Absolute path to the .cs file")] string filePath,
         [Description("Wildcard filter patterns, e.g. [\"*Async*\", \"usings\", \"*public*\"]. Pass empty array to return the full file.")]
         string[] filters = null)

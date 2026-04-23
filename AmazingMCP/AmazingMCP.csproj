@@ -40,6 +40,21 @@
     <Compile Update="Services\IWorkspaceProvider.cs">
       <DependentUpon>WorkspaceProvider.cs</DependentUpon>
     </Compile>
+    <Compile Update="Services\IFileStructureService.cs">
+      <DependentUpon>FileStructureService.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\IFilteredSourceService.cs">
+      <DependentUpon>FilteredSourceService.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\IWildcardPattern.cs">
+      <DependentUpon>WildcardPattern.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\IWildcardPatternFactory.cs">
+      <DependentUpon>WildcardPatternFactory.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\IDependencyMapService.cs">
+      <DependentUpon>DependencyMapService.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

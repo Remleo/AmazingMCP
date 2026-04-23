@@ -3,7 +3,8 @@ using AmazingMCP.Models;
 
 namespace AmazingMCP.Services;
 
-public class FilteredSourceService(FileStructureService fileStructure, IWildcardPatternFactory wildcardFactory)
+public class FilteredSourceService(IFileStructureService fileStructure, IWildcardPatternFactory wildcardFactory)
+    : IFilteredSourceService
 {
     const string CutMarker = "// << ... cut ... >>";
     const int MaxTypeLines = 200;

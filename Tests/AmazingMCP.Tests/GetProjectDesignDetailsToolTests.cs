@@ -5,6 +5,7 @@ using AmazingMCP.Tests.Helpers;
 using AmazingMCP.Tools;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
+using NSubstitute;
 using NUnit.Framework;
 
 namespace AmazingMCP.Tests;
@@ -12,6 +13,7 @@ namespace AmazingMCP.Tests;
 public class GetProjectDesignDetailsToolTests
 {
     DependencyMapResult _depMap = null!;
+    IDependencyMapService _dependencyMapService = null!;
     CachedSolution _cachedSolution = null!;
     MemoryCache _cache = null!;
 
@@ -30,6 +32,11 @@ public class GetProjectDesignDetailsToolTests
             _cache);
 
         _depMap = await depMapService.BuildMapAsync(CompilationHelper.SolutionPath);
+
+        _dependencyMapService = Substitute.For<IDependencyMapService>();
+        _dependencyMapService
+            .BuildMapAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(_depMap);
     }
 
     [OneTimeTearDown]
@@ -428,7 +435,7 @@ public class GetProjectDesignDetailsToolTests
     [Test]
     public void GetProjectDesignTool_FormatMarkdown_ContainsIntroBlock()
     {
-        var result = new ProjectDesignService(null!, new DependencyAggregator())
+        var result = new ProjectDesignService(_dependencyMapService, new DependencyAggregator())
             .BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath);
         var md = GetProjectDesignTool.FormatMarkdown(result);
 

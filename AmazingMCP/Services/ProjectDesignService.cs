@@ -6,7 +6,7 @@ namespace AmazingMCP.Services;
 /// Builds a high-level project design: groups of abstractions and their inter-group dependencies.
 /// </summary>
 public class ProjectDesignService(
-    DependencyMapService dependencyMapService,
+    IDependencyMapService dependencyMapService,
     IDependencyAggregator dependencyAggregator)
 {
     public async Task<ProjectDesignResult> BuildAsync(

@@ -13,7 +13,7 @@ public static class ReadCsFileDigestTool
         "without implementations. Lets you see the full shape of a large file in one call. " +
         "Then use read_large_cs_file to read the actual source of specific members.")]
     public static string ReadCsFileDigest(
-        FileStructureService fileStructure,
+        IFileStructureService fileStructure,
         [Description("Absolute path to the .cs file")] string filePath)
     {
         var result = fileStructure.GetStructure(filePath);
