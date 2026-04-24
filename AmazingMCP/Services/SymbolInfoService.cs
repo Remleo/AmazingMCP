@@ -1,4 +1,5 @@
 using System.Text;
+using AmazingMCP.Models;
 using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services;
@@ -28,7 +29,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
         string fullTypeName,
         CancellationToken ct = default)
     {
-        var (found, error) = await roslynSymbolService.FindExactTypeAsync(solutionPath, fullTypeName, ct);
+        var (found, error, cachedSolution) = await roslynSymbolService.FindExactTypeAsync(solutionPath, fullTypeName, ct);
 
         if (found is null)
             return error!;
@@ -36,6 +37,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
         var sb = new StringBuilder();
         var visited = new HashSet<string>();
         Describe(found, sb, indent: 0, visited);
+        DescribeDerivedTypes(found, cachedSolution, sb);
         return sb.ToString();
     }
 
@@ -233,5 +235,23 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
         if (p.GetMethod is not null) parts.Add("get;");
         if (p.SetMethod is not null) parts.Add(p.SetMethod.IsInitOnly ? "init;" : "set;");
         return string.Join(" ", parts);
+    }
+
+    static void DescribeDerivedTypes(INamedTypeSymbol type, CachedSolution cachedSolution, StringBuilder sb)
+    {
+        if (type.TypeKind is not (TypeKind.Class or TypeKind.Interface))
+            return;
+
+        var derived = RoslynDerivedTypeService.FindDerivedTypes(cachedSolution, type);
+        if (derived.Count == 0)
+            return;
+
+        sb.AppendLine();
+        sb.AppendLine(type.TypeKind == TypeKind.Interface
+            ? "Known implementors / derived types:"
+            : "Known derived types:");
+
+        foreach (var d in derived)
+            sb.AppendLine($"  {d.ToDisplayString()}");
     }
 }

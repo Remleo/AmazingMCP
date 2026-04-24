@@ -632,6 +632,56 @@ public class SymbolInfoServiceTests
 
     #endregion
 
+    #region Derived types
+
+    [Test]
+    public async Task GetSymbolInfoAsync_Interface_ContainsKnownImplementors()
+    {
+        // act
+        var result = await Act("TestProject.Core.Services.IAnimalService");
+
+        // assert
+        result.Should().Contain("Known implementors");
+        result.Should().Contain("TestProject.App.Services.AnimalService");
+        result.Should().Contain("TestProject.App.Services.AdvancedAnimalService");
+        result.Should().Contain("TestProject.App.Services.TracedAnimalService");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_AbstractClass_ContainsKnownDerivedTypes()
+    {
+        // act
+        var result = await Act("TestProject.App.Services.AnimalServiceBase");
+
+        // assert
+        result.Should().Contain("Known derived types");
+        result.Should().Contain("TestProject.App.Services.AdvancedAnimalService");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_InterfaceWithNoImplementors_DoesNotContainDerivedSection()
+    {
+        // act — IAnimalValidator has no implementors in the test solution
+        var result = await Act("TestProject.Core.Services.IAnimalValidator");
+
+        // assert
+        result.Should().NotContain("Known implementors");
+        result.Should().NotContain("Known derived types");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_Enum_DoesNotContainDerivedSection()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalKind");
+
+        // assert
+        result.Should().NotContain("Known implementors");
+        result.Should().NotContain("Known derived types");
+    }
+
+    #endregion
+
     class TestWorkspaceProvider(CachedSolution solution) : IWorkspaceProvider
     {
         public Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default)

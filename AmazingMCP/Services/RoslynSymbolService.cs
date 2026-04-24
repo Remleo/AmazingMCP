@@ -21,7 +21,7 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
 
         foreach (var (_, compilation) in solution.Compilations)
         {
-            foreach (var symbol in FindNamedTypes(compilation.GlobalNamespace, pattern))
+            foreach (var symbol in RoslynTypeEnumerator.FindNamedTypes(compilation.GlobalNamespace, pattern))
             {
                 var key = (symbol.ToDisplayString(), symbol.ContainingAssembly?.Name ?? "unknown");
                 if (seen.Add(key))
@@ -32,49 +32,12 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
         return results;
     }
 
-    static IEnumerable<INamedTypeSymbol> FindNamedTypes(INamespaceSymbol ns, IWildcardPattern pattern)
-    {
-        foreach (var member in ns.GetMembers())
-        {
-            switch (member)
-            {
-                case INamedTypeSymbol type:
-                    if (pattern.IsMatch(type.ToDisplayString()))
-                        yield return type;
-
-                    foreach (var nested in FindNestedTypes(type, pattern))
-                        yield return nested;
-                    break;
-
-                case INamespaceSymbol childNs:
-                    foreach (var t in FindNamedTypes(childNs, pattern))
-                        yield return t;
-                    break;
-            }
-        }
-    }
-
-    static IEnumerable<INamedTypeSymbol> FindNestedTypes(INamedTypeSymbol parent, IWildcardPattern pattern)
-    {
-        foreach (var nested in parent.GetTypeMembers())
-        {
-            if (nested.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
-                continue;
-
-            if (pattern.IsMatch(nested.ToDisplayString()))
-                yield return nested;
-
-            foreach (var deeper in FindNestedTypes(nested, pattern))
-                yield return deeper;
-        }
-    }
-
     /// <summary>
     /// Finds a single type by its fully-qualified name across all compilations.
     /// Supports CLR metadata notation (Foo`2), C# generic syntax (Foo&lt;T, TVal&gt;),
     /// and wildcard form (Foo&lt;*,*&gt;). Returns null if not found or ambiguous (multiple matches).
     /// </summary>
-    public async Task<(INamedTypeSymbol? Symbol, string? Error)> FindExactTypeAsync(
+    public async Task<(INamedTypeSymbol? Symbol, string? Error, CachedSolution Solution)> FindExactTypeAsync(
         string solutionPath,
         string fullTypeName,
         CancellationToken ct = default)
@@ -87,7 +50,7 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
 
         foreach (var (_, compilation) in solution.Compilations)
         {
-            foreach (var symbol in FindNamedTypes(compilation.GlobalNamespace, pattern))
+            foreach (var symbol in RoslynTypeEnumerator.FindNamedTypes(compilation.GlobalNamespace, pattern))
             {
                 if (seen.Add(symbol.ToDisplayString()))
                     matches.Add(symbol);
@@ -96,10 +59,10 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
 
         return matches.Count switch
         {
-            0 => (null, $"Type '{fullTypeName}' not found."),
-            1 => (matches[0], null),
+            0 => (null, $"Type '{fullTypeName}' not found.", solution),
+            1 => (matches[0], null, solution),
             _ => (null, $"Ambiguous: '{fullTypeName}' matched multiple types:\n" +
-                        string.Join("\n", matches.Select(m => $"  {m.ToDisplayString()}")))
+                        string.Join("\n", matches.Select(m => $"  {m.ToDisplayString()}")), solution)
         };
     }
 
