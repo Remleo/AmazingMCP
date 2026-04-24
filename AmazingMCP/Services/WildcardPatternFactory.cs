@@ -7,8 +7,8 @@ namespace AmazingMCP.Services;
 /// </summary>
 public sealed class WildcardPatternFactory : IWildcardPatternFactory
 {
-    private const string SegmentPattern = @"[^,<> ]*?"; // stops at type-argument delimiters
-    private const string AnyPattern     = @".*";         // matches everything
+    const string SegmentPattern = @"[^,<> ]*?"; // stops at type-argument delimiters
+    const string AnyPattern     = @".*";         // matches everything
 
     /// <inheritdoc/>
     public IWildcardPattern CreateForTypeNames(string pattern) =>
@@ -18,7 +18,7 @@ public sealed class WildcardPatternFactory : IWildcardPatternFactory
     public IWildcardPattern CreateGlob(string pattern) =>
         new WildcardPattern(BuildRegex(pattern, segmentAware: false));
 
-    private static Regex BuildRegex(string pattern, bool segmentAware)
+    static Regex BuildRegex(string pattern, bool segmentAware)
     {
         var parts = pattern.Split('*');
         var sb = new System.Text.StringBuilder("^");

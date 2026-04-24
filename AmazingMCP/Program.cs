@@ -1,4 +1,5 @@
 using Microsoft.Build.Locator;
+using AmazingMCP.Infrastructure;
 using AmazingMCP.Services;
 using AmazingMCP.Services.Scanning;
 
@@ -39,6 +40,8 @@ builder.Services
     })
     .WithHttpTransport()
     .WithToolsFromAssembly();
+
+builder.Services.AddToolParameterValidation();
 
 var app = builder.Build();
 
