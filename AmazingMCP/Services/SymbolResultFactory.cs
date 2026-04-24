@@ -50,6 +50,21 @@ static class SymbolResultFactory
         };
     }
 
+    public static SymbolResult ForEnumValue(IFieldSymbol field, SymbolResult declaringType)
+    {
+        var (path, line) = SourceLocation(field.DeclaringSyntaxReferences.FirstOrDefault());
+        return new()
+        {
+            Name = field.Name,
+            FullName = field.Name,
+            Kind = "EnumValue",
+            ContainingAssembly = field.ContainingAssembly?.Name,
+            SourceFilePath = path,
+            DefinitionLine = line,
+            DeclaringType = declaringType,
+        };
+    }
+
     public static string MethodSignature(IMethodSymbol method) =>
         method.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat
             .WithMemberOptions(

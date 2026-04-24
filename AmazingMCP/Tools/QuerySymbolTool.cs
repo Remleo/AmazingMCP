@@ -13,7 +13,7 @@ public static class QuerySymbolTool
 
     [McpServerTool(Name = "query_symbol"), Description(
         "IMPORTANT: THIS TOOL CAN SEARCH TYPES AND MEMBERS FROM THIRD-PARTY NUGET PACKAGES. " +
-        "Searches types (classes, interfaces, enums, structs), members (methods, properties), extension methods, constants, etc. " +
+        "Searches types (classes, interfaces, enums, structs), members (methods, properties), extension methods, constants, enum values, etc. " +
         "across the solution including NuGet. ")]
     public static async Task<string> QuerySymbol(
         RoslynSymbolService roslyn,

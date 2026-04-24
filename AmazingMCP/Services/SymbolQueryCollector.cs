@@ -30,11 +30,21 @@ static class SymbolQueryCollector
     {
         foreach (var typeSymbol in RoslynTypeEnumerator.EnumerateAll(ns))
         {
-            if (!IsMemberSearchCandidate(typeSymbol))
+            if (WellKnownFrameworkTypes.IsWellKnown(typeSymbol))
                 continue;
 
             var declaringType = SymbolResultFactory.ForType(typeSymbol);
             var assembly = typeSymbol.ContainingAssembly?.Name ?? "unknown";
+
+            if (typeSymbol.TypeKind == TypeKind.Enum)
+            {
+                foreach (var member in typeSymbol.GetMembers().OfType<IFieldSymbol>())
+                    TryAddEnumValue(member, declaringType, assembly, pattern, seen, results);
+                continue;
+            }
+
+            if (!IsClassOrInterface(typeSymbol))
+                continue;
 
             foreach (var member in typeSymbol.GetMembers())
             {
@@ -47,6 +57,23 @@ static class SymbolQueryCollector
                     TryAddProperty(property, declaringType, assembly, pattern, seen, results);
             }
         }
+    }
+
+    static void TryAddEnumValue(
+        IFieldSymbol field,
+        SymbolResult declaringType,
+        string assembly,
+        IWildcardPattern pattern,
+        HashSet<SeenSymbolKey> seen,
+        List<SymbolResult> results)
+    {
+        if (!pattern.IsMatch(field.Name)) return;
+        var key = SeenSymbolKey.ForMember(
+            containingTypeDisplayName: field.ContainingType.ToDisplayString(),
+            memberSignature: field.Name,
+            assembly: assembly);
+        if (seen.Add(key))
+            results.Add(SymbolResultFactory.ForEnumValue(field, declaringType));
     }
 
     static void TryAddMethod(
@@ -84,10 +111,8 @@ static class SymbolQueryCollector
             results.Add(SymbolResultFactory.ForProperty(property, declaringType));
     }
 
-    // Only search members on classes and interfaces; skip well-known framework types.
-    static bool IsMemberSearchCandidate(INamedTypeSymbol type) =>
-        (type.TypeKind is TypeKind.Class or TypeKind.Interface) &&
-        !WellKnownFrameworkTypes.IsWellKnown(type);
+    static bool IsClassOrInterface(INamedTypeSymbol type) =>
+        type.TypeKind is TypeKind.Class or TypeKind.Interface;
 
     static bool IsVisibleMember(ISymbol member) =>
         member.DeclaredAccessibility is

@@ -218,6 +218,36 @@ public class RoslynSymbolServiceTests
         });
     }
 
+    // ── QuerySymbolsAsync — enum values ──────────────────────────────────────
+
+    [Test]
+    public async Task QuerySymbolsAsync_EnumValueName_ReturnsEnumValueWithDeclaringType()
+    {
+        // act — "Dog" is a value of AnimalKind enum
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "Dog");
+
+        // assert
+        results.Should().ContainSingle(r =>
+            r.Kind == "EnumValue" &&
+            r.Name == "Dog" &&
+            r.DeclaringType!.Name == "AnimalKind");
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_WildcardOnEnumValues_ReturnsMatchingValues()
+    {
+        // act — AnimalKind has Cat, Dog, Parrot, Unknown
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "*a*");
+
+        // assert — Cat and Parrot contain "a" (case-insensitive via *a*)
+        var enumValues = results
+            .Where(r => r.Kind == "EnumValue" && r.DeclaringType?.Name == "AnimalKind")
+            .Select(r => r.Name)
+            .ToList();
+
+        enumValues.Should().Contain(["Cat", "Parrot"]);
+    }
+
     // ── QuerySymbolsAsync — no match on return type or parameter types ────────
 
     [Test]
