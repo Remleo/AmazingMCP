@@ -6,7 +6,6 @@ namespace AmazingMCP.Services;
 
 public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
 {
-    static readonly string[] SkippedPrefixes = ["System.", "Microsoft."];
 
     // Displays: accessibility + modifiers (abstract/virtual/override/static/readonly/const) + type + name + params + constant value.
     // Does NOT include the containing type name in the output.
@@ -167,14 +166,8 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
         return sb.ToString();
     }
 
-    static bool IsWellKnownFrameworkType(INamedTypeSymbol type)
-    {
-        var name = type.ToDisplayString();
-        foreach (var p in SkippedPrefixes)
-            if (name.StartsWith(p, StringComparison.Ordinal))
-                return true;
-        return false;
-    }
+    static bool IsWellKnownFrameworkType(INamedTypeSymbol type) =>
+        WellKnownFrameworkTypes.IsWellKnown(type);
 
     static void DescribeHierarchy(
         INamedTypeSymbol type, StringBuilder sb, int indent, HashSet<string> visited)

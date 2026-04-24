@@ -15,14 +15,11 @@ public class RoslynDerivedTypeServiceTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _cachedSolution = await CompilationHelper.LoadTestSolutionAsync();
+        _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _symbolService = new RoslynSymbolService(
             new TestWorkspaceProvider(_cachedSolution),
             new WildcardPatternFactory());
     }
-
-    [OneTimeTearDown]
-    public void OneTimeTearDown() => _cachedSolution.Dispose();
 
     async Task<IReadOnlyList<string>> Act(string fullTypeName)
     {

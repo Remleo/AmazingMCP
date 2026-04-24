@@ -21,7 +21,7 @@ public class ProjectDesignServiceTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _cachedSolution = await CompilationHelper.LoadTestSolutionAsync();
+        _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _aggregator = new DependencyAggregator();
 
         _cache = new MemoryCache(new MemoryCacheOptions());
@@ -45,7 +45,6 @@ public class ProjectDesignServiceTests
     public void OneTimeTearDown()
     {
         _cache.Dispose();
-        _cachedSolution.Dispose();
     }
 
     ProjectDesignResult Act() =>

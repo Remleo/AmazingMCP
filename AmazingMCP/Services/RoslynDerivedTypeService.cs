@@ -8,7 +8,7 @@ namespace AmazingMCP.Services;
 /// </summary>
 public static class RoslynDerivedTypeService
 {
-    static readonly string[] WellKnownPrefixes = ["System.", "Microsoft."];
+
 
     /// <summary>
     /// Returns all types that derive from (class target) or implement (interface target) the given type.
@@ -53,7 +53,7 @@ public static class RoslynDerivedTypeService
                 }
                 else
                 {
-                    if (!candidateIsFromSource && IsWellKnownFrameworkType(candidate))
+                    if (!candidateIsFromSource && WellKnownFrameworkTypes.IsWellKnown(candidate))
                         continue;
                 }
 
@@ -91,12 +91,4 @@ public static class RoslynDerivedTypeService
         return false;
     }
 
-    static bool IsWellKnownFrameworkType(INamedTypeSymbol type)
-    {
-        var name = type.ToDisplayString();
-        foreach (var prefix in WellKnownPrefixes)
-            if (name.StartsWith(prefix, StringComparison.Ordinal))
-                return true;
-        return false;
-    }
 }

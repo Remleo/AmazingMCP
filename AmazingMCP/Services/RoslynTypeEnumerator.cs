@@ -14,7 +14,7 @@ public static class RoslynTypeEnumerator
             switch (member)
             {
                 case INamedTypeSymbol type:
-                    if (pattern.IsMatch(type.ToDisplayString()))
+                    if (pattern.IsMatch(type.ToDisplayString()) || pattern.IsMatch(type.Name))
                         yield return type;
 
                     foreach (var nested in FindNestedTypes(type, pattern))
@@ -36,7 +36,7 @@ public static class RoslynTypeEnumerator
             if (nested.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
                 continue;
 
-            if (pattern.IsMatch(nested.ToDisplayString()))
+            if (pattern.IsMatch(nested.ToDisplayString()) || pattern.IsMatch(nested.Name))
                 yield return nested;
 
             foreach (var deeper in FindNestedTypes(nested, pattern))

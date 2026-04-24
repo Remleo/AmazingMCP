@@ -14,12 +14,9 @@ public class SymbolInfoServiceTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _cachedSolution = await CompilationHelper.LoadTestSolutionAsync();
+        _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _sut = new SymbolInfoService(new RoslynSymbolService(new TestWorkspaceProvider(_cachedSolution), new WildcardPatternFactory()));
     }
-
-    [OneTimeTearDown]
-    public void OneTimeTearDown() => _cachedSolution.Dispose();
 
     async Task<string> Act(string typeName) =>
         await _sut.GetSymbolInfoAsync(CompilationHelper.SolutionPath, typeName);

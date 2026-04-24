@@ -32,7 +32,7 @@ public class GenericCollapseTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _cachedSolution = await CompilationHelper.LoadTestSolutionAsync();
+        _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _cache = new MemoryCache(new MemoryCacheOptions());
         var typeFilter = new TypeFilter();
         var depMapService = new DependencyMapService(
@@ -48,7 +48,6 @@ public class GenericCollapseTests
     public void OneTimeTearDown()
     {
         _cache.Dispose();
-        _cachedSolution.Dispose();
     }
 
     string Act(string typeQuery) =>

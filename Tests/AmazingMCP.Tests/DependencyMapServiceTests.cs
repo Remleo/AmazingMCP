@@ -18,13 +18,7 @@ public partial class DependencyMapServiceTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _cachedSolution = await CompilationHelper.LoadTestSolutionAsync();
-    }
-
-    [OneTimeTearDown]
-    public void OneTimeTearDown()
-    {
-        _cachedSolution.Dispose();
+        _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
     }
 
     [SetUp]

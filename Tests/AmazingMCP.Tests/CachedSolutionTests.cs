@@ -14,13 +14,7 @@ public class CachedSolutionTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _sut = await CompilationHelper.LoadTestSolutionAsync();
-    }
-
-    [OneTimeTearDown]
-    public void OneTimeTearDown()
-    {
-        _sut.Dispose();
+        _sut = await CompilationHelper.GetSharedSolutionAsync();
     }
 
     // UnsafeAccessor to read the private _dirtyFiles field
