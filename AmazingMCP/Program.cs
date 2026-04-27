@@ -26,6 +26,9 @@ builder.Services.AddSingleton<IInvocationAnalyzer, InvocationAnalyzer>();
 builder.Services.AddSingleton<IMemberAccessAnalyzer, MemberAccessAnalyzer>();
 builder.Services.AddSingleton<IMemberUsageAnalyzer, MemberUsageAnalyzer>();
 
+// Usage query
+builder.Services.AddSingleton<IUsageQueryService, UsageQueryService>();
+
 // Core services
 builder.Services.AddSingleton<ITypeCollector, TypeCollector>();
 builder.Services.AddSingleton<IAbstractionExtractor, AbstractionExtractor>();
