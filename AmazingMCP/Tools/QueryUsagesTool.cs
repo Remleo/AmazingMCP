@@ -8,15 +8,9 @@ namespace AmazingMCP.Tools;
 public static class QueryUsagesTool
 {
     [McpServerTool(Name = "query_usages"), Description(
-        "Traverses the entire solution and finds all usages of a given type. " +
-        "typePattern is the primary filter — it matches against the full name of the target type involved in each usage. " +
-        "The optional predicate further narrows results using a C# boolean expression where 'x' is a QueryEntry. " +
-        "QueryEntry fields: " +
-        "TypeName (string — full name of the target type, always set), " +
-        "Kind (UsageKind enum: MethodCall, ConstructorCall, PropertyRead, PropertyWrite, FieldRead, FieldWrite, TypeAsGenericArgument, TypeAsGenericConstraint, TypeAsReturnType, TypeAsParameter), " +
-        "MethodName (string?), ArgumentTypes (IReadOnlyList<string>?), PropertyName (string?), FieldName (string?). " +
-        "Example: typePattern=\"MyApp.Persistence.IAnimalRepository\" finds all usages of IAnimalRepository across the solution. " +
-        "Example: typePattern=\"MyApp.Persistence.IAnimalRepository\", predicate=\"x.Kind == UsageKind.MethodCall && x.MethodName == \\\"Save\\\"\" — finds only calls to Save on IAnimalRepository.")]
+        "Finds all usages of a given type across the solution. " +
+        "Use typePattern as the primary filter to specify which type to search for. " +
+        "Optionally narrow results with a predicate expression.")]
     public static async Task<string> QueryUsages(
         IUsageQueryService usageQueryService,
         SolutionResolver solutionResolver,
@@ -24,21 +18,39 @@ public static class QueryUsagesTool
         string solutionWorkspacePath,
         [Description(
             "Wildcard pattern matched against the full name of the target type involved in each usage. " +
-            "This is the primary filter. Supports '*' wildcard. " +
-            "Prefer the fully qualified type name including namespace to avoid false positives. " +
-            "Examples: \"MyApp.Core.IRequestStream\", \"*IRequestStream\"")]
+            "Prefer the fully qualified name including namespace to avoid false positives. " +
+            "Supports '*' wildcard. " +
+            "Examples: \"MyApp.Core.IRequestStream\", \"*.IRequestStream\"")]
         string typePattern,
         [Description(
             "Optional C# boolean expression to further filter results. Variable 'x' is of type QueryEntry. " +
-            "Use && / || / () for complex conditions. " +
-            "Example: \"x.Kind == UsageKind.MethodCall && x.MethodName == \\\"Save\\\"\"")]
+            "QueryEntry fields: " +
+            "TypeName (string), " +
+            "Kind (UsageKind: MethodCall, ConstructorCall, PropertyRead, PropertyWrite, FieldRead, FieldWrite, TypeAsGenericArgument, TypeAsGenericConstraint, TypeAsReturnType, TypeAsParameter), " +
+            "MethodName (string?), ArgumentTypes (IReadOnlyList<string>?), PropertyName (string?), FieldName (string?). " +
+            "Supports && / || / () and instance method calls on any type including collection methods: " +
+            "Any(), Contains(), FirstOrDefault(). " +
+            "Examples: " +
+            "\"x.Kind == UsageKind.MethodCall && x.MethodName == \\\"Save\\\"\" — only calls to Save; " +
+            "\"x.Kind == UsageKind.TypeAsParameter\" — only parameter usages; " +
+            "\"x.Kind == UsageKind.ConstructorCall\" — only instantiations; " +
+            "\"x.Kind == UsageKind.MethodCall && x.ArgumentTypes != null && x.ArgumentTypes.Any()\" — calls with arguments.")]
         string? predicate = null,
         [Description(
-            "Optional. Restricts which containing types are scanned during traversal. " +
-            "Wildcard patterns matched against the full name of the type whose code is being analysed. " +
+            "Optional. Restricts which containing types are scanned. " +
+            "Does not affect what is searched — only where. " +
+            "Wildcard patterns matched against the full name of the containing type. " +
+            "Only types matching at least one pattern are traversed. " +
             "Leave null to scan the entire solution. " +
-            "Supports '*' wildcard. Example: [\"MyApp.Services.*\", \"MyApp.Core.*\"]")]
-        string[]? scanFilters = null,
+            "Examples: [\"MyApp.Services.*\", \"*.Persistence.*\"]")]
+        string[] scanInclude = null,
+        [Description(
+            "Optional. Excludes specific containing types from scanning. " +
+            "Wildcard patterns matched against the full name of the containing type. " +
+            "Types matching any pattern are skipped even if they match scanInclude. " +
+            "Leave null to exclude nothing. " +
+            "Examples: [\"*.Tests.*\", \"MyApp.Generated.*\"]")]
+        string[] scanExclude = null,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")]
         string? solutionPath = null,
         CancellationToken ct = default)
@@ -51,7 +63,8 @@ public static class QueryUsagesTool
             resolved,
             typePattern,
             predicate,
-            scanFilters,
+            scanInclude,
+            scanExclude,
             ct);
 
         if (queryError is not null)

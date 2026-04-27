@@ -20,7 +20,8 @@ public sealed class UsageQueryService(
         string solutionPath,
         string typePattern,
         string? predicate,
-        IReadOnlyList<string>? scanFilters,
+        IReadOnlyList<string>? scanInclude,
+        IReadOnlyList<string>? scanExclude,
         CancellationToken ct = default)
     {
         var typeFilter = wildcardFactory.CreateForTypeNames(NormalizeTypePattern(typePattern));
@@ -38,7 +39,8 @@ public sealed class UsageQueryService(
             }
         }
 
-        var scopePatterns = BuildScopePatterns(scanFilters);
+        var includePatterns = BuildScopePatterns(scanInclude);
+        var excludePatterns = BuildScopePatterns(scanExclude);
         var cachedSolution = await workspaceProvider.GetSolutionAsync(solutionPath, ct);
         var matches = new List<UsageMatch>();
         var truncated = false;
@@ -62,7 +64,8 @@ public sealed class UsageQueryService(
                     filePath,
                     typeFilter,
                     compiledPredicate,
-                    scopePatterns,
+                    includePatterns,
+                    excludePatterns,
                     matches,
                     MatchLimit);
 
@@ -81,10 +84,10 @@ public sealed class UsageQueryService(
             ? $"*{pattern}*"
             : pattern;
 
-    List<IWildcardPattern>? BuildScopePatterns(IReadOnlyList<string>? scanFilters)
+    List<IWildcardPattern>? BuildScopePatterns(IReadOnlyList<string>? patterns)
     {
-        if (scanFilters is null || scanFilters.Count == 0) return null;
-        return scanFilters
+        if (patterns is null || patterns.Count == 0) return null;
+        return patterns
             .Select(p => wildcardFactory.CreateForTypeNames(p))
             .ToList();
     }
@@ -96,12 +99,11 @@ public sealed class UsageQueryService(
         string filePath,
         IWildcardPattern typeFilter,
         Func<QueryEntry, bool>? predicate,
-        List<IWildcardPattern>? scopePatterns,
+        List<IWildcardPattern>? includePatterns,
+        List<IWildcardPattern>? excludePatterns,
         List<UsageMatch> results,
         int limit) : CSharpSyntaxWalker(SyntaxWalkerDepth.Node)
     {
-        const int LargeBlockThreshold = 5;
-
         // Scope stack — each frame pushed on entry, popped on exit
         readonly Stack<ScopeFrame> _scopeStack = new();
 
@@ -109,10 +111,8 @@ public sealed class UsageQueryService(
         string? _currentTypeName;
         string? _currentMethodName;
         LineRange? _currentMethodDefinitionRange;
+        LineRange? _currentMethodFullRange;
         string _currentFilePath = filePath;
-
-        // Depth counter for large blocks (>5 lines) — when > 0, section is suppressed
-        int _largeBlockDepth;
 
         // ── Type declarations ─────────────────────────────────────────────────
 
@@ -158,14 +158,18 @@ public sealed class UsageQueryService(
 
             var fullName = symbol.ToDisplayString();
 
-            // Apply scope filter — skip entire subtree if no pattern matches
-            if (scopePatterns is not null && !scopePatterns.Any(p => p.IsMatch(fullName)))
+            // Apply scope filters — skip entire subtree if include patterns don't match
+            // or if exclude patterns match
+            if (includePatterns is not null && !includePatterns.Any(p => p.IsMatch(fullName)))
+                return false;
+            if (excludePatterns is not null && excludePatterns.Any(p => p.IsMatch(fullName)))
                 return false;
 
-            _scopeStack.Push(new ScopeFrame(_currentTypeName, _currentMethodName, _currentMethodDefinitionRange));
+            _scopeStack.Push(new ScopeFrame(_currentTypeName, _currentMethodName, _currentMethodDefinitionRange, _currentMethodFullRange));
             _currentTypeName = fullName;
             _currentMethodName = null;
             _currentMethodDefinitionRange = null;
+            _currentMethodFullRange = null;
 
             // Visit primary constructor parameters for TypeAsParameter entries.
             // We do NOT set MethodDefinitionRange here — the class declaration itself
@@ -188,13 +192,16 @@ public sealed class UsageQueryService(
             if (symbol is null) return false;
 
             var fullName = symbol.ToDisplayString();
-            if (scopePatterns is not null && !scopePatterns.Any(p => p.IsMatch(fullName)))
+            if (includePatterns is not null && !includePatterns.Any(p => p.IsMatch(fullName)))
+                return false;
+            if (excludePatterns is not null && excludePatterns.Any(p => p.IsMatch(fullName)))
                 return false;
 
-            _scopeStack.Push(new ScopeFrame(_currentTypeName, _currentMethodName, _currentMethodDefinitionRange));
+            _scopeStack.Push(new ScopeFrame(_currentTypeName, _currentMethodName, _currentMethodDefinitionRange, _currentMethodFullRange));
             _currentTypeName = fullName;
             _currentMethodName = null;
             _currentMethodDefinitionRange = null;
+            _currentMethodFullRange = null;
             return true;
         }
 
@@ -204,13 +211,16 @@ public sealed class UsageQueryService(
             _currentTypeName = frame.TypeName;
             _currentMethodName = frame.MethodName;
             _currentMethodDefinitionRange = frame.MethodDefinitionRange;
+            _currentMethodFullRange = frame.MethodFullRange;
         }
 
         // ── Method / constructor / property declarations ───────────────────────
 
         public override void VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
-            EnterMethod(node.Identifier.Text, MethodDefinitionRangeResolver.Resolve(node));
+            EnterMethod(node.Identifier.Text,
+                MethodDefinitionRangeResolver.Resolve(node),
+                MethodDefinitionRangeResolver.ResolveFullRange(node));
 
             Visit(node.ReturnType);
             if (node.TypeParameterList is not null)
@@ -228,7 +238,9 @@ public sealed class UsageQueryService(
 
         public override void VisitConstructorDeclaration(ConstructorDeclarationSyntax node)
         {
-            EnterMethod(".ctor", MethodDefinitionRangeResolver.Resolve(node));
+            EnterMethod(".ctor",
+                MethodDefinitionRangeResolver.Resolve(node),
+                MethodDefinitionRangeResolver.ResolveFullRange(node));
             Visit(node.ParameterList);
             if (node.Body is not null)
                 Visit(node.Body);
@@ -239,7 +251,9 @@ public sealed class UsageQueryService(
 
         public override void VisitPropertyDeclaration(PropertyDeclarationSyntax node)
         {
-            EnterMethod(node.Identifier.Text, MethodDefinitionRangeResolver.Resolve(node));
+            EnterMethod(node.Identifier.Text,
+                MethodDefinitionRangeResolver.Resolve(node),
+                MethodDefinitionRangeResolver.ResolveFullRange(node));
             Visit(node.Type);
             if (node.AccessorList is not null)
                 Visit(node.AccessorList);
@@ -252,7 +266,9 @@ public sealed class UsageQueryService(
 
         public override void VisitOperatorDeclaration(OperatorDeclarationSyntax node)
         {
-            EnterMethod("operator " + node.OperatorToken.Text, MethodDefinitionRangeResolver.Resolve(node));
+            EnterMethod("operator " + node.OperatorToken.Text,
+                MethodDefinitionRangeResolver.Resolve(node),
+                MethodDefinitionRangeResolver.ResolveFullRange(node));
             Visit(node.ReturnType);
             if (node.Body is not null) Visit(node.Body);
             if (node.ExpressionBody is not null) Visit(node.ExpressionBody);
@@ -261,17 +277,20 @@ public sealed class UsageQueryService(
 
         public override void VisitConversionOperatorDeclaration(ConversionOperatorDeclarationSyntax node)
         {
-            EnterMethod("operator " + node.Type, MethodDefinitionRangeResolver.Resolve(node));
+            EnterMethod("operator " + node.Type,
+                MethodDefinitionRangeResolver.Resolve(node),
+                MethodDefinitionRangeResolver.ResolveFullRange(node));
             if (node.Body is not null) Visit(node.Body);
             if (node.ExpressionBody is not null) Visit(node.ExpressionBody);
             ExitMethod();
         }
 
-        void EnterMethod(string name, LineRange definitionRange)
+        void EnterMethod(string name, LineRange definitionRange, LineRange fullRange)
         {
-            _scopeStack.Push(new ScopeFrame(_currentTypeName, _currentMethodName, _currentMethodDefinitionRange));
+            _scopeStack.Push(new ScopeFrame(_currentTypeName, _currentMethodName, _currentMethodDefinitionRange, _currentMethodFullRange));
             _currentMethodName = name;
             _currentMethodDefinitionRange = definitionRange;
+            _currentMethodFullRange = fullRange;
         }
 
         void ExitMethod()
@@ -279,19 +298,7 @@ public sealed class UsageQueryService(
             var frame = _scopeStack.Pop();
             _currentMethodName = frame.MethodName;
             _currentMethodDefinitionRange = frame.MethodDefinitionRange;
-        }
-
-        // ── Large block suppression ───────────────────────────────────────────
-
-        public override void VisitBlock(BlockSyntax node)
-        {
-            var span = node.GetLocation().GetLineSpan();
-            var lineCount = span.EndLinePosition.Line - span.StartLinePosition.Line + 1;
-            var isLarge = lineCount > LargeBlockThreshold;
-
-            if (isLarge) _largeBlockDepth++;
-            base.VisitBlock(node);
-            if (isLarge) _largeBlockDepth--;
+            _currentMethodFullRange = frame.MethodFullRange;
         }
 
         // ── Usage nodes ───────────────────────────────────────────────────────
@@ -309,11 +316,7 @@ public sealed class UsageQueryService(
                     && typeFilter.IsMatch(entry.TypeName)
                     && (predicate is null || predicate(entry)))
                 {
-                    // When inside a large block, suppress section resolution —
-                    // use a single-line fallback so the large block doesn't become the section
-                    var section = _largeBlockDepth > 0
-                        ? SectionResolver.ResolveFallback(node)
-                        : SectionResolver.Resolve(node);
+                    var section = SectionResolver.Resolve(node);
                     var lineSpan = node.GetLocation().GetLineSpan();
                     var matchLine = lineSpan.StartLinePosition.Line + 1;
 
@@ -322,6 +325,7 @@ public sealed class UsageQueryService(
                         _currentFilePath,
                         _currentMethodName,
                         _currentMethodDefinitionRange,
+                        _currentMethodFullRange,
                         section,
                         matchLine);
 
@@ -335,5 +339,5 @@ public sealed class UsageQueryService(
 
     // ── Scope frame ───────────────────────────────────────────────────────────
 
-    readonly record struct ScopeFrame(string? TypeName, string? MethodName, LineRange? MethodDefinitionRange);
+    readonly record struct ScopeFrame(string? TypeName, string? MethodName, LineRange? MethodDefinitionRange, LineRange? MethodFullRange);
 }

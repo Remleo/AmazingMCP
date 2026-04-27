@@ -11,6 +11,7 @@ The server opens `.sln`/`.slnx` files, compiles projects in memory, and enables 
 - [DependencyMap — solution dependency map](docs/DependencyMap.md)
 - [ProjectDesign — high-level solution design map](docs/ProjectDesign.md)
 - [FileStructure — file structure outline](docs/FileStructure.md)
+- [QueryUsages — usage search across solution](docs/QueryUsages.md)
 
 ## MCP Tools
 
@@ -22,6 +23,7 @@ The server opens `.sln`/`.slnx` files, compiles projects in memory, and enables 
 | `query_symbol` | Type search by name (including NuGet), with partial match support |
 | `get_symbol_info` | Detailed type info: properties, methods, base types, nested types (including NuGet) |
 | `get_file_structure` | Structural outline of a `.cs` file: namespaces, types, members with line/column positions — no implementations |
+| `query_usages` | Find all usages of a type across the solution: method calls, property/field access, constructor calls, generic arguments, parameter types |
 
 ## Stack
 

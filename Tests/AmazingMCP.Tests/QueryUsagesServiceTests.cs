@@ -23,13 +23,15 @@ public class QueryUsagesServiceTests
     async Task<IReadOnlyList<UsageMatch>> Act(
         string typePattern,
         string? predicate = null,
-        string[]? scanFilters = null)
+        string[]? scanInclude = null,
+        string[]? scanExclude = null)
     {
         var (matches, error, _) = await _sut.QueryAsync(
             CompilationHelper.SolutionPath,
             typePattern,
             predicate,
-            scanFilters);
+            scanInclude,
+            scanExclude);
 
         error.Should().BeNull();
         return matches;
@@ -44,7 +46,7 @@ public class QueryUsagesServiceTests
         // act
         var matches = await Act(
             "TestProject.App.Services.UsageQueryTestFixture",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         // assert — no matches where the scope type equals the target type
         // (self-references like accessing own fields/methods should be excluded)
@@ -69,7 +71,7 @@ public class QueryUsagesServiceTests
         var matches = await Act(
             "IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"Save\"",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         // assert — the match inside the large lambda should have a 1-line section
         var lambdaMatch = matches.FirstOrDefault(m =>
@@ -92,7 +94,7 @@ public class QueryUsagesServiceTests
         var matches = await Act(
             "IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"Save\"",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         // assert — both matches are found
         matches.Should().Contain(m => m.Scope.MethodName == "SaveIfNotFull",
@@ -252,7 +254,7 @@ public class QueryUsagesServiceTests
         var matches = await Act(
             "IAnimalRepository",
             predicate: "x.Kind == UsageKind.TypeAsParameter",
-            scanFilters: ["TestProject.App.Services.MultiParamPrimaryCtorFixture"]);
+            scanInclude: ["TestProject.App.Services.MultiParamPrimaryCtorFixture"]);
 
         // assert
         matches.Should().NotBeEmpty();
@@ -270,7 +272,7 @@ public class QueryUsagesServiceTests
         var matches = await Act(
             "IAnimalRepository",
             predicate: "x.Kind == UsageKind.TypeAsParameter",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         // assert
         matches.Should().NotBeEmpty();
@@ -342,15 +344,15 @@ public class QueryUsagesServiceTests
             m.Entry.TypeName.Should().NotBeNullOrEmpty());
     }
 
-    // ── ScanFilters ───────────────────────────────────────────────────────────
+    // ── ScanInclude / ScanExclude ─────────────────────────────────────────────
 
     [Test]
-    public async Task QueryAsync_ScanFilters_ExcludesNonMatchingContainingTypes()
+    public async Task QueryAsync_ScanInclude_ExcludesNonMatchingContainingTypes()
     {
         // act — restrict scan to UsageQueryTestFixture only
         var matches = await Act(
             "*IAnimalRepository*",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         // assert — all matches are found inside the filtered containing type
         matches.Should().NotBeEmpty();
@@ -359,12 +361,12 @@ public class QueryUsagesServiceTests
     }
 
     [Test]
-    public async Task QueryAsync_ScanFilters_WildcardMatchesMultipleContainingTypes()
+    public async Task QueryAsync_ScanInclude_WildcardMatchesMultipleContainingTypes()
     {
         // act
         var matches = await Act(
             "*Animal*",
-            scanFilters: ["TestProject.App.Services.*"]);
+            scanInclude: ["TestProject.App.Services.*"]);
 
         // assert — all matches found inside App.Services types
         matches.Should().NotBeEmpty();
@@ -373,15 +375,195 @@ public class QueryUsagesServiceTests
     }
 
     [Test]
-    public async Task QueryAsync_ScanFilters_NoMatchingContainingTypes_ReturnsEmpty()
+    public async Task QueryAsync_ScanInclude_NoMatchingContainingTypes_ReturnsEmpty()
     {
         // act
         var matches = await Act(
             "*Animal*",
-            scanFilters: ["NonExistent.Namespace.*"]);
+            scanInclude: ["NonExistent.Namespace.*"]);
 
         // assert
         matches.Should().BeEmpty();
+    }
+
+    [Test]
+    public async Task QueryAsync_ScanExclude_ExcludesMatchingContainingTypes()
+    {
+        // arrange — scan all App.Services types but exclude UsageQueryTestFixture specifically
+        var allMatches = await Act(
+            "*IAnimalRepository*",
+            scanInclude: ["TestProject.App.Services.*"]);
+
+        // act
+        var filteredMatches = await Act(
+            "*IAnimalRepository*",
+            scanInclude: ["TestProject.App.Services.*"],
+            scanExclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert — excluded type must not appear in results
+        filteredMatches.Should().NotContain(m =>
+            m.Scope.TypeName == "TestProject.App.Services.UsageQueryTestFixture");
+
+        // and the excluded type was actually present before exclusion (noise check)
+        allMatches.Should().Contain(m =>
+            m.Scope.TypeName == "TestProject.App.Services.UsageQueryTestFixture");
+    }
+
+    [Test]
+    public async Task QueryAsync_ScanExclude_WildcardExcludesMultipleTypes()
+    {
+        // act — exclude all App.Services types via wildcard
+        var matches = await Act(
+            "*IAnimalRepository*",
+            scanExclude: ["TestProject.App.Services.*"]);
+
+        // assert — no matches from App.Services namespace
+        matches.Should().NotContain(m =>
+            m.Scope.TypeName.StartsWith("TestProject.App.Services."));
+    }
+
+    [Test]
+    public async Task QueryAsync_ScanExclude_NonMatchingPattern_ExcludesNothing()
+    {
+        // arrange — baseline without exclusion
+        var allMatches = await Act(
+            "*IAnimalRepository*",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // act — exclude a pattern that matches nothing
+        var matches = await Act(
+            "*IAnimalRepository*",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"],
+            scanExclude: ["NonExistent.Namespace.*"]);
+
+        // assert — results are identical
+        matches.Should().HaveSameCount(allMatches);
+    }
+
+    [Test]
+    public async Task QueryAsync_ScanExclude_TakesPrecedenceOverScanInclude()
+    {
+        // act — include and exclude the same type simultaneously
+        var matches = await Act(
+            "*IAnimalRepository*",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"],
+            scanExclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert — exclude wins, no results
+        matches.Should().BeEmpty();
+    }
+
+    // ── MethodCall on closed generic receiver type ────────────────────────────
+
+    [Test]
+    public async Task QueryAsync_MethodCall_OnClosedGenericType_UsesReceiverType()
+    {
+        // arrange — _tracer.Trace(...) inside TraceOperation.
+        // The method Trace is declared on IGenericTracer<T>, but the receiver is
+        // IGenericTracer<UsageQueryTestFixture> — TypeName must reflect the closed generic.
+
+        // act
+        var matches = await Act(
+            "*IGenericTracer*",
+            predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"Trace\"",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert
+        matches.Should().NotBeEmpty();
+        matches.Should().Contain(m =>
+            m.Entry.TypeName.Contains("IGenericTracer") &&
+            m.Entry.TypeName.Contains("UsageQueryTestFixture") &&
+            m.Scope.MethodName == "TraceOperation");
+    }
+
+    [Test]
+    public async Task QueryAsync_MethodCall_OnClosedGenericType_FoundInMultipleMethods()
+    {
+        // arrange — _tracer.Trace(...) is called in both TraceOperation and TraceAndFind
+
+        // act
+        var matches = await Act(
+            "*IGenericTracer*",
+            predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"Trace\"",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert — both methods are found
+        matches.Should().Contain(m => m.Scope.MethodName == "TraceOperation");
+        matches.Should().Contain(m => m.Scope.MethodName == "TraceAndFind");
+    }
+
+    // ── Object initializer — property assigned from closed generic ────────────
+
+    [Test]
+    public async Task QueryAsync_PropertyWrite_ObjectInitializer_ClosedGenericType_IsFound()
+    {
+        // arrange — BuildHolder() uses: new TracerHolder { Tracer = _tracer }
+        // _tracer is IGenericTracer<UsageQueryTestFixture> — must be found as PropertyWrite
+
+        // act
+        var matches = await Act(
+            "*IGenericTracer*",
+            predicate: "x.Kind == UsageKind.PropertyWrite",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert
+        matches.Should().NotBeEmpty();
+        matches.Should().Contain(m =>
+            m.Entry.TypeName.Contains("IGenericTracer") &&
+            m.Entry.TypeName.Contains("UsageQueryTestFixture") &&
+            m.Scope.MethodName == "BuildHolder");
+    }
+
+    [Test]
+    public async Task QueryAsync_PropertyWrite_ObjectInitializerInsideLargeLambda_SectionSpansInitializer()
+    {
+        // arrange — UsageInObjectInitializerInsideLargeLambda has a new TracerHolder { Tracer = _tracer }
+        // inside a lambda block >5 lines. The section should span the entire new() { ... } block,
+        // NOT fall back to a single line at the assignment.
+
+        // act
+        var matches = await Act(
+            "*IGenericTracer*",
+            predicate: "x.Kind == UsageKind.PropertyWrite",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert
+        var lambdaMatch = matches.FirstOrDefault(m =>
+            m.Scope.MethodName == "UsageInObjectInitializerInsideLargeLambda");
+
+        lambdaMatch.Should().NotBeNull("PropertyWrite inside large lambda should be found");
+        lambdaMatch!.Scope.Section.EndLine.Should().BeGreaterThan(lambdaMatch.Scope.Section.StartLine,
+            "section should span the entire object initializer block, not collapse to a single line");
+    }
+
+    [Test]
+    public async Task QueryAsync_MethodCall_InsideCatchInsideLargeLambda_SectionSpansCatchBlock()
+    {
+        // arrange — UsageInCatchInsideLargeLambda has a FindById() call inside a catch block
+        // which is itself inside a large lambda. The section should be the CatchClauseSyntax
+        // (catch keyword + block), and the usage line must be visible within the section.
+
+        // act
+        var matches = await Act(
+            "*IAnimalRepository*",
+            predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"FindById\"",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert
+        var catchMatch = matches.FirstOrDefault(m =>
+            m.Scope.MethodName == "UsageInCatchInsideLargeLambda");
+
+        catchMatch.Should().NotBeNull("FindById inside catch inside large lambda should be found");
+
+        // Section must be CatchClauseSyntax (starts at "catch" line, not at "{")
+        catchMatch!.Scope.Section.Node.Should().BeOfType<Microsoft.CodeAnalysis.CSharp.Syntax.CatchClauseSyntax>(
+            "section should be the full catch clause, not just its body block");
+
+        // Usage line must be within the section
+        catchMatch.Scope.MatchLine.Should().BeInRange(
+            catchMatch.Scope.Section.StartLine,
+            catchMatch.Scope.Section.EndLine,
+            "usage must be visible within the section");
     }
 
     // ── Predicate safety ──────────────────────────────────────────────────────
@@ -394,7 +576,7 @@ public class QueryUsagesServiceTests
             CompilationHelper.SolutionPath,
             "*Animal*",
             "x.Kind == UsageKind.MethodCall && new System.Exception() != null",
-            null);
+            null, null);
 
         // assert
         error.Should().NotBeNull();
@@ -409,7 +591,7 @@ public class QueryUsagesServiceTests
             CompilationHelper.SolutionPath,
             "*Animal*",
             "System.IO.File.Exists(x.MethodName ?? \"\")",
-            null);
+            null, null);
 
         // assert
         error.Should().NotBeNull();
@@ -424,7 +606,7 @@ public class QueryUsagesServiceTests
             CompilationHelper.SolutionPath,
             "*IAnimalRepository*",
             "x.Kind == UsageKind.MethodCall && !String.IsNullOrEmpty(x.MethodName)",
-            null);
+            null, null);
 
         // assert
         error.Should().BeNull();
@@ -439,7 +621,7 @@ public class QueryUsagesServiceTests
             CompilationHelper.SolutionPath,
             "*IAnimalRepository*",
             "x.Kind == UsageKind.MethodCall && (x.ArgumentTypes == null || !x.ArgumentTypes.Any())",
-            null);
+            null, null);
 
         // assert
         error.Should().BeNull();
@@ -484,7 +666,7 @@ public class QueryUsagesServiceTests
         var matches = await Act(
             "IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = UsageResultFormatter.Format(matches);
 
@@ -516,7 +698,7 @@ public class QueryUsagesServiceTests
         // act
         var matches = await Act(
             "IAnimalRepository",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = UsageResultFormatter.Format(matches);
 
@@ -540,7 +722,7 @@ public class QueryUsagesServiceTests
         // and potentially as generic argument; both on the same lines
         var matches = await Act(
             "IAnimalRepository",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = UsageResultFormatter.Format(matches);
 
@@ -563,7 +745,7 @@ public class QueryUsagesServiceTests
         // act
         var matches = await Act(
             "IAnimalRepository",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = UsageResultFormatter.Format(matches);
 
@@ -582,7 +764,7 @@ public class QueryUsagesServiceTests
         // act — multiple matches may share overlapping line ranges and should be merged
         var matches = await Act(
             "IAnimalRepository",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = UsageResultFormatter.Format(matches);
 
@@ -603,7 +785,7 @@ public class QueryUsagesServiceTests
         var matches = await Act(
             "IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = UsageResultFormatter.Format(matches);
 
@@ -620,7 +802,7 @@ public class QueryUsagesServiceTests
         var matches = await Act(
             "IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = UsageResultFormatter.Format(matches);
 
@@ -637,7 +819,7 @@ public class QueryUsagesServiceTests
         var matches = await Act(
             "*Animal*",
             predicate: "(x.Kind == UsageKind.PropertyRead || x.Kind == UsageKind.PropertyWrite) && x.PropertyName == \"Name\"",
-            scanFilters: ["TestProject.App.Services.UsageQueryTestFixture"]);
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         // assert
         matches.Should().NotBeEmpty();

@@ -34,15 +34,20 @@ public static class QueryEntryFactory
         var symbol = model.GetSymbolInfo(node).Symbol as IMethodSymbol;
         if (symbol is null) return null;
 
-        // Skip self-invocations (no explicit receiver) — e.g. DoWork() inside the same class.
-        // Only MemberAccessExpressionSyntax carries a meaningful receiver type.
-        if (node.Expression is not MemberAccessExpressionSyntax)
+        // Skip if this is not a member access — no explicit receiver
+        if (node.Expression is not MemberAccessExpressionSyntax memberAccess)
             return null;
+
+        // Use the receiver's actual type so that e.g. ILogger<T> is preserved
+        // even when the method is declared on a base type or as an extension method.
+        var receiverType = model.GetTypeInfo(memberAccess.Expression).Type;
+        var typeName = receiverType?.ToDisplayString()
+                       ?? symbol.ContainingType.ToDisplayString();
 
         return new QueryEntry
         {
             Kind = UsageKind.MethodCall,
-            TypeName = symbol.ContainingType.ToDisplayString(),
+            TypeName = typeName,
             MethodName = symbol.Name,
             ArgumentTypes = GetArgumentTypes(node.ArgumentList, model),
         };
@@ -89,30 +94,36 @@ public static class QueryEntryFactory
         var symbol = model.GetSymbolInfo(node).Symbol;
         return symbol switch
         {
-            IPropertySymbol prop => BuildPropertyEntry(node, prop),
-            IFieldSymbol field   => BuildFieldEntry(node, field),
+            IPropertySymbol prop => BuildPropertyEntry(node, prop, model),
+            IFieldSymbol field   => BuildFieldEntry(node, field, model),
             _                    => null
         };
     }
 
-    static QueryEntry BuildPropertyEntry(MemberAccessExpressionSyntax node, IPropertySymbol prop)
+    static QueryEntry BuildPropertyEntry(MemberAccessExpressionSyntax node, IPropertySymbol prop, SemanticModel model)
     {
         var isWrite = IsWriteTarget(node);
+        var receiverType = model.GetTypeInfo(node.Expression).Type;
+        var typeName = receiverType?.ToDisplayString()
+                       ?? prop.ContainingType.ToDisplayString();
         return new QueryEntry
         {
             Kind = isWrite ? UsageKind.PropertyWrite : UsageKind.PropertyRead,
-            TypeName = prop.ContainingType.ToDisplayString(),
+            TypeName = typeName,
             PropertyName = prop.Name,
         };
     }
 
-    static QueryEntry BuildFieldEntry(MemberAccessExpressionSyntax node, IFieldSymbol field)
+    static QueryEntry BuildFieldEntry(MemberAccessExpressionSyntax node, IFieldSymbol field, SemanticModel model)
     {
         var isWrite = IsWriteTarget(node);
+        var receiverType = model.GetTypeInfo(node.Expression).Type;
+        var typeName = receiverType?.ToDisplayString()
+                       ?? field.ContainingType.ToDisplayString();
         return new QueryEntry
         {
             Kind = isWrite ? UsageKind.FieldWrite : UsageKind.FieldRead,
-            TypeName = field.ContainingType.ToDisplayString(),
+            TypeName = typeName,
             FieldName = field.Name,
         };
     }
@@ -130,6 +141,22 @@ public static class QueryEntryFactory
             {
                 Kind = UsageKind.TypeAsGenericArgument,
                 TypeName = typeSymbol.ToDisplayString(),
+            };
+        }
+
+        // Object initializer value: new Foo { Logger = logger }
+        // The identifier is the right-hand side of an assignment inside an initializer.
+        if (node.Parent is AssignmentExpressionSyntax assign
+            && assign.Right == node
+            && assign.Parent is InitializerExpressionSyntax)
+        {
+            var typeSymbol = model.GetTypeInfo(node).Type;
+            if (typeSymbol is null) return null;
+            return new QueryEntry
+            {
+                Kind = UsageKind.PropertyWrite,
+                TypeName = typeSymbol.ToDisplayString(),
+                PropertyName = assign.Left is IdentifierNameSyntax lhs ? lhs.Identifier.Text : null,
             };
         }
 

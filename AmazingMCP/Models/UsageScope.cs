@@ -9,6 +9,8 @@ public sealed record UsageScope(
     string? MethodName,
     /// <summary>Line range of the method/property declaration (signature + opening brace). Null when outside a method.</summary>
     LineRange? MethodDefinitionRange,
+    /// <summary>Full line range of the method/property including its body. Used for the annotation comment so readers know the total extent.</summary>
+    LineRange? MethodFullRange,
     ScopeSection Section,
     int MatchLine
 );

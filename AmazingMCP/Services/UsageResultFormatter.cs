@@ -24,7 +24,9 @@ public static class UsageResultFormatter
         foreach (var typeFileGroup in byTypeFile)
         {
             var (typeName, filePath) = typeFileGroup.Key;
-            sb.AppendLine($"## {typeName}  `{filePath}`");
+            sb.AppendLine($"## {typeName}");
+            sb.AppendLine();
+            sb.AppendLine($"file: {filePath}");
             sb.AppendLine();
 
             var sourceLines = TryReadLines(filePath);
@@ -34,7 +36,8 @@ public static class UsageResultFormatter
                 .Select(m => new MatchItem(
                     new LineRange(m.Scope.Section.StartLine, m.Scope.Section.EndLine),
                     m.Scope.MethodName,
-                    m.Scope.MethodDefinitionRange))
+                    m.Scope.MethodDefinitionRange,
+                    m.Scope.MethodFullRange))
                 .OrderBy(i => i.Section.Start)
                 .ToList();
 
@@ -65,7 +68,7 @@ public static class UsageResultFormatter
 
         if (truncated)
             result += $"\n\n---\n> **Too many results ({matches.Count}+ matches). Output is truncated.** " +
-                      "Narrow your query using a more specific predicate or add `scanFilters` to limit the scanned types.";
+                      "Narrow your query using a more specific predicate or add `scanInclude`/`scanExclude` to limit the scanned types.";
 
         return result;
     }
@@ -81,7 +84,7 @@ public static class UsageResultFormatter
     {
         var methodHeaders = allItems
             .Where(i => i.Section.Overlaps(block) && i.MethodName is not null && i.MethodDef.HasValue)
-            .Select(i => (i.MethodName!, i.MethodDef!.Value))
+            .Select(i => (i.MethodName!, i.MethodDef!.Value, i.MethodFull))
             .DistinctBy(x => (x.Item1, x.Item2.Start))
             .OrderBy(x => x.Item2.Start)
             .Where(x =>
@@ -93,7 +96,7 @@ public static class UsageResultFormatter
 
         var firstChunk = true;
 
-        foreach (var (name, defRange) in methodHeaders)
+        foreach (var (name, defRange, fullRange) in methodHeaders)
         {
             var key = (name, defRange.Start);
             if (!shownDefinitions.Add(key)) continue; // already shown for a previous block
@@ -103,7 +106,9 @@ public static class UsageResultFormatter
             if (!firstChunk) { sb.AppendLine(); sb.AppendLine(CutWithIndentOf(sourceLines, trimmed)); sb.AppendLine(); }
             firstChunk = false;
 
-            AppendCodeLines(sb, sourceLines, trimmed);
+            // Use the full method range for the annotation so the reader knows the total extent.
+            var annotationRange = fullRange ?? defRange;
+            AppendCodeLines(sb, sourceLines, trimmed, annotationRange);
             sb.AppendLine();
             sb.AppendLine(CutWithIndentOf(sourceLines, block));
             sb.AppendLine();
@@ -114,12 +119,13 @@ public static class UsageResultFormatter
 
     // ── Code lines ────────────────────────────────────────────────────────────
 
-    static void AppendCodeLines(StringBuilder sb, string[]? sourceLines, LineRange range)
+    static void AppendCodeLines(StringBuilder sb, string[]? sourceLines, LineRange range, LineRange? annotationRange = null)
     {
+        var display = annotationRange ?? range;
         var indent = DetectIndent(sourceLines, range);
-        var label = range.Count == 1
-            ? $"{indent}// line {range.Start} +1"
-            : $"{indent}// lines {range.Start} +{range.Count}";
+        var label = display.Count == 1
+            ? $"{indent}// line {display.Start} +1"
+            : $"{indent}// lines {display.Start} +{display.Count}";
 
         sb.AppendLine(label);
 
@@ -221,5 +227,5 @@ public static class UsageResultFormatter
 
     // ── Internal types ────────────────────────────────────────────────────────
 
-    readonly record struct MatchItem(LineRange Section, string? MethodName, LineRange? MethodDef);
+    readonly record struct MatchItem(LineRange Section, string? MethodName, LineRange? MethodDef, LineRange? MethodFull);
 }

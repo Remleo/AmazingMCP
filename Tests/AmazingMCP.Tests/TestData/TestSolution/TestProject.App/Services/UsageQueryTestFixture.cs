@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using TestProject.Core.Logging;
 using TestProject.Core.Models;
 using TestProject.Core.Persistence;
 
@@ -11,13 +12,17 @@ namespace TestProject.App.Services;
 public class UsageQueryTestFixture
 {
     readonly IAnimalRepository _repository;
+    readonly IGenericTracer<UsageQueryTestFixture> _tracer;
 
     // Field initializer — FieldWrite + ConstructorCall
     Animal _defaultAnimal = new Animal { Name = "Default", Kind = AnimalKind.Unknown };
 
-    public UsageQueryTestFixture(IAnimalRepository repository)
+    public UsageQueryTestFixture(
+        IAnimalRepository repository,
+        IGenericTracer<UsageQueryTestFixture> tracer)
     {
         _repository = repository;
+        _tracer = tracer;
     }
 
     // ── MethodCall ────────────────────────────────────────────────────────────
@@ -142,4 +147,84 @@ public class UsageQueryTestFixture
             var line6 = "extra";
         });
     }
+
+    // ── MethodCall on closed generic type ────────────────────────────────────
+
+    public IDisposable TraceOperation(string operation)
+    {
+        // MethodCall on IGenericTracer<UsageQueryTestFixture> — receiver type is the closed generic
+        return _tracer.Trace(operation);
+    }
+
+    // ── Extension-method-style call on closed generic type ───────────────────
+
+    public void TraceAndFind(int id)
+    {
+        // MethodCall via extension method on IGenericTracer<UsageQueryTestFixture>
+        using var scope = _tracer.Trace("TraceAndFind");
+        _repository.FindById(id);
+    }
+
+    // ── Object initializer — property assigned from closed generic field ──────
+
+    public TracerHolder BuildHolder()
+    {
+        // PropertyWrite via object initializer: Tracer = _tracer
+        // TypeName of _tracer is IGenericTracer<UsageQueryTestFixture>
+        return new TracerHolder
+        {
+            Tracer = _tracer,
+        };
+    }
+
+    // ── Object initializer inside large lambda block ──────────────────────────
+
+    public void UsageInObjectInitializerInsideLargeLambda(Animal animal)
+    {
+        // The outer lambda is >5 lines, but the usage is inside a compact
+        // ObjectCreationExpression — section should span the new TracerHolder { ... } block
+        // (multiple lines), not fall back to a single line at the identifier.
+        var task = System.Threading.Tasks.Task.Run(() =>
+        {
+            var line1 = animal.Name;
+            var line2 = animal.Kind;
+            var line3 = animal.Id;
+            var line4 = "padding";
+            var holder = new TracerHolder
+            {
+                Tracer = _tracer,
+                ExtraField = "value",
+            };
+        });
+    }
+
+    // ── MethodCall inside catch block inside large lambda ─────────────────────
+
+    public void UsageInCatchInsideLargeLambda(Animal animal)
+    {
+        // The outer lambda is >5 lines. The usage is inside a catch block (small).
+        // Section should be the catch block, not just the single invocation line.
+        var task = System.Threading.Tasks.Task.Run(() =>
+        {
+            var line1 = animal.Name;
+            var line2 = animal.Kind;
+            var line3 = animal.Id;
+            var line4 = "padding";
+            try
+            {
+                _repository.Save(animal);
+            }
+            catch (Exception)
+            {
+                _repository.FindById(animal.Id);
+            }
+        });
+    }
+}
+
+/// <summary>Helper type for object-initializer usage test.</summary>
+public class TracerHolder
+{
+    public IGenericTracer<UsageQueryTestFixture>? Tracer { get; set; }
+    public string? ExtraField { get; set; }
 }

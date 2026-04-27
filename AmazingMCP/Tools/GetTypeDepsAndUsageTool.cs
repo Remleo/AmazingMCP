@@ -7,7 +7,7 @@ using ModelContextProtocol.Server;
 
 namespace AmazingMCP.Tools;
 
-[McpServerToolType]
+// [McpServerToolType] // temporarily disabled
 public static class GetTypeDepsAndUsageTool
 {
     [McpServerTool(Name = "get_type_deps_and_usage", ReadOnly = true), Description(
