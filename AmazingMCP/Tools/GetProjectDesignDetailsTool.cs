@@ -55,7 +55,7 @@ public static class GetProjectDesignDetailsTool
         IDependencyAggregator? aggregator = null)
     {
         var factory = wildcardFactory ?? new WildcardPatternFactory();
-        var patterns = forNamespaces.Select(factory.CreateForTypeNames).ToList();
+        var patterns = forNamespaces.Select(factory.CreateGlob).ToList();
 
         var matchedAbstractions = depMap.Abstractions.Values
             .Where(a => a.SourceFilePath is not null)

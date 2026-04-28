@@ -88,7 +88,7 @@ public sealed class UsageQueryService(
     {
         if (patterns is null || patterns.Count == 0) return null;
         return patterns
-            .Select(p => wildcardFactory.CreateForTypeNames(p))
+            .Select(wildcardFactory.CreateGlob)
             .ToList();
     }
 
