@@ -35,6 +35,7 @@ builder.Services.AddSingleton<IAbstractionExtractor, AbstractionExtractor>();
 builder.Services.AddSingleton<IDependencyAggregator, DependencyAggregator>();
 builder.Services.AddSingleton<IDependencyMapService, DependencyMapService>();
 builder.Services.AddSingleton<ProjectDesignService>();
+builder.Services.AddSingleton<ICodeLensService, CodeLensService>();
 
 builder.Services
     .AddMcpServer(options =>
