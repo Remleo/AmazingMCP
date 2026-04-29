@@ -21,8 +21,6 @@
 
   <ItemGroup>
     <Compile Remove="TestData\**\*.cs" />
-    <Compile Include="TestData\TestSolution\TestProject.App\Helpers\FileStructureTestFixture.cs" />
-    <Compile Include="TestData\TestSolution\TestProject.Core\Models\AnimalBase.cs" />
     <Content Include="TestData\**\*" CopyToOutputDirectory="Never" />
     <Compile Update="DependencyMapServiceTests.Abstractions.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>

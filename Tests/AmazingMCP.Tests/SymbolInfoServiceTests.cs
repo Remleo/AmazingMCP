@@ -629,6 +629,32 @@ public class SymbolInfoServiceTests
 
     #endregion
 
+    #region Extension methods
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ExtensionMethod_ShowsThisParameter()
+    {
+        // act
+        var result = await Act("TestProject.App.Helpers.AnimalExtensions");
+
+        // assert
+        result.Should().MatchRegex(@"FormatLabel\(this Animal animal, string prefix\)");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ExtensionMethod_AllMethodsShowThisParameter()
+    {
+        // act
+        var result = await Act("TestProject.App.Helpers.AnimalExtensions");
+
+        // assert
+        result.Should().MatchRegex(@"FormatLabel\(this Animal animal, string prefix\)");
+        result.Should().MatchRegex(@"IsOfKind\(this Animal animal, AnimalKind kind\)");
+        result.Should().MatchRegex(@"WithName\(this Animal animal, string newName\)");
+    }
+
+    #endregion
+
     #region Derived types
 
     [Test]

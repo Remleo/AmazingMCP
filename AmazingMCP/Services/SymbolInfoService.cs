@@ -19,6 +19,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
             SymbolDisplayMemberOptions.IncludeConstantValue)
         .WithGenericsOptions(SymbolDisplayGenericsOptions.IncludeTypeParameters)
         .WithParameterOptions(
+            SymbolDisplayParameterOptions.IncludeExtensionThis |
             SymbolDisplayParameterOptions.IncludeType |
             SymbolDisplayParameterOptions.IncludeName |
             SymbolDisplayParameterOptions.IncludeDefaultValue);
