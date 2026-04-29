@@ -1,5 +1,7 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services.CodeLens;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 namespace AmazingMCP.Services;
@@ -48,11 +50,20 @@ public sealed class CodeLensService(IWorkspaceProvider workspaceProvider) : ICod
         var spanEnd = text.Lines[endLine - 1].End;
         var span = TextSpan.FromBounds(spanStart, spanEnd);
 
+        // Resolve the nearest enclosing type for member-access filtering
+        INamedTypeSymbol? containingType = null;
+        var spanNode = root.FindNode(span);
+        var nearestTypeDecl = spanNode.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().FirstOrDefault();
+        if (nearestTypeDecl != null)
+            containingType = semanticModel.GetDeclaredSymbol(nearestTypeDecl) as INamedTypeSymbol;
+
         // Deduplication sets
         var seenVariables = new HashSet<VariableKey>();
         var seenCalls = new HashSet<CallKey>();
         var seenExtensions = new HashSet<ExtensionKey>();
         var seenConstructors = new HashSet<ConstructorKey>();
+        var seenFields = new HashSet<FieldKey>();
+        var seenProperties = new HashSet<PropertyKey>();
         var seenDefinitions = new HashSet<DefinitionKey>();
 
         // Output buckets
@@ -60,6 +71,8 @@ public sealed class CodeLensService(IWorkspaceProvider workspaceProvider) : ICod
         var calls = new List<CodeLensEntry>();
         var extensions = new List<CodeLensEntry>();
         var constructors = new List<CodeLensEntry>();
+        var fields = new List<CodeLensEntry>();
+        var properties = new List<CodeLensEntry>();
         var definitionMethods = new List<CodeLensEntry>();
         var definitionTypes = new List<CodeLensEntry>();
 
@@ -68,11 +81,31 @@ public sealed class CodeLensService(IWorkspaceProvider workspaceProvider) : ICod
             if (!span.OverlapsWith(node.Span)) continue;
 
             CodeLensCollector.Collect(
-                node, semanticModel,
-                seenVariables, seenCalls, seenExtensions, seenConstructors, seenDefinitions,
-                variables, calls, extensions, constructors, definitionMethods, definitionTypes);
+                node, semanticModel, span, containingType,
+                seenVariables, seenCalls, seenExtensions, seenConstructors, seenFields, seenProperties, seenDefinitions,
+                variables, calls, extensions, constructors, fields, properties, definitionMethods, definitionTypes);
         }
 
-        return CodeLensFormatter.Format(variables, calls, extensions, constructors, definitionMethods, definitionTypes);
+        // Collect all enclosing types for the span (may be multiple for nested classes)
+        var containingTypes = new List<CodeLensEntry>();
+        foreach (var typeDecl in spanNode.AncestorsAndSelf().OfType<TypeDeclarationSyntax>())
+        {
+            if (semanticModel.GetDeclaredSymbol(typeDecl) is INamedTypeSymbol typeSymbol)
+                DefinitionCollector.CollectContainingType(
+                    typeSymbol, semanticModel, typeDecl.Identifier.SpanStart,
+                    seenDefinitions, containingTypes);
+        }
+
+        return CodeLensFormatter.Format(
+            variables, calls, extensions, constructors, fields, properties,
+            definitionMethods, definitionTypes, containingTypes,
+            sourceSnippet: ExtractSourceSnippet(text, startLine, endLine));
+    }
+
+    static string ExtractSourceSnippet(SourceText text, int startLine, int endLine)
+    {
+        var lines = Enumerable.Range(startLine - 1, endLine - startLine + 1)
+            .Select(i => text.Lines[i].ToString());
+        return string.Join("\n", lines);
     }
 }

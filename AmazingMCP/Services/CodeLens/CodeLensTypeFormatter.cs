@@ -40,13 +40,13 @@ public static class CodeLensTypeFormatter
         return TrimSystemPrefix(typeName);
     }
 
-    private static string TrimGenericArgs(string args)
+    static string TrimGenericArgs(string args)
     {
         var parts = SplitTopLevel(args);
         return string.Join(", ", parts.Select(TrimSystemNamespace));
     }
 
-    private static string TrimSystemPrefix(string name)
+    static string TrimSystemPrefix(string name)
     {
         if (!name.StartsWith("System.", StringComparison.Ordinal)) return name;
         var lastDot = name.LastIndexOf('.');

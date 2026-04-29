@@ -10,7 +10,7 @@ namespace AmazingMCP.Services.CodeLens;
 public static class CodeLensTypeChecker
 {
     // Full CLR names that are always trivial (non-nullable forms).
-    private static readonly HashSet<string> TrivialFullNames = new(StringComparer.Ordinal)
+    static readonly HashSet<string> TrivialFullNames = new(StringComparer.Ordinal)
     {
         "System.String",
         "System.Boolean",
@@ -28,7 +28,7 @@ public static class CodeLensTypeChecker
     };
 
     // Short names (after System.* trimming) that are trivial.
-    private static readonly HashSet<string> TrivialShortNames = new(StringComparer.Ordinal)
+    static readonly HashSet<string> TrivialShortNames = new(StringComparer.Ordinal)
     {
         "string", "bool",
         "byte", "sbyte", "short", "ushort",
@@ -88,7 +88,7 @@ public static class CodeLensTypeChecker
 
     // ── private helpers ───────────────────────────────────────────────────
 
-    private static bool IsTrivialByName(string fullName)
+    static bool IsTrivialByName(string fullName)
     {
         if (TrivialFullNames.Contains(fullName)) return true;
 
@@ -106,7 +106,7 @@ public static class CodeLensTypeChecker
         return false;
     }
 
-    private static bool TryUnwrapGeneric(string name, string prefix, out string inner)
+    static bool TryUnwrapGeneric(string name, string prefix, out string inner)
     {
         var pattern = prefix + "<";
         if (name.StartsWith(pattern, StringComparison.Ordinal) && name.EndsWith('>'))

@@ -51,6 +51,27 @@
     <Compile Update="DependencyMapServiceTests.NullConditional.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
+    <Compile Update="CodeLensServiceTests.Calls.cs">
+      <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="CodeLensServiceTests.Definitions.cs">
+      <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="CodeLensServiceTests.Extensions.cs">
+      <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="CodeLensServiceTests.Fields.cs">
+      <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="CodeLensServiceTests.Misc.cs">
+      <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="CodeLensServiceTests.Properties.cs">
+      <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="CodeLensServiceTests.Variables.cs">
+      <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>

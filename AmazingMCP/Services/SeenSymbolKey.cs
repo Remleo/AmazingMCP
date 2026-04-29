@@ -1,7 +1,7 @@
 namespace AmazingMCP.Services;
 
 /// <summary>Deduplication key for symbols collected during a query.</summary>
-record SeenSymbolKey(
+internal record SeenSymbolKey(
     string? ContainingType,
     string Symbol,
     string Assembly)

@@ -12,7 +12,17 @@ public static class UsageResultFormatter
     public static string Format(IReadOnlyList<UsageMatch> matches, bool truncated = false)
     {
         if (matches.Count == 0)
-            return "No usages found matching the predicate.";
+            return
+                "No usages found.\n\n" +
+                "If you expected results, make sure the type name is fully qualified (includes namespace). " +
+                "Example: `MyApp.Core.IRequestStream`, not just `IRequestStream`.\n\n" +
+                "For closed generics, all type arguments must also be fully qualified: " +
+                "`System.Collections.Generic.List<MyApp.Core.Animal>`.\n\n" +
+                "For open generics, argument names must match the declaration: " +
+                "`MyApp.Persistance.IRepository<TKey, TValue>`.\n\n" +
+                "To find the correct full name:\n" +
+                "- Use `query_symbol` to locate the type by name and see its fully qualified form.\n" +
+                "- Use `code_lens` on any line where the type appears — it shows the full name of every type in the span.";
 
         var sb = new StringBuilder();
 

@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 namespace AmazingMCP.Services;
 
 /// <summary>Converts Roslyn symbols into <see cref="SymbolResult"/> records.</summary>
-static class SymbolResultFactory
+internal static class SymbolResultFactory
 {
     public static SymbolResult ForType(INamedTypeSymbol symbol)
     {

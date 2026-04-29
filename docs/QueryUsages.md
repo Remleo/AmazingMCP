@@ -13,19 +13,23 @@ inside a single `csharp` block per file.
 | Parameter | Required | Description |
 |---|---|---|
 | `solutionWorkspacePath` | Yes | Absolute path to the directory containing the `.sln`/`.slnx` file |
-| `typePattern` | Yes | Wildcard pattern matched against the full name of the **target type** involved in each usage |
+| `typeName` | Yes | Fully qualified name of the **target type** to search for usages of |
 | `predicate` | No | C# boolean expression to further filter results. Variable `x` is of type `QueryEntry` |
 | `scanInclude` | No | Wildcard patterns restricting which **containing types** are scanned |
 | `scanExclude` | No | Wildcard patterns for **containing types** to skip. Takes precedence over `scanInclude` |
 | `solutionPath` | No | Explicit path to the `.sln`/`.slnx` file (required only when multiple solutions exist) |
 
-### typePattern
+### typeName
 
-Matched against `QueryEntry.TypeName` — the full name of the type involved in the usage.
+The fully qualified name of the type to search for — must include the namespace.
 
-- Prefer the fully qualified name including namespace to avoid false positives: `MyApp.Core.IRequestStream`
-- Supports `*` wildcard: `MyApp.Services.*`, `*IRequestStream*`
-- If the pattern contains no `*` and no `.` it is automatically wrapped as `*pattern*`
+- Example: `MyApp.Core.IRequestStream`
+- For closed generics, all type arguments must also be fully qualified: `System.Collections.Generic.List<MyApp.Core.Animal>`
+- For open generics, argument names must match the declaration: `System.Collections.Generic.IEnumerable<T>`
+
+If no usages are found, verify the name is correct:
+- Use `query_symbol` to locate the type and see its fully qualified name
+- Use `code_lens` on any line where the type appears — it shows the full name of every type in the span
 
 ### predicate
 

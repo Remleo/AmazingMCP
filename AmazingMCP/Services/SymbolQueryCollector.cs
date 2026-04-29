@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 namespace AmazingMCP.Services;
 
 /// <summary>Walks Roslyn namespace trees and collects matching types and members.</summary>
-static class SymbolQueryCollector
+internal static class SymbolQueryCollector
 {
     public static void CollectTypes(
         INamespaceSymbol ns,

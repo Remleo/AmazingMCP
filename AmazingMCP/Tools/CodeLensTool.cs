@@ -8,11 +8,11 @@ namespace AmazingMCP.Tools;
 public static class CodeLensTool
 {
     [McpServerTool(Name = "code_lens", ReadOnly = true), Description(
-        "Analyzes a span of C# source code and resolves all type names to their fully qualified forms. " +
-        "For each local variable, method call, extension method, constructor call, and definition " +
-        "found in the given line range, returns the full type names (with namespace and generic arguments). " +
-        "System.* namespaces are trimmed to short names. Primitive types are omitted. " +
-        "Useful for understanding what types are actually used in a code block without navigating the full solution.")]
+        "Resolves all type names in a given line range of a .cs file to their fully qualified forms — " +
+        "with namespace and generic arguments. " +
+        "Use this to see the exact full name of any type appearing in a code span: " +
+        "a local variable, a method call, a class declaration, or anything else. " +
+        "System.* namespaces are trimmed to short names. Primitive types are omitted.")]
     public static async Task<string> CodeLens(
         ICodeLensService codeLensService,
         SolutionResolver solutionResolver,

@@ -15,6 +15,7 @@ public class CodeLensTestFixture : IAnimalService
 {
     readonly IAnimalRepository _repository;
     readonly INotificationService _notification;
+    public AnimalKind DefaultKind { get; } = AnimalKind.Unknown;
 
     public CodeLensTestFixture(IAnimalRepository repository, INotificationService notification)
     {
@@ -56,5 +57,11 @@ public class CodeLensTestFixture : IAnimalService
     {
         Animal? result = _repository.FindById(id);
         return result;
+    }
+
+    // Method that reads a property — used by CodeLensServiceTests for Properties section
+    public IReadOnlyList<Animal> GetByDefaultKind()
+    {
+        return _repository.FindByKind(DefaultKind);
     }
 }

@@ -59,6 +59,9 @@
     <Compile Update="Services\IUsageQueryService.cs">
       <DependentUpon>UsageQueryService.cs</DependentUpon>
     </Compile>
+    <Compile Update="Services\ICodeLensService.cs">
+      <DependentUpon>CodeLensService.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

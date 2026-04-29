@@ -9,7 +9,7 @@ public static class QueryUsagesTool
 {
     [McpServerTool(Name = "query_usages"), Description(
         "Finds all usages of a given type across the solution. " +
-        "Use typePattern as the primary filter to specify which type to search for. " +
+        "Use typeName as the primary filter to specify which type to search for. " +
         "Optionally narrow results with a predicate expression.")]
     public static async Task<string> QueryUsages(
         IUsageQueryService usageQueryService,
@@ -17,11 +17,11 @@ public static class QueryUsagesTool
         [Description("Absolute path to the directory where the .sln/.slnx file is located")]
         string solutionWorkspacePath,
         [Description(
-            "Wildcard pattern matched against the full name of the target type involved in each usage. " +
-            "Prefer the fully qualified name including namespace to avoid false positives. " +
-            "Supports '*' wildcard. " +
-            "Examples: \"MyApp.Core.IRequestStream\", \"*.IRequestStream\"")]
-        string typePattern,
+            "The fully qualified name of the target type to search for usages of. " +
+            "Must include the namespace. Example: \"MyApp.Core.IRequestStream\". " +
+            "For closed generics, use full type names for all arguments: \"System.Collections.Generic.List<MyApp.Core.Animal>\". " +
+            "For open generics, argument names must match the declaration: \"MyApp.Persistance.IRepository<TKey, TValue>\".")]
+        string typeName,
         [Description(
             "Optional C# boolean expression to further filter results. Variable 'x' is of type QueryEntry. " +
             "QueryEntry fields: " +
@@ -43,6 +43,7 @@ public static class QueryUsagesTool
             "Only types matching at least one pattern are traversed. " +
             "Leave null to scan the entire solution. " +
             "Examples: [\"MyApp.Services.*\", \"*.Persistence.*\"]")]
+#pragma warning disable CS8625
         string[] scanInclude = null,
         [Description(
             "Optional. Excludes specific containing types from scanning. " +
@@ -51,6 +52,7 @@ public static class QueryUsagesTool
             "Leave null to exclude nothing. " +
             "Examples: [\"*.Tests.*\", \"MyApp.Generated.*\"]")]
         string[] scanExclude = null,
+#pragma warning restore CS8625
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")]
         string? solutionPath = null,
         CancellationToken ct = default)
@@ -61,7 +63,7 @@ public static class QueryUsagesTool
 
         var (matches, queryError, truncated) = await usageQueryService.QueryAsync(
             resolved,
-            typePattern,
+            typeName,
             predicate,
             scanInclude,
             scanExclude,
