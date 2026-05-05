@@ -827,6 +827,20 @@ public class QueryUsagesServiceTests
             m.Entry.Kind == UsageKind.PropertyRead || m.Entry.Kind == UsageKind.PropertyWrite);
     }
 
+    [Test]
+    public async Task QueryAsync_Cs14ExtensionBlock_AnimalAsExtendedType_IsFound()
+    {
+        // act
+        var matches = await Act(
+            "TestProject.Core.Models.ExtensionProbe",
+            scanInclude: ["TestProject.App.Helpers.ExtensionProbeExtensions"]);
+
+        // assert — the extension(ExtensionProbe probe) parameter must be detected as TypeAsParameter
+        matches.Should().BeEquivalentTo(
+            [new { Entry = new { Kind = UsageKind.TypeAsParameter, TypeName = "TestProject.Core.Models.ExtensionProbe" } }],
+            options => options.Including(m => m.Entry.Kind).Including(m => m.Entry.TypeName));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     class TestWorkspaceProvider(CachedSolution solution) : IWorkspaceProvider
