@@ -198,6 +198,15 @@ public class UsageQueryTestFixture
         });
     }
 
+    // ── Usage as parameter AND in body — definition must not be shown twice ──────
+
+    public void ProcessAnimals(IReadOnlyList<Animal> animals)
+    {
+        // TypeAsParameter (animals) + MethodCall (FindById) — both reference Animal
+        foreach (var a in animals)
+            _repository.Save(a);
+    }
+
     // ── MethodCall inside catch block inside large lambda ─────────────────────
 
     public void UsageInCatchInsideLargeLambda(Animal animal)

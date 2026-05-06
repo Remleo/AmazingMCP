@@ -689,6 +689,30 @@ public class QueryUsagesServiceTests
     }
 
     [Test]
+    public async Task QueryAsync_Formatter_MethodDefinition_NotDuplicated_WhenUsageInParameterAndBody()
+    {
+        // arrange — RenameAnimal(Animal animal, ...) has Animal as TypeAsParameter (line with signature)
+        // AND PropertyWrite animal.Name in the body (different section, non-adjacent).
+        // The method signature line must appear exactly once in the output.
+
+        // act
+        var matches = await Act(
+            "TestProject.Core.Models.Animal",
+            predicate: "x.Kind == UsageKind.TypeAsParameter || x.Kind == UsageKind.PropertyWrite",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        var output = UsageResultFormatter.Format(matches);
+
+        // assert — "RenameAnimal" appears exactly once
+        var occurrences = System.Text.RegularExpressions.Regex
+            .Matches(output, @"RenameAnimal")
+            .Count;
+
+        occurrences.Should().Be(1,
+            "method signature must not be duplicated when it is both a match section and a method header");
+    }
+
+    [Test]
     public async Task QueryAsync_Formatter_MethodDefinition_ShownOnceWhenMultipleNonAdjacentMatchesInSameMethod()
     {
         // arrange — MultiUsageMethod has two non-adjacent usages of IAnimalRepository

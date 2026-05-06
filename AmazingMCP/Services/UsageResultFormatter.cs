@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using AmazingMCP.Models;
 
 namespace AmazingMCP.Services;
@@ -41,22 +41,19 @@ public static class UsageResultFormatter
 
             var sourceLines = TryReadLines(filePath);
 
-            // Collect all items, sort by section start
             var items = typeFileGroup
                 .Select(m => new MatchItem(
                     new LineRange(m.Scope.Section.StartLine, m.Scope.Section.EndLine),
-                    m.Scope.MethodName,
-                    m.Scope.MethodDefinitionRange,
-                    m.Scope.MethodFullRange))
-                .OrderBy(i => i.Section.Start)
+                    m.Scope.MethodDefinitionRange))
                 .ToList();
 
-            // Merge all section ranges globally
-            var mergedBlocks = MergeRanges(items.Select(i => i.Section).ToList());
+            // Merge section ranges + method definition ranges so definitions are never duplicated
+            var allRanges = items.Select(i => i.Section)
+                .Concat(items.Where(i => i.MethodDef.HasValue).Select(i => i.MethodDef!.Value))
+                .ToList();
+            var mergedBlocks = MergeRanges(allRanges);
 
             sb.AppendLine("```csharp");
-
-            var shownDefinitions = new HashSet<(string, int)>(); // (MethodName, DefStart)
 
             for (var bi = 0; bi < mergedBlocks.Count; bi++)
             {
@@ -67,7 +64,7 @@ public static class UsageResultFormatter
                     sb.AppendLine();
                 }
 
-                AppendBlock(sb, mergedBlocks[bi], items, sourceLines, shownDefinitions);
+                AppendCodeLines(sb, sourceLines, mergedBlocks[bi]);
             }
 
             sb.AppendLine("```");
@@ -83,59 +80,12 @@ public static class UsageResultFormatter
         return result;
     }
 
-    // ── Block rendering ───────────────────────────────────────────────────────
-
-    static void AppendBlock(
-        StringBuilder sb,
-        LineRange block,
-        List<MatchItem> allItems,
-        string[]? sourceLines,
-        HashSet<(string, int)> shownDefinitions)
+    static void AppendCodeLines(StringBuilder sb, string[]? sourceLines, LineRange range)
     {
-        var methodHeaders = allItems
-            .Where(i => i.Section.Overlaps(block) && i.MethodName is not null && i.MethodDef.HasValue)
-            .Select(i => (i.MethodName!, i.MethodDef!.Value, i.MethodFull))
-            .DistinctBy(x => (x.Item1, x.Item2.Start))
-            .OrderBy(x => x.Item2.Start)
-            .Where(x =>
-            {
-                var trimmed = TrimDefinitionRange(x.Item2, sourceLines);
-                return !block.Contains(trimmed.Start);
-            })
-            .ToList();
-
-        var firstChunk = true;
-
-        foreach (var (name, defRange, fullRange) in methodHeaders)
-        {
-            var key = (name, defRange.Start);
-            if (!shownDefinitions.Add(key)) continue; // already shown for a previous block
-
-            var trimmed = TrimDefinitionRange(defRange, sourceLines);
-
-            if (!firstChunk) { sb.AppendLine(); sb.AppendLine(CutWithIndentOf(sourceLines, trimmed)); sb.AppendLine(); }
-            firstChunk = false;
-
-            // Use the full method range for the annotation so the reader knows the total extent.
-            var annotationRange = fullRange ?? defRange;
-            AppendCodeLines(sb, sourceLines, trimmed, annotationRange);
-            sb.AppendLine();
-            sb.AppendLine(CutWithIndentOf(sourceLines, block));
-            sb.AppendLine();
-        }
-
-        AppendCodeLines(sb, sourceLines, block);
-    }
-
-    // ── Code lines ────────────────────────────────────────────────────────────
-
-    static void AppendCodeLines(StringBuilder sb, string[]? sourceLines, LineRange range, LineRange? annotationRange = null)
-    {
-        var display = annotationRange ?? range;
         var indent = DetectIndent(sourceLines, range);
-        var label = display.Count == 1
-            ? $"{indent}// line {display.Start} +1"
-            : $"{indent}// lines {display.Start} +{display.Count}";
+        var label = range.Count == 1
+            ? $"{indent}// line {range.Start} +1"
+            : $"{indent}// lines {range.Start} +{range.Count}";
 
         sb.AppendLine(label);
 
@@ -152,34 +102,11 @@ public static class UsageResultFormatter
         }
     }
 
-    // ── Cut separator ─────────────────────────────────────────────────────────
-
     static string CutWithIndentOf(string[]? sourceLines, LineRange nextRange)
     {
         var indent = DetectIndent(sourceLines, nextRange);
         return $"{indent}// ...";
     }
-
-    // ── Definition range trimming ─────────────────────────────────────────────
-
-    static LineRange TrimDefinitionRange(LineRange range, string[]? sourceLines)
-    {
-        if (sourceLines is null) return range;
-
-        var start = range.Start;
-        while (start < range.End)
-        {
-            var line = sourceLines[start - 1].TrimStart();
-            if (line.StartsWith('[') || line.StartsWith("///") || line.StartsWith("//"))
-                start++;
-            else
-                break;
-        }
-
-        return new LineRange(start, range.End);
-    }
-
-    // ── Indent detection ──────────────────────────────────────────────────────
 
     static string DetectIndent(string[]? sourceLines, LineRange range)
     {
@@ -200,8 +127,6 @@ public static class UsageResultFormatter
         }
         return new string(' ', count);
     }
-
-    // ── Range merging ─────────────────────────────────────────────────────────
 
     static List<LineRange> MergeRanges(List<LineRange> ranges)
     {
@@ -227,15 +152,11 @@ public static class UsageResultFormatter
         return merged;
     }
 
-    // ── File reading ──────────────────────────────────────────────────────────
-
     static string[]? TryReadLines(string filePath)
     {
         try { return File.Exists(filePath) ? File.ReadAllLines(filePath) : null; }
         catch { return null; }
     }
 
-    // ── Internal types ────────────────────────────────────────────────────────
-
-    readonly record struct MatchItem(LineRange Section, string? MethodName, LineRange? MethodDef, LineRange? MethodFull);
+    readonly record struct MatchItem(LineRange Section, LineRange? MethodDef);
 }
