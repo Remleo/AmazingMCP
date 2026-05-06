@@ -13,10 +13,4 @@ public interface IFileStructureService
     /// found in the given C# file.
     /// </summary>
     List<FileStructureItem> GetItems(string filePath);
-
-    /// <summary>
-    /// Returns a human-readable, indented digest of the file structure
-    /// with line-number annotations.
-    /// </summary>
-    string GetStructure(string filePath);
 }

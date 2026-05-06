@@ -15,7 +15,9 @@ internal static partial class SyntaxNodeFormatter
     {
         var span      = node.GetLocation().GetLineSpan();
         var startLine = span.StartLinePosition.Line + 1;
-        var endLine   = span.EndLinePosition.Line + 1;
+        var endLine   = node is FileScopedNamespaceDeclarationSyntax fsns
+            ? fsns.SemicolonToken.GetLocation().GetLineSpan().StartLinePosition.Line + 1
+            : span.EndLinePosition.Line + 1;
         var lines     = endLine - startLine;
 
         return lines > 0 ? $"[lines:{startLine} +{lines}]" : $"[line:{startLine}]";
@@ -26,7 +28,7 @@ internal static partial class SyntaxNodeFormatter
     {
         var span      = node.GetLocation().GetLineSpan();
         var endLine   = span.EndLinePosition.Line + 1;
-        var startLine = LeadingTriviaStartLine(node);
+        var startLine = LeadingTriviaStartLine(node) + 1;
         var lines     = endLine - startLine;
 
         return lines > 0 ? $"[lines:{startLine} +{lines}]" : $"[line:{startLine}]";
@@ -40,13 +42,13 @@ internal static partial class SyntaxNodeFormatter
         {
             if (trivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia)
              || trivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
-                return trivia.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                return trivia.GetLocation().GetLineSpan().StartLinePosition.Line;
         }
 
         if (node is MemberDeclarationSyntax memberDecl && memberDecl.AttributeLists.Count > 0)
-            return memberDecl.AttributeLists[0].GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+            return memberDecl.AttributeLists[0].GetLocation().GetLineSpan().StartLinePosition.Line;
 
-        return node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+        return node.GetLocation().GetLineSpan().StartLinePosition.Line;
     }
 
     // ── signature extraction ───────────────────────────────────────────────────

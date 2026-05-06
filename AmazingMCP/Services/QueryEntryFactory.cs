@@ -144,6 +144,29 @@ public static class QueryEntryFactory
             };
         }
 
+        // Object initializer property: new Foo { Name = "literal" } or { Name = expr }
+        // The identifier is the left-hand side (property/field name) of an assignment inside an initializer.
+        if (node.Parent is AssignmentExpressionSyntax initAssign
+            && initAssign.Left == node
+            && initAssign.Parent is InitializerExpressionSyntax)
+        {
+            var symbol2 = model.GetSymbolInfo(node).Symbol;
+            if (symbol2 is IPropertySymbol initProp)
+                return new QueryEntry
+                {
+                    Kind = UsageKind.PropertyWrite,
+                    TypeName = initProp.ContainingType.ToDisplayString(),
+                    PropertyName = initProp.Name,
+                };
+            if (symbol2 is IFieldSymbol initField)
+                return new QueryEntry
+                {
+                    Kind = UsageKind.FieldWrite,
+                    TypeName = initField.ContainingType.ToDisplayString(),
+                    FieldName = initField.Name,
+                };
+        }
+
         // Object initializer value: new Foo { Logger = logger }
         // The identifier is the right-hand side of an assignment inside an initializer.
         if (node.Parent is AssignmentExpressionSyntax assign

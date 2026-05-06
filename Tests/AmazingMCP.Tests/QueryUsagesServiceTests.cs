@@ -843,6 +843,26 @@ public class QueryUsagesServiceTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    [Test]
+    public async Task QueryAsync_PropertyWrite_ObjectInitializer_LiteralValue_IsFound()
+    {
+        // arrange — UsageQueryObjectInitFixture.BuildSnapshot() uses:
+        //   new AnimalSnapshot { Name = "literal", Kind = AnimalKind.Unknown }
+        // value is a string literal / enum — not an identifier, so assign.Right is not IdentifierNameSyntax
+
+        // act
+        var matches = await Act(
+            "*AnimalSnapshot*",
+            predicate: "x.Kind == UsageKind.PropertyWrite && x.PropertyName == \"Name\"",
+            scanInclude: ["TestProject.App.Services.UsageQueryObjectInitFixture"]);
+
+        // assert
+        matches.Should().NotBeEmpty();
+        matches.Should().Contain(m =>
+            m.Entry.PropertyName == "Name" &&
+            m.Scope.MethodName == "BuildSnapshot");
+    }
+
     class TestWorkspaceProvider(CachedSolution solution) : IWorkspaceProvider
     {
         public Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default)

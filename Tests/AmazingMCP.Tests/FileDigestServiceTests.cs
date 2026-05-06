@@ -4,9 +4,9 @@ using NUnit.Framework;
 
 namespace AmazingMCP.Tests;
 
-public class FileStructureServiceTests
+public class FileDigestServiceTests
 {
-    IFileStructureService _sut = null!;
+    IFileDigestService _sut = null!;
 
     static string TestProjectAppPath => Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory,
@@ -16,7 +16,33 @@ public class FileStructureServiceTests
         Path.Combine([TestProjectAppPath, ..parts]);
 
     [SetUp]
-    public void SetUp() => _sut = new FileStructureService();
+    public void SetUp() => _sut = new FileDigestService(new FileSystemFileReader());
+
+    // ── file-scoped namespace ──────────────────────────────────────────────────
+
+    [Test]
+    public void GetStructure_FileScopedNamespace_HasSingleLinePosition()
+    {
+        // arrange — StandaloneHelper.cs uses file-scoped namespace
+        var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
+
+        // assert — must be [line:N], not [lines:N +M] spanning the whole file
+        result.Should().MatchRegex(@"/\*\[line:\d+\]\*/ namespace TestProject\.App\.Helpers");
+    }
+
+    [Test]
+    public void GetStructure_FileScopedNamespace_MembersNotIndented()
+    {
+        // arrange
+        var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
+
+        // assert — class must appear at indent level 0 (no leading spaces before /*[)
+        var lines = result.Split('\n');
+        var classLine = lines.FirstOrDefault(l => l.Contains("class StandaloneHelper"));
+
+        classLine.Should().NotBeNull();
+        classLine!.Should().NotStartWith("    ");
+    }
 
     // ── file not found ─────────────────────────────────────────────────────────
 
@@ -31,8 +57,6 @@ public class FileStructureServiceTests
     [Test]
     public void GetStructure_RelativePath_ResolvesCorrectly()
     {
-        // relative path from CWD — just verify it doesn't crash with "File not found"
-        // when the file actually exists at the absolute path
         var absPath = FilePath("Helpers", "StandaloneHelper.cs");
         var result = _sut.GetStructure(absPath);
 
@@ -259,7 +283,6 @@ public class FileStructureServiceTests
     [Test]
     public void GetStructure_NestedPrivateClass_IsIncluded()
     {
-        // unlike SymbolInfoService, FileStructureService shows ALL members including private
         var result = _sut.GetStructure(
             Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"));
 
@@ -272,13 +295,12 @@ public class FileStructureServiceTests
         var result = _sut.GetStructure(
             Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"));
 
-        // nested class must appear after the outer class line and be indented
         var lines = result.Split('\n');
         var outerIdx  = Array.FindIndex(lines, l => l.Contains("class AnimalDefaults"));
         var nestedIdx = Array.FindIndex(lines, l => l.Contains("class ValidationRules"));
 
         nestedIdx.Should().BeGreaterThan(outerIdx);
-        lines[nestedIdx].Should().StartWith("    "); // at least one indent level
+        lines[nestedIdx].Should().StartWith("    ");
     }
 
     // ── attributes ─────────────────────────────────────────────────────────────
@@ -409,7 +431,6 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Helpers", "FileStructureUsingsFixture.cs"));
 
-        // First using = line 2, last using = line 6 → +4
         result.Should().MatchRegex(@"/\*\[lines:2 \+4\]\*/ usings");
     }
 
@@ -418,11 +439,8 @@ public class FileStructureServiceTests
     {
         var result = _sut.GetStructure(FilePath("Helpers", "FileStructureUsingsFixture.cs"));
 
-        // Raw comment lines (// or /* not part of position markers) must not appear as separate entries.
-        // Position markers have the form: /* [lines:N +M] */ or /* [line:N] */
         var lines = result.Split('\n');
         lines.Should().NotContain(l => l.TrimStart().StartsWith("//") && !l.TrimStart().StartsWith("///"));
-        // /* lines that are NOT position markers should not appear
         lines.Should().NotContain(l =>
             l.TrimStart().StartsWith("/*") &&
             !System.Text.RegularExpressions.Regex.IsMatch(l.TrimStart(), @"^/\*\[lines?:\d+"));

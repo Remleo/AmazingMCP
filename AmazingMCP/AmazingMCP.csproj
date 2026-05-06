@@ -62,6 +62,12 @@
     <Compile Update="Services\ICodeLensService.cs">
       <DependentUpon>CodeLensService.cs</DependentUpon>
     </Compile>
+    <Compile Update="Services\IFileDigestService.cs">
+      <DependentUpon>FileDigestService.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\IFileReader.cs">
+      <DependentUpon>FileSystemFileReader.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

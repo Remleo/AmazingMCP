@@ -11,7 +11,7 @@ public static class ReadLargeCsFileTool
 
     [McpServerTool(Name = "read_large_cs_file", ReadOnly = true), Description(
         "IMPORTANT: USE THIS to read source code from large .cs files instead of loading the full file. " +
-        "Returns only the members matching the given wildcard filters, with skipped sections replaced by '// << ... cut ... >>'. " +
+        "Returns only the members matching the given wildcard filters. " +
         "Filters match against full member signatures (name, return type, parameters). " +
         "If unsure what members exist, call read_cs_file_digest first.")]
     public static string ReadLargeCsFile(
@@ -37,7 +37,6 @@ public static class ReadLargeCsFileTool
         if (result.Length > MaxOutputLength)
             return result[..MaxOutputLength] + truncationMarker;
 
-        return result + "\n\n" +
-               "> Use `read_cs_file_digest` to see the full compact outline of this file.";
+        return result;
     }
 }

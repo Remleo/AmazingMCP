@@ -10,12 +10,12 @@ public sealed class FileStructureItem
     public required FileStructureItemKind Kind { get; init; }
 
     /// <summary>
-    /// First line of the item including leading xmldoc/attributes (1-based).
+    /// First line of the item including leading xmldoc/attributes (0-based).
     /// </summary>
     public required int StartLine { get; init; }
 
     /// <summary>
-    /// Last line of the item (1-based, inclusive).
+    /// Last line of the item (0-based, inclusive).
     /// </summary>
     public required int EndLine { get; init; }
 
@@ -25,16 +25,9 @@ public sealed class FileStructureItem
     public int LineCount => EndLine - StartLine + 1;
 
     /// <summary>
-    /// The line that contains the declaration keyword (class/namespace/etc.), 1-based.
-    /// For Namespace and Type: line with 'namespace'/'class'/etc. — without xmldoc.
-    /// For Member/Usings: same as StartLine.
-    /// </summary>
-    public required int DeclarationLine { get; init; }
-
-    /// <summary>
-    /// Last line of the declaration header (before the opening brace / body), 1-based.
-    /// For Type: last line of "class Foo : Base" before '{'.
-    /// For Namespace/Member/Usings: same as DeclarationLine.
+    /// Last line of the declaration header (before the opening brace / body), 0-based.
+    /// For Type: last line of "class Foo : Base {".
+    /// For Namespace/Member/Usings: same as StartLine.
     /// </summary>
     public required int DeclarationEndLine { get; init; }
 }

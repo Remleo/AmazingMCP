@@ -228,3 +228,20 @@ public class TracerHolder
     public IGenericTracer<UsageQueryTestFixture>? Tracer { get; set; }
     public string? ExtraField { get; set; }
 }
+
+/// <summary>Helper type for object-initializer with literal value test.</summary>
+public class AnimalSnapshot
+{
+    public string? Name { get; set; }
+    public AnimalKind Kind { get; set; }
+}
+
+public class UsageQueryObjectInitFixture
+{
+    // PropertyWrite via object initializer where value is a literal (not an identifier)
+    public AnimalSnapshot BuildSnapshot() => new AnimalSnapshot
+    {
+        Name = "literal",
+        Kind = AnimalKind.Unknown,
+    };
+}

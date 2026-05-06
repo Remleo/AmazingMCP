@@ -1,281 +1,291 @@
-using AmazingMCP.Models;
 using AmazingMCP.Services;
 using FluentAssertions;
-using NSubstitute;
 using NUnit.Framework;
 
 namespace AmazingMCP.Tests;
 
 public class FilteredSourceServiceTests
 {
-    IFileStructureService _fileStructure = null!;
-    IWildcardPatternFactory _wildcardFactory = null!;
     FilteredSourceService _sut = null!;
+    InMemoryFileReader _fileReader = null!;
+    const string FilePath = "C:\\fake\\file.cs";
 
-    static string TestProjectAppPath => Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "TestData", "TestSolution", "TestProject.App"));
+    // ── CS content fixtures ──────────────────────────────────────────────────
 
-    static string FilePath(params string[] parts) =>
-        Path.Combine([TestProjectAppPath, ..parts]);
+    // Small type (< 50 lines): fits entirely when matched
+    const string SmallTypeContent = """
+        namespace MyApp;
+
+        public class SmallService
+        {
+            public string GetName() => "hello";
+
+            public int Compute(int x) => x * 2;
+        }
+        """;
+
+    // Large type (> 50 lines) with xmldoc + attribute: only declaration when matched
+    static readonly string LargeTypeContent = BuildLargeTypeContent();
+
+    static string BuildLargeTypeContent()
+    {
+        var lines = new List<string>
+        {
+            "namespace MyApp;",
+            "",
+            "/// <summary>",
+            "/// A large service with many methods.",
+            "/// </summary>",
+            "[Obsolete(\"Use NewService instead\")]",
+            "public class LargeService",
+            "{"
+        };
+        for (var i = 1; i <= 50; i++)
+            lines.Add($"    public void Method{i}() {{ }}");
+        lines.Add("}");
+        return string.Join("\n", lines);
+    }
+
+    // File with namespace, type, member — for context/cut marker tests
+    const string MemberContent = """
+        using System;
+
+        namespace MyApp.Services;
+
+        public class AnimalService
+        {
+            public string GetById(int id) => id.ToString();
+
+            public void Add(string name) { }
+        }
+        """;
+
+    // File with nested type inside a large outer type
+    static readonly string NestedTypeContent = BuildNestedTypeContent();
+
+    static string BuildNestedTypeContent()
+    {
+        var lines = new List<string>
+        {
+            "namespace MyApp;",
+            "",
+            "public class OuterService",
+            "{"
+        };
+        for (var i = 1; i <= 50; i++)
+            lines.Add($"    public void Method{i}() {{ }}");
+        lines.Add("");
+        lines.Add("    public class NestedConfig");
+        lines.Add("    {");
+        lines.Add("        public int Value { get; set; }");
+        lines.Add("    }");
+        lines.Add("}");
+        return string.Join("\n", lines);
+    }
 
     [SetUp]
     public void SetUp()
     {
-        _fileStructure = Substitute.For<IFileStructureService>();
-        _wildcardFactory = Substitute.For<IWildcardPatternFactory>();
-        _sut = new FilteredSourceService(_fileStructure, _wildcardFactory);
+        _fileReader = new InMemoryFileReader();
+        _sut = new FilteredSourceService(new FileStructureService(_fileReader), new WildcardPatternFactory(), _fileReader);
     }
 
-    // ── file not found ──────────────────────────────────────────────────────
+    // ── file not found ───────────────────────────────────────────────────────
 
     [Test]
     public void GetFilteredSource_FileNotFound_ReturnsError()
     {
+        // act
         var result = _sut.GetFilteredSource("C:\\nonexistent\\file.cs", null);
+
+        // assert
         result.Should().Contain("File not found");
     }
 
-    [Test]
-    public void GetFilteredSource_FileNotFound_DoesNotCallFileStructure()
-    {
-        _sut.GetFilteredSource("C:\\nonexistent\\file.cs", ["*"]);
-        _fileStructure.DidNotReceive().GetItems(Arg.Any<string>());
-    }
-
-    // ── no filters ──────────────────────────────────────────────────────────
+    // ── no filters ───────────────────────────────────────────────────────────
 
     [Test]
-    public void GetFilteredSource_NoFilters_ReturnsFullFileContent()
+    public void GetFilteredSource_NoFilters_ReturnsFullContent()
     {
-        var path = FilePath("Helpers", "StandaloneHelper.cs");
-        var result = _sut.GetFilteredSource(path, null);
-        result.Should().Contain("class StandaloneHelper");
+        // arrange
+        _fileReader.Add(FilePath, SmallTypeContent);
+
+        // act
+        var result = _sut.GetFilteredSource(FilePath, null);
+
+        // assert
+        result.Should().Contain("class SmallService");
         result.Should().NotContain("cut");
     }
 
     [Test]
-    public void GetFilteredSource_EmptyFilters_ReturnsFullFileContent()
+    public void GetFilteredSource_EmptyFilters_ReturnsFullContent()
     {
-        var path = FilePath("Helpers", "StandaloneHelper.cs");
-        var result = _sut.GetFilteredSource(path, []);
-        result.Should().Contain("class StandaloneHelper");
+        // arrange
+        _fileReader.Add(FilePath, SmallTypeContent);
+
+        // act
+        var result = _sut.GetFilteredSource(FilePath, []);
+
+        // assert
+        result.Should().Contain("class SmallService");
+        result.Should().NotContain("cut");
     }
 
-    [Test]
-    public void GetFilteredSource_NoFilters_DoesNotCallFileStructure()
-    {
-        var path = FilePath("Helpers", "StandaloneHelper.cs");
-        _sut.GetFilteredSource(path, null);
-        _fileStructure.DidNotReceive().GetItems(Arg.Any<string>());
-    }
-
-    // ── with filters — mock interactions ────────────────────────────────────
-
-    [Test]
-    public void GetFilteredSource_WithFilters_CallsGetItems()
-    {
-        var path = FilePath("Helpers", "StandaloneHelper.cs");
-        var fullPath = Path.GetFullPath(path);
-        _fileStructure.GetItems(fullPath).Returns([]);
-        SetupGlobPattern("*Format*", _ => true);
-
-        _sut.GetFilteredSource(path, ["*Format*"]);
-
-        _fileStructure.Received(1).GetItems(fullPath);
-    }
-
-    [Test]
-    public void GetFilteredSource_WithFilters_CreatesGlobForEachFilter()
-    {
-        var path = FilePath("Helpers", "StandaloneHelper.cs");
-        var fullPath = Path.GetFullPath(path);
-        _fileStructure.GetItems(fullPath).Returns([]);
-        SetupGlobPattern("*A*", _ => false);
-        SetupGlobPattern("*B*", _ => false);
-
-        _sut.GetFilteredSource(path, ["*A*", "*B*"]);
-
-        _wildcardFactory.Received(1).CreateGlob("*A*");
-        _wildcardFactory.Received(1).CreateGlob("*B*");
-    }
-
-    // ── with filters — matching behavior ────────────────────────────────────
+    // ── no matches ───────────────────────────────────────────────────────────
 
     [Test]
     public void GetFilteredSource_NoMatchingMembers_ReturnsNoMatchesMessage()
     {
-        var path = FilePath("Helpers", "StandaloneHelper.cs");
-        var fullPath = Path.GetFullPath(path);
-        _fileStructure.GetItems(fullPath).Returns(
-        [
-            Item("public class StandaloneHelper", FileStructureItemKind.Type, 3, 10, 3, 3),
-            Item("string Format(string input)", FileStructureItemKind.Member, 5, 6, 5, 5)
-        ]);
-        SetupGlobPattern("*NonExistent*", _ => false);
+        // arrange
+        _fileReader.Add(FilePath, MemberContent);
 
-        var result = _sut.GetFilteredSource(path, ["*NonExistent*"]);
+        // act
+        var result = _sut.GetFilteredSource(FilePath, ["*NonExistent*"]);
 
+        // assert
         result.Should().Contain("No matches found");
     }
+
+    // ── member matching ──────────────────────────────────────────────────────
 
     [Test]
     public void GetFilteredSource_MatchingMember_IncludesCutMarker()
     {
-        var path = FilePath("Services", "AnimalService.cs");
-        var fullPath = Path.GetFullPath(path);
-        var lineCount = File.ReadAllLines(fullPath).Length;
-        _fileStructure.GetItems(fullPath).Returns(
-        [
-            Item("namespace TestProject.App.Services", FileStructureItemKind.Namespace, 7, lineCount, 7, 7),
-            Item("public class AnimalService : IAnimalService", FileStructureItemKind.Type, 9, lineCount, 9, 10),
-            Item("Animal? GetById(int id)", FileStructureItemKind.Member, 25, 26, 25, 25)
-        ]);
-        SetupGlobPattern("*GetById*", s => s.Contains("GetById"));
+        // arrange
+        _fileReader.Add(FilePath, MemberContent);
 
-        var result = _sut.GetFilteredSource(path, ["*GetById*"]);
+        // act
+        var result = _sut.GetFilteredSource(FilePath, ["*GetById*"]);
 
+        // assert
         result.Should().Contain("GetById");
         result.Should().Contain("cut");
     }
 
     [Test]
-    public void GetFilteredSource_NamespaceItems_NeverMatched()
+    public void GetFilteredSource_MatchingMember_IncludesNamespaceAndTypeDeclaration()
     {
-        var path = FilePath("Services", "AnimalService.cs");
-        var fullPath = Path.GetFullPath(path);
-        SetupMatchAll();
-        _fileStructure.GetItems(fullPath).Returns(
-        [
-            Item("namespace TestProject.App.Services", FileStructureItemKind.Namespace, 7, 42, 7, 7)
-        ]);
+        // arrange
+        _fileReader.Add(FilePath, MemberContent);
 
-        var result = _sut.GetFilteredSource(path, ["*"]);
+        // act
+        var result = _sut.GetFilteredSource(FilePath, ["*GetById*"]);
 
-        result.Should().Contain("No matches found");
-    }
-
-    [Test]
-    public void GetFilteredSource_LargeType_NotMatched()
-    {
-        var path = FilePath("Services", "AnimalService.cs");
-        var fullPath = Path.GetFullPath(path);
-        SetupMatchAll();
-        _fileStructure.GetItems(fullPath).Returns(
-        [
-            Item("public class HugeClass", FileStructureItemKind.Type, 1, 300, 1, 2)
-        ]);
-
-        var result = _sut.GetFilteredSource(path, ["*"]);
-
-        result.Should().Contain("No matches found");
-    }
-
-    [Test]
-    public void GetFilteredSource_SmallType_IsMatched()
-    {
-        var path = FilePath("Services", "AnimalService.cs");
-        var fullPath = Path.GetFullPath(path);
-        var lineCount = File.ReadAllLines(fullPath).Length;
-        SetupMatchAll();
-        _fileStructure.GetItems(fullPath).Returns(
-        [
-            Item("public class AnimalService : IAnimalService", FileStructureItemKind.Type, 9, lineCount, 9, 10)
-        ]);
-
-        var result = _sut.GetFilteredSource(path, ["*"]);
-
+        // assert
+        result.Should().Contain("namespace MyApp.Services");
         result.Should().Contain("class AnimalService");
+        result.Should().Contain("GetById");
     }
-
-    // ── declaration headers always visible ──────────────────────────────────
-
-    [Test]
-    public void GetFilteredSource_MatchedMember_IncludesTypeDeclaration()
-    {
-        var path = FilePath("Services", "AnimalService.cs");
-        var fullPath = Path.GetFullPath(path);
-        _fileStructure.GetItems(fullPath).Returns(
-        [
-            Item("namespace TestProject.App.Services", FileStructureItemKind.Namespace, 7, 42, 7, 7),
-            Item("public class AnimalService : IAnimalService", FileStructureItemKind.Type, 9, 42, 9, 10),
-            Item("Animal? GetById(int id)", FileStructureItemKind.Member, 25, 26, 25, 25)
-        ]);
-        SetupGlobPattern("*GetById*", s => s.Contains("GetById"));
-
-        var result = _sut.GetFilteredSource(path, ["*GetById*"]);
-
-        result.Should().Contain("class AnimalService");
-        result.Should().Contain("namespace");
-    }
-
-    // ── multiple matches ────────────────────────────────────────────────────
 
     [Test]
     public void GetFilteredSource_MultipleMatchingMembers_AllIncluded()
     {
-        var path = FilePath("Services", "AnimalService.cs");
-        var fullPath = Path.GetFullPath(path);
-        _fileStructure.GetItems(fullPath).Returns(
-        [
-            Item("namespace TestProject.App.Services", FileStructureItemKind.Namespace, 7, 42, 7, 7),
-            Item("public class AnimalService : IAnimalService", FileStructureItemKind.Type, 9, 42, 9, 10),
-            Item("Animal? GetById(int id)", FileStructureItemKind.Member, 25, 26, 25, 25),
-            Item("void Add(Animal animal)", FileStructureItemKind.Member, 31, 41, 31, 31)
-        ]);
-        SetupMatchAll();
+        // arrange
+        _fileReader.Add(FilePath, MemberContent);
 
-        var result = _sut.GetFilteredSource(path, ["*"]);
+        // act
+        var result = _sut.GetFilteredSource(FilePath, ["*GetById*", "*Add*"]);
 
+        // assert
         result.Should().Contain("GetById");
-        result.Should().Contain("Add(Animal animal)");
+        result.Should().Contain("void Add");
     }
 
-    // ── usings item ─────────────────────────────────────────────────────────
+    // ── usings ───────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetFilteredSource_UsingsItem_CanBeMatched()
+    public void GetFilteredSource_UsingsFilter_IncludesUsings()
     {
-        var path = FilePath("Services", "AnimalService.cs");
-        var fullPath = Path.GetFullPath(path);
-        _fileStructure.GetItems(fullPath).Returns(
-        [
-            Item("usings", FileStructureItemKind.Usings, 1, 5, 1, 1),
-            Item("namespace TestProject.App.Services", FileStructureItemKind.Namespace, 7, 42, 7, 7)
-        ]);
-        SetupGlobPattern("usings", s => s == "usings");
+        // arrange
+        _fileReader.Add(FilePath, MemberContent);
 
-        var result = _sut.GetFilteredSource(path, ["usings"]);
+        // act
+        var result = _sut.GetFilteredSource(FilePath, ["usings"]);
 
-        result.Should().Contain("using");
+        // assert
+        result.Should().Contain("using System");
     }
 
-    // ── helpers ─────────────────────────────────────────────────────────────
+    // ── namespace never matched directly ─────────────────────────────────────
 
-    static FileStructureItem Item(
-        string symbolString, FileStructureItemKind kind,
-        int startLine, int endLine,
-        int declLine, int declEndLine) => new()
+    [Test]
+    public void GetFilteredSource_NamespaceOnlyFile_ReturnsNoMatches()
     {
-        SymbolString = symbolString,
-        Kind = kind,
-        StartLine = startLine,
-        EndLine = endLine,
-        DeclarationLine = declLine,
-        DeclarationEndLine = declEndLine
-    };
+        // arrange — file with only a namespace declaration and no members
+        const string content = "namespace MyApp.Services;\n";
+        _fileReader.Add(FilePath, content);
 
-    void SetupGlobPattern(string pattern, Func<string, bool> matcher)
-    {
-        var mock = Substitute.For<IWildcardPattern>();
-        mock.IsMatch(Arg.Any<string>()).Returns(ci => matcher(ci.Arg<string>()));
-        _wildcardFactory.CreateGlob(pattern).Returns(mock);
+        // act
+        var result = _sut.GetFilteredSource(FilePath, ["*"]);
+
+        // assert
+        result.Should().Contain("No matches found");
     }
 
-    void SetupMatchAll()
+    // ── small type matched entirely ──────────────────────────────────────────
+
+    [Test]
+    public void GetFilteredSource_SmallTypeMatched_IncludesFullBody()
     {
-        var mock = Substitute.For<IWildcardPattern>();
-        mock.IsMatch(Arg.Any<string>()).Returns(true);
-        _wildcardFactory.CreateGlob(Arg.Any<string>()).Returns(mock);
+        // arrange
+        _fileReader.Add(FilePath, SmallTypeContent);
+
+        // act
+        var result = _sut.GetFilteredSource(FilePath, ["*SmallService*"]);
+
+        // assert
+        result.Should().Contain("GetName");
+        result.Should().Contain("Compute");
+    }
+
+    // ── large type matched — declaration only ────────────────────────────────
+
+    [Test]
+    public void GetFilteredSource_LargeTypeMatched_IncludesOnlyDeclaration()
+    {
+        // arrange
+        _fileReader.Add(FilePath, LargeTypeContent);
+
+        // act
+        var result = _sut.GetFilteredSource(FilePath, ["*LargeService*"]);
+
+        // assert — declaration with xmldoc and attribute present
+        result.Should().Contain("/// <summary>");
+        result.Should().Contain("[Obsolete");
+        result.Should().Contain("public class LargeService");
+        // body methods must not appear
+        result.Should().NotContain("Method1");
+        result.Should().NotContain("Method50");
+    }
+
+    // ── nested type ──────────────────────────────────────────────────────────
+
+    [Test]
+    public void GetFilteredSource_NestedTypeNotMatched_NotIncluded()
+    {
+        // arrange — filter matches only outer type methods, not nested type
+        _fileReader.Add(FilePath, NestedTypeContent);
+
+        // act
+        var result = _sut.GetFilteredSource(FilePath, ["*Method1*"]);
+
+        // assert
+        result.Should().Contain("Method1");
+        result.Should().NotContain("NestedConfig");
+    }
+
+    [Test]
+    public void GetFilteredSource_NestedTypeMatched_IncludesItsDeclaration()
+    {
+        // arrange
+        _fileReader.Add(FilePath, NestedTypeContent);
+
+        // act
+        var result = _sut.GetFilteredSource(FilePath, ["*NestedConfig*"]);
+
+        // assert
+        result.Should().Contain("NestedConfig");
+        result.Should().Contain("class OuterService");
     }
 }

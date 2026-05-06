@@ -3,7 +3,6 @@
 namespace AmazingMCP.Services;
 
 /// <summary>
-/// <summary>
 /// A compiled wildcard pattern. Create via <see cref="IWildcardPatternFactory"/>.
 /// </summary>
 public sealed class WildcardPattern(Regex regex) : IWildcardPattern

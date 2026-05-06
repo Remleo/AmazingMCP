@@ -13,10 +13,10 @@ public static class ReadCsFileDigestTool
         "without implementations. Lets you see the full shape of a large file in one call. " +
         "Then use read_large_cs_file to read the actual source of specific members.")]
     public static string ReadCsFileDigest(
-        IFileStructureService fileStructure,
+        IFileDigestService fileDigest,
         [Description("Absolute path to the .cs file")] string filePath)
     {
-        var result = fileStructure.GetStructure(filePath);
+        var result = fileDigest.GetStructure(filePath);
         return result + "\n\n" +
                "> PREFER `read_large_cs_file` over reading the raw file — shows real source of any member by name/signature without loading the whole file.\n" +
                "> Examples: `[\"*ProcessAsync*\"]`, `[\"usings\", \"*public*\"]`, `[\"*Async*\"]`";

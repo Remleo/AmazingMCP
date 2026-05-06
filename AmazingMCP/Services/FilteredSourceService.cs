@@ -1,32 +1,32 @@
-using System.Text.RegularExpressions;
 using AmazingMCP.Models;
 
 namespace AmazingMCP.Services;
 
-public class FilteredSourceService(IFileStructureService fileStructure, IWildcardPatternFactory wildcardFactory)
-    : IFilteredSourceService
+public class FilteredSourceService(
+    IFileStructureService fileStructure,
+    IWildcardPatternFactory wildcardFactory,
+    IFileReader fileReader) : IFilteredSourceService
 {
     const string CutMarker = "// << ... cut ... >>";
-    const int MaxTypeLines = 200;
+    const int SmallTypeThreshold = 50;
 
     public string GetFilteredSource(string filePath, string[]? filters)
     {
         filePath = Path.GetFullPath(filePath);
 
-        if (!File.Exists(filePath))
+        if (!fileReader.Exists(filePath))
             return $"File not found: {filePath}";
 
         if (filters is not { Length: > 0 })
         {
-            var fileInfo = new FileInfo(filePath);
-            if (fileInfo.Length > 30_000)
-                return $"File is too large ({fileInfo.Length:N0} chars) to return without filters. " +
+            if (fileReader.GetLength(filePath) > 30_000)
+                return $"File is too large ({fileReader.GetLength(filePath):N0} chars) to return without filters. " +
                        "Use wildcard `filters` to select specific members, or call `read_cs_file_digest` to see the compact outline.";
 
-            return File.ReadAllText(filePath);
+            return fileReader.ReadAllText(filePath);
         }
 
-        var sourceLines = File.ReadAllLines(filePath);
+        var sourceLines = fileReader.ReadAllLines(filePath);
         var items = fileStructure.GetItems(filePath);
         var matchers = filters.Select(wildcardFactory.CreateGlob).ToArray();
 
@@ -36,53 +36,48 @@ public class FilteredSourceService(IFileStructureService fileStructure, IWildcar
 
         foreach (var item in items)
         {
-            if (!IsMatchable(item)) continue;
-            if (!matchers.Any(r => r.IsMatch(item.SymbolString))) continue;
+            if (item.Kind == FileStructureItemKind.Namespace) continue;
+            if (!matchers.Any(m => m.IsMatch(item.SymbolString))) continue;
             if (!seen.Add(item.StartLine)) continue;
 
-            var end = Math.Min(item.EndLine, sourceLines.Length);
+            var end = item.Kind == FileStructureItemKind.Type && item.LineCount > SmallTypeThreshold
+                ? item.DeclarationEndLine
+                : Math.Min(item.EndLine, sourceLines.Length - 1);
+
             ranges.Add((item.StartLine, end));
         }
 
         if (ranges.Count == 0)
             return "// << ... cut ... >>\n// No matches found.";
 
-        // ── 2. collect always-visible declaration ranges (namespace + type header) ──
-        //    For types: DeclarationLine..DeclarationEndLine (header before '{')
-        //    For namespaces: just DeclarationLine (single line)
-        var declRanges = new List<(int Start, int End)>();
+        // ── 2. add container type declarations for all matched ranges ──────────
         foreach (var item in items)
         {
-            if (item.Kind is FileStructureItemKind.Namespace or FileStructureItemKind.Type)
-                declRanges.Add((item.DeclarationLine, item.DeclarationEndLine));
+            if (item.Kind != FileStructureItemKind.Type) continue;
+            if (ranges.Any(r => r.Start > item.StartLine && r.Start <= item.EndLine))
+                ranges.Add((item.StartLine, item.DeclarationEndLine));
         }
 
-        // ── 3. sort + merge matched ranges ────────────────────────────────────
+        // ── 3. add namespace declarations (always) ────────────────────────────
+        foreach (var item in items)
+        {
+            if (item.Kind == FileStructureItemKind.Namespace)
+                ranges.Add((item.StartLine, item.DeclarationEndLine));
+        }
+
+        // ── 4. sort + merge + build output ────────────────────────────────────
         ranges.Sort((a, b) => a.Start.CompareTo(b.Start));
         var merged = MergeRanges(ranges);
-
-        // ── 4. build output ───────────────────────────────────────────────────
-        return BuildOutput(sourceLines, merged, declRanges);
+        return BuildOutput(sourceLines, merged);
     }
-
-    // ── matching ───────────────────────────────────────────────────────────────
-
-    static bool IsMatchable(FileStructureItem item) => item.Kind switch
-    {
-        FileStructureItemKind.Namespace => false,
-        FileStructureItemKind.Type => item.LineCount <= MaxTypeLines,
-        _ => true // Usings, Member
-    };
 
     static string[] GetLines(string[] sourceLines, int from, int to)
     {
-        from = Math.Max(1, from);
-        to = Math.Min(sourceLines.Length, to);
-        if (from > to) return [ ];
-        return sourceLines[(from - 1)..to];
+        from = Math.Max(0, from);
+        to = Math.Min(sourceLines.Length - 1, to);
+        if (from > to) return [];
+        return sourceLines[from..(to + 1)];
     }
-
-    // ── range merging ──────────────────────────────────────────────────────────
 
     static List<(int Start, int End)> MergeRanges(List<(int Start, int End)> sorted)
     {
@@ -105,24 +100,17 @@ public class FilteredSourceService(IFileStructureService fileStructure, IWildcar
         return result;
     }
 
-    // ── output assembly ────────────────────────────────────────────────────────
-
-    static string BuildOutput(
-        string[] sourceLines,
-        List<(int Start, int End)> ranges,
-        List<(int Start, int End)> declRanges)
+    static string BuildOutput(string[] sourceLines, List<(int Start, int End)> ranges)
     {
-        var allRanges = MergeWithDeclarations(ranges, declRanges);
-
         var output = new List<string>();
-        var prevEnd = 0;
+        var prevEnd = -1;
 
-        foreach (var (start, end) in allRanges)
+        foreach (var (start, end) in ranges)
         {
             AppendGap(output, sourceLines, prevEnd + 1, start - 1);
 
             for (var line = start; line <= end; line++)
-                output.Add(sourceLines[line - 1]);
+                output.Add(sourceLines[line]);
 
             prevEnd = end;
         }
@@ -132,21 +120,6 @@ public class FilteredSourceService(IFileStructureService fileStructure, IWildcar
         return string.Join(Environment.NewLine, output).TrimEnd();
     }
 
-    static List<(int Start, int End)> MergeWithDeclarations(
-        List<(int Start, int End)> ranges,
-        List<(int Start, int End)> declRanges)
-    {
-        var uncoveredDecls = declRanges
-            .Where(d => !ranges.Any(r => d.Start >= r.Start && d.End <= r.End));
-
-        var allRanges = ranges
-            .Concat(uncoveredDecls)
-            .OrderBy(r => r.Start)
-            .ToList();
-
-        return allRanges.Count > 0 ? MergeRanges(allRanges) : allRanges;
-    }
-
     static void AppendGap(List<string> output, string[] sourceLines, int from, int to)
     {
         if (from > to) return;
@@ -154,7 +127,6 @@ public class FilteredSourceService(IFileStructureService fileStructure, IWildcar
         var gapLines = GetLines(sourceLines, from, to);
         if (gapLines.Sum(l => l.Length) <= CutMarker.Length)
         {
-            // Gap is shorter than the marker itself — emit original lines
             output.AddRange(gapLines);
         }
         else
@@ -168,7 +140,7 @@ public class FilteredSourceService(IFileStructureService fileStructure, IWildcar
 
     static void AppendTrailing(List<string> output, string[] sourceLines, int from)
     {
-        var trailingLines = GetLines(sourceLines, from, sourceLines.Length);
+        var trailingLines = GetLines(sourceLines, from, sourceLines.Length - 1);
         if (trailingLines.All(l => string.IsNullOrWhiteSpace(l))) return;
 
         if (trailingLines.Sum(l => l.Length) <= CutMarker.Length)
