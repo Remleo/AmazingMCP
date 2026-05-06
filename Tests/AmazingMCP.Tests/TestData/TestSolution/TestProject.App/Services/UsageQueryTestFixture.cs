@@ -199,6 +199,13 @@ public class UsageQueryTestFixture
         });
     }
 
+    // ── Private method — usages inside must still be found ───────────────────
+
+    bool IsValidAnimal(Animal animal) => animal.Name.Length > 0;
+
+    public bool CheckDefault() => IsValidAnimal(_defaultAnimal);       // implicit-this method call
+    public bool CheckDefaultExplicit() => this.IsValidAnimal(_defaultAnimal); // explicit this. method call
+
     // ── Extension method call ─────────────────────────────────────────────────
 
     public string FormatAnimalLabel(Animal animal)

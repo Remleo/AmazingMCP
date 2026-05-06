@@ -56,15 +56,18 @@ public static class QueryEntryFactory
         var symbol = model.GetSymbolInfo(node).Symbol as IMethodSymbol;
         if (symbol is null) return null;
 
-        // Skip if this is not a member access — no explicit receiver
-        if (node.Expression is not MemberAccessExpressionSyntax memberAccess)
-            return null;
-
-        // Use the receiver's actual type so that e.g. ILogger<T> is preserved
-        // even when the method is declared on a base type or as an extension method.
-        var receiverType = model.GetTypeInfo(memberAccess.Expression).Type;
-        var typeName = receiverType?.ToDisplayString()
-                       ?? symbol.ContainingType.ToDisplayString();
+        string typeName;
+        if (node.Expression is MemberAccessExpressionSyntax memberAccess)
+        {
+            // Explicit receiver: animal.FormatLabel(...) or obj.Method(...)
+            var receiverType = model.GetTypeInfo(memberAccess.Expression).Type;
+            typeName = receiverType?.ToDisplayString() ?? symbol.ContainingType.ToDisplayString();
+        }
+        else
+        {
+            // Implicit this: Method(...) — use the containing type
+            typeName = symbol.ContainingType.ToDisplayString();
+        }
 
         return new QueryEntry
         {

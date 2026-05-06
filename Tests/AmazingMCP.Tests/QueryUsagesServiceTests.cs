@@ -49,11 +49,11 @@ public class QueryUsagesServiceTests
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         // assert — no matches where the scope type equals the target type
-        // (self-references like accessing own fields/methods should be excluded)
+        // for field/property access (self-references like accessing own fields should be excluded).
+        // MethodCall is intentionally excluded from this check — implicit-this calls are valid usages.
         var selfRefs = matches.Where(m =>
             m.Entry.Kind is UsageKind.FieldRead or UsageKind.FieldWrite
                          or UsageKind.PropertyRead or UsageKind.PropertyWrite
-                         or UsageKind.MethodCall
             && m.Entry.TypeName == "TestProject.App.Services.UsageQueryTestFixture").ToList();
 
         selfRefs.Should().BeEmpty();
@@ -849,6 +849,55 @@ public class QueryUsagesServiceTests
         matches.Should().NotBeEmpty();
         matches.Should().Contain(m =>
             m.Entry.Kind == UsageKind.PropertyRead || m.Entry.Kind == UsageKind.PropertyWrite);
+    }
+
+    [Test]
+    public async Task QueryAsync_MethodCall_WithExplicitThis_IsFound()
+    {
+        // arrange — CheckDefaultExplicit() calls this.IsValidAnimal(...)
+
+        // act
+        var matches = await Act(
+            "TestProject.App.Services.UsageQueryTestFixture",
+            predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"IsValidAnimal\"",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert
+        matches.Should().Contain(m => m.Scope.MethodName == "CheckDefaultExplicit",
+            "explicit this. method calls must be found");
+    }
+
+    [Test]
+    public async Task QueryAsync_MethodCall_WithoutExplicitReceiver_IsFound()
+    {
+        // arrange — CheckDefault() calls IsValidAnimal(_defaultAnimal) without explicit 'this.'
+        // This is an implicit-this invocation — Expression is IdentifierNameSyntax, not MemberAccessExpressionSyntax
+
+        // act
+        var matches = await Act(
+            "TestProject.App.Services.UsageQueryTestFixture",
+            predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"IsValidAnimal\"",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert
+        matches.Should().NotBeEmpty();
+        matches.Should().Contain(m => m.Scope.MethodName == "CheckDefault");
+    }
+
+    [Test]
+    public async Task QueryAsync_UsageInsidePrivateMethod_IsFound()
+    {
+        // arrange — IsValidAnimal is a private method that uses Animal.Name (PropertyRead)
+
+        // act
+        var matches = await Act(
+            "TestProject.Core.Models.Animal",
+            predicate: "x.Kind == UsageKind.PropertyRead && x.PropertyName == \"Name\"",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert
+        matches.Should().Contain(m => m.Scope.MethodName == "IsValidAnimal",
+            "usages inside private methods must be found");
     }
 
     [Test]
