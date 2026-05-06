@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using TestProject.App.Helpers;
 using TestProject.Core.Logging;
 using TestProject.Core.Models;
 using TestProject.Core.Persistence;
@@ -196,6 +197,14 @@ public class UsageQueryTestFixture
                 ExtraField = "value",
             };
         });
+    }
+
+    // ── Extension method call ─────────────────────────────────────────────────
+
+    public string FormatAnimalLabel(Animal animal)
+    {
+        // MethodCall on AnimalExtensions — extension method call
+        return animal.FormatLabel("Animal");
     }
 
     // ── Usage as parameter AND in body — definition must not be shown twice ──────

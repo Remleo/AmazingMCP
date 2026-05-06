@@ -11,9 +11,9 @@ namespace AmazingMCP.Services;
 /// </summary>
 public static class QueryEntryFactory
 {
-    public static QueryEntry? TryCreate(SyntaxNode node, SemanticModel model)
+    public static IEnumerable<QueryEntry> TryCreate(SyntaxNode node, SemanticModel model)
     {
-        return node switch
+        var entry = node switch
         {
             InvocationExpressionSyntax invocation           => FromInvocation(invocation, model),
             ObjectCreationExpressionSyntax ctor             => FromObjectCreation(ctor, model),
@@ -23,7 +23,29 @@ public static class QueryEntryFactory
             GenericNameSyntax generic                       => FromGenericName(generic, model),
             TypeConstraintSyntax constraint                 => FromTypeConstraint(constraint, model),
             ParameterSyntax parameter                       => FromParameter(parameter, model),
-            _ => null
+            _ => null,
+        };
+
+        if (entry is null) yield break;
+        yield return entry;
+
+        var extensionEntry = TryCreateExtensionMethodEntry(node, entry, model);
+        if (extensionEntry is not null)
+            yield return extensionEntry;
+    }
+
+    static QueryEntry? TryCreateExtensionMethodEntry(SyntaxNode node, QueryEntry receiverEntry, SemanticModel model)
+    {
+        if (node is not InvocationExpressionSyntax inv) return null;
+        if (model.GetSymbolInfo(inv).Symbol is not IMethodSymbol { IsExtensionMethod: true } sym)
+            return null;
+
+        return new QueryEntry
+        {
+            Kind = UsageKind.MethodCall,
+            TypeName = sym.ContainingType.ToDisplayString(),
+            MethodName = sym.Name,
+            ArgumentTypes = receiverEntry.ArgumentTypes,
         };
     }
 
@@ -71,8 +93,7 @@ public static class QueryEntryFactory
 
     static QueryEntry? FromImplicitObjectCreation(ImplicitObjectCreationExpressionSyntax node, SemanticModel model)
     {
-        var symbol = model.GetSymbolInfo(node).Symbol as IMethodSymbol;
-        if (symbol is null) return null;
+        if (model.GetSymbolInfo(node).Symbol is not IMethodSymbol symbol) return null;
 
         return new QueryEntry
         {
@@ -96,7 +117,7 @@ public static class QueryEntryFactory
         {
             IPropertySymbol prop => BuildPropertyEntry(node, prop, model),
             IFieldSymbol field   => BuildFieldEntry(node, field, model),
-            _                    => null
+            _                    => null,
         };
     }
 
@@ -132,73 +153,61 @@ public static class QueryEntryFactory
 
     static QueryEntry? FromIdentifier(IdentifierNameSyntax node, SemanticModel model)
     {
-        // Type argument: List<Animal>, IHandler<Animal, int>, Method<Animal>()
-        if (node.Parent is TypeArgumentListSyntax)
-        {
-            var typeSymbol = model.GetTypeInfo(node).Type;
-            if (typeSymbol is null) return null;
-            return new QueryEntry
-            {
-                Kind = UsageKind.TypeAsGenericArgument,
-                TypeName = typeSymbol.ToDisplayString(),
-            };
-        }
+        return TryFromTypeArgument(node, model)
+            ?? TryFromObjectInitializerLeft(node, model)
+            ?? TryFromObjectInitializerRight(node, model)
+            ?? TryFromSymbol(node, model);
+    }
 
-        // Object initializer property: new Foo { Name = "literal" } or { Name = expr }
-        // The identifier is the left-hand side (property/field name) of an assignment inside an initializer.
-        if (node.Parent is AssignmentExpressionSyntax initAssign
-            && initAssign.Left == node
-            && initAssign.Parent is InitializerExpressionSyntax)
-        {
-            var symbol2 = model.GetSymbolInfo(node).Symbol;
-            if (symbol2 is IPropertySymbol initProp)
-                return new QueryEntry
-                {
-                    Kind = UsageKind.PropertyWrite,
-                    TypeName = initProp.ContainingType.ToDisplayString(),
-                    PropertyName = initProp.Name,
-                };
-            if (symbol2 is IFieldSymbol initField)
-                return new QueryEntry
-                {
-                    Kind = UsageKind.FieldWrite,
-                    TypeName = initField.ContainingType.ToDisplayString(),
-                    FieldName = initField.Name,
-                };
-        }
+    static QueryEntry? TryFromTypeArgument(IdentifierNameSyntax node, SemanticModel model)
+    {
+        if (node.Parent is not TypeArgumentListSyntax) return null;
+        var typeSymbol = model.GetTypeInfo(node).Type;
+        if (typeSymbol is null) return null;
+        return new QueryEntry { Kind = UsageKind.TypeAsGenericArgument, TypeName = typeSymbol.ToDisplayString() };
+    }
 
-        // Object initializer value: new Foo { Logger = logger }
-        // The identifier is the right-hand side of an assignment inside an initializer.
-        if (node.Parent is AssignmentExpressionSyntax assign
-            && assign.Right == node
-            && assign.Parent is InitializerExpressionSyntax)
-        {
-            var typeSymbol = model.GetTypeInfo(node).Type;
-            if (typeSymbol is null) return null;
-            return new QueryEntry
-            {
-                Kind = UsageKind.PropertyWrite,
-                TypeName = typeSymbol.ToDisplayString(),
-                PropertyName = assign.Left is IdentifierNameSyntax lhs ? lhs.Identifier.Text : null,
-            };
-        }
+    static QueryEntry? TryFromObjectInitializerLeft(IdentifierNameSyntax node, SemanticModel model)
+    {
+        if (node.Parent is not AssignmentExpressionSyntax assign
+            || assign.Left != node
+            || assign.Parent is not InitializerExpressionSyntax) return null;
 
-        // Skip declaration contexts and noise
+        return model.GetSymbolInfo(node).Symbol switch
+        {
+            IPropertySymbol p => new QueryEntry { Kind = UsageKind.PropertyWrite, TypeName = p.ContainingType.ToDisplayString(), PropertyName = p.Name },
+            IFieldSymbol f    => new QueryEntry { Kind = UsageKind.FieldWrite,    TypeName = f.ContainingType.ToDisplayString(), FieldName = f.Name },
+            _                 => null,
+        };
+    }
+
+    static QueryEntry? TryFromObjectInitializerRight(IdentifierNameSyntax node, SemanticModel model)
+    {
+        if (node.Parent is not AssignmentExpressionSyntax assign
+            || assign.Right != node
+            || assign.Parent is not InitializerExpressionSyntax) return null;
+
+        var typeSymbol = model.GetTypeInfo(node).Type;
+        if (typeSymbol is null) return null;
+        return new QueryEntry
+        {
+            Kind = UsageKind.PropertyWrite,
+            TypeName = typeSymbol.ToDisplayString(),
+            PropertyName = assign.Left is IdentifierNameSyntax lhs ? lhs.Identifier.Text : null,
+        };
+    }
+
+    static QueryEntry? TryFromSymbol(IdentifierNameSyntax node, SemanticModel model)
+    {
         if (IsDeclarationContext(node)) return null;
-        if (node.Parent is MemberAccessExpressionSyntax ma && ma.Name == node) return null;
-        if (node.Parent is InvocationExpressionSyntax) return null;
-        if (node.Parent is QualifiedNameSyntax) return null;
 
-        var symbol = model.GetSymbolInfo(node).Symbol;
-        return symbol switch
+        if (node.Parent is MemberAccessExpressionSyntax ma && ma.Name == node) return null;
+        if (node.Parent is InvocationExpressionSyntax or QualifiedNameSyntax) return null;
+
+        return model.GetSymbolInfo(node).Symbol switch
         {
-            // Self-references (no explicit receiver) — skip, these are not usages of the type
-            // from an external perspective. Only MemberAccessExpressionSyntax carries receiver info.
-            IPropertySymbol => null,
-            IFieldSymbol    => null,
-            // IMethodSymbol here is never a MethodCall — only possible in return type context
-            IMethodSymbol => TryBuildReturnTypeEntry(node, model),
-            _ => TryBuildReturnTypeEntry(node, model)
+            IPropertySymbol or IFieldSymbol => null,
+            _                               => TryBuildReturnTypeEntry(node, model),
         };
     }
 
@@ -258,19 +267,15 @@ public static class QueryEntryFactory
 
     static QueryEntry? TryBuildReturnTypeEntry(IdentifierNameSyntax node, SemanticModel model)
     {
-        var parent = node.Parent;
+        var isReturnTypeContext = node.Parent switch
+        {
+            MethodDeclarationSyntax method                                                    => method.ReturnType == node,
+            PropertyDeclarationSyntax prop                                                    => prop.Type == node,
+            VariableDeclarationSyntax varDecl when varDecl.Parent is FieldDeclarationSyntax  => varDecl.Type == node,
+            _                                                                                 => false,
+        };
 
-        if (parent is MethodDeclarationSyntax method && method.ReturnType == node)
-            return BuildReturnTypeEntry(node, model);
-
-        if (parent is PropertyDeclarationSyntax prop && prop.Type == node)
-            return BuildReturnTypeEntry(node, model);
-
-        if (parent is VariableDeclarationSyntax varDecl && varDecl.Type == node &&
-            varDecl.Parent is FieldDeclarationSyntax)
-            return BuildReturnTypeEntry(node, model);
-
-        return null;
+        return isReturnTypeContext ? BuildReturnTypeEntry(node, model) : null;
     }
 
     static QueryEntry? BuildReturnTypeEntry(IdentifierNameSyntax node, SemanticModel model)
@@ -290,26 +295,16 @@ public static class QueryEntryFactory
     {
         ExplicitInterfaceSpecifierSyntax => true,
         NameEqualsSyntax                 => true,
-        _                                => false
+        _                                => false,
     };
 
-    static bool IsWriteTarget(SyntaxNode node)
+    static bool IsWriteTarget(SyntaxNode node) => node.Parent switch
     {
-        var parent = node.Parent;
-
-        if (parent is AssignmentExpressionSyntax assign && assign.Left == node)
-            return true;
-
-        if (parent is AssignmentExpressionSyntax initAssign &&
-            initAssign.Parent is InitializerExpressionSyntax)
-            return true;
-
-        if (parent is ArgumentSyntax arg &&
-            arg.RefKindKeyword.IsKind(SyntaxKind.OutKeyword))
-            return true;
-
-        return false;
-    }
+        AssignmentExpressionSyntax assign when assign.Left == node                                    => true,
+        AssignmentExpressionSyntax { Parent: InitializerExpressionSyntax }                            => true,
+        ArgumentSyntax arg when arg.RefKindKeyword.IsKind(SyntaxKind.OutKeyword)                      => true,
+        _                                                                                             => false,
+    };
 
     static IReadOnlyList<string> GetArgumentTypes(ArgumentListSyntax? argList, SemanticModel model)
     {

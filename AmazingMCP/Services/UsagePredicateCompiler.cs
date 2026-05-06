@@ -27,21 +27,21 @@ public static class UsagePredicateCompiler
     static Func<QueryEntry, bool> BuildDelegate(string expression)
     {
         var fullSource = $$"""
-            using System;
-            using System.Linq;
-            using System.Collections.Generic;
-            using AmazingMCP.Models;
+                           using System;
+                           using System.Linq;
+                           using System.Collections.Generic;
+                           using AmazingMCP.Models;
 
-            public static class __Predicate
-            {
-                public static bool Evaluate(QueryEntry x) => {{expression}};
-            }
-            """;
+                           public static class __Predicate
+                           {
+                               public static bool Evaluate(QueryEntry x) => {{expression}};
+                           }
+                           """;
 
         var syntaxTree = CSharpSyntaxTree.ParseText(fullSource);
         var compilation = CSharpCompilation.Create(
             "__PredicateAssembly_" + Guid.NewGuid().ToString("N"),
-            [syntaxTree],
+            [ syntaxTree ],
             BuildReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
                 nullableContextOptions: NullableContextOptions.Enable));
@@ -63,26 +63,13 @@ public static class UsagePredicateCompiler
         var type = assembly.GetType("__Predicate")!;
         var method = type.GetMethod("Evaluate", BindingFlags.Public | BindingFlags.Static)!;
 
-        return entry => (bool)method.Invoke(null, [entry])!;
+        return entry => (bool) method.Invoke(null, [ entry ])!;
     }
 
-    static MetadataReference[] BuildReferences()
-    {
-        var refs = new List<MetadataReference>
-        {
-            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
-            MetadataReference.CreateFromFile(typeof(QueryEntry).Assembly.Location),
-        };
-
-        var runtimeDir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-        foreach (var name in new[] { "System.Runtime.dll", "System.Collections.dll", "netstandard.dll" })
-        {
-            var path = Path.Combine(runtimeDir, name);
-            if (File.Exists(path))
-                refs.Add(MetadataReference.CreateFromFile(path));
-        }
-
-        return refs.ToArray();
-    }
+    static MetadataReference[] BuildReferences() =>
+        ((AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string) ?? "")
+        .Split(';', StringSplitOptions.RemoveEmptyEntries)
+        .Where(File.Exists)
+        .Select(p => (MetadataReference) MetadataReference.CreateFromFile(p))
+        .ToArray();
 }

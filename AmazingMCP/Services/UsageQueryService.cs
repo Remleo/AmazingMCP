@@ -311,11 +311,11 @@ public sealed class UsageQueryService(
             // Only attempt to create entries when we're inside a type
             if (_currentTypeName is not null)
             {
-                var entry = QueryEntryFactory.TryCreate(node, model);
-                if (entry is not null
-                    && typeFilter.IsMatch(entry.TypeName)
-                    && (predicate is null || predicate(entry)))
+                foreach (var entry in QueryEntryFactory.TryCreate(node, model))
                 {
+                    if (!typeFilter.IsMatch(entry.TypeName)) continue;
+                    if (predicate is not null && !predicate(entry)) continue;
+
                     var section = SectionResolver.Resolve(node);
                     var lineSpan = node.GetLocation().GetLineSpan();
                     var matchLine = lineSpan.StartLinePosition.Line + 1;
@@ -330,6 +330,7 @@ public sealed class UsageQueryService(
                         matchLine);
 
                     results.Add(new UsageMatch(entry, scope));
+                    if (results.Count >= limit) break;
                 }
             }
 

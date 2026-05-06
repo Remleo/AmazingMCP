@@ -852,6 +852,24 @@ public class QueryUsagesServiceTests
     }
 
     [Test]
+    public async Task QueryAsync_ExtensionMethodCall_IsFound()
+    {
+        // arrange — FormatAnimalLabel calls animal.FormatLabel("Animal")
+        // which is an extension method on AnimalExtensions static class
+
+        // act
+        var matches = await Act(
+            "TestProject.App.Helpers.AnimalExtensions",
+            predicate: "x.Kind == UsageKind.MethodCall",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert
+        matches.Should().NotBeEmpty();
+        matches.Should().Contain(m =>
+            m.Scope.MethodName == "FormatAnimalLabel");
+    }
+
+    [Test]
     public async Task QueryAsync_Cs14ExtensionBlock_AnimalAsExtendedType_IsFound()
     {
         // act
