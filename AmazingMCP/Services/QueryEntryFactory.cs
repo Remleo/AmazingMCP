@@ -209,8 +209,19 @@ public static class QueryEntryFactory
 
         return model.GetSymbolInfo(node).Symbol switch
         {
-            IPropertySymbol or IFieldSymbol => null,
-            _                               => TryBuildReturnTypeEntry(node, model),
+            IPropertySymbol prop => new QueryEntry
+            {
+                Kind = IsWriteTarget(node) ? UsageKind.PropertyWrite : UsageKind.PropertyRead,
+                TypeName = prop.Type.ToDisplayString(),
+                PropertyName = prop.Name,
+            },
+            IFieldSymbol field => new QueryEntry
+            {
+                Kind = IsWriteTarget(node) ? UsageKind.FieldWrite : UsageKind.FieldRead,
+                TypeName = field.Type.ToDisplayString(),
+                FieldName = field.Name,
+            },
+            _ => TryBuildReturnTypeEntry(node, model),
         };
     }
 

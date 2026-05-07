@@ -205,6 +205,7 @@ public class UsageQueryTestFixture
 
     public bool CheckDefault() => IsValidAnimal(_defaultAnimal);       // implicit-this method call
     public bool CheckDefaultExplicit() => this.IsValidAnimal(_defaultAnimal); // explicit this. method call
+    public void SaveDefault() => _repository.Save(_defaultAnimal);    // implicit-this field read as argument
 
     // ── Extension method call ─────────────────────────────────────────────────
 

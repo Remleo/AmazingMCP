@@ -852,6 +852,23 @@ public class QueryUsagesServiceTests
     }
 
     [Test]
+    public async Task QueryAsync_FieldRead_ImplicitThis_AsArgument_IsFound()
+    {
+        // arrange — SaveDefault() passes _defaultAnimal as argument: _repository.Save(_defaultAnimal)
+        // _defaultAnimal is Animal — implicit-this field read without explicit receiver
+
+        // act
+        var matches = await Act(
+            "TestProject.Core.Models.Animal",
+            predicate: "x.Kind == UsageKind.FieldRead && x.FieldName == \"_defaultAnimal\"",
+            scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
+
+        // assert
+        matches.Should().Contain(m => m.Scope.MethodName == "SaveDefault",
+            "implicit-this field reads passed as arguments must be found");
+    }
+
+    [Test]
     public async Task QueryAsync_MethodCall_WithExplicitThis_IsFound()
     {
         // arrange — CheckDefaultExplicit() calls this.IsValidAnimal(...)
