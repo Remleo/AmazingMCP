@@ -46,8 +46,10 @@ public static class CodeLensFormatter
         if (all.Count > 0)
         {
             if (sb.Length > 0) sb.AppendLine();
+            sb.AppendLine("```");
             foreach (var e in all)
                 sb.AppendLine(FormatEntry(e));
+            sb.AppendLine("```");
         }
 
         if (sb.Length == 0)

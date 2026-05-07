@@ -116,6 +116,10 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
                 case IMethodSymbol m when m.MethodKind == MethodKind.Ordinary:
                     sb.AppendLine($"{prefix}{m.ToDisplayString(MemberFormat)}");
                     break;
+
+                case IMethodSymbol m when IsOperator(m):
+                    sb.AppendLine($"{prefix}{m.ToDisplayString(MemberFormat)}");
+                    break;
             }
         }
 
@@ -123,6 +127,9 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
         foreach (var nested in type.GetTypeMembers().Where(t => IsVisible(t.DeclaredAccessibility)))
             sb.AppendLine($"{prefix}{FormatTypeHeader(nested)}");
     }
+
+    static bool IsOperator(IMethodSymbol m) =>
+        m.MethodKind is MethodKind.UserDefinedOperator or MethodKind.Conversion;
 
     // Returns true for all accessibilities visible outside the declaring type (public, internal, protected variants).
     static bool IsVisible(Accessibility a) => a is
