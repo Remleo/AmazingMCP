@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace AmazingMCP.Services;
 
-public class FileDigestService(IFileReader fileReader) : IFileDigestService
+public class FileDigestService(IFileReader fileReader, IXmlDocExtractor xmlDoc) : IFileDigestService
 {
     public string GetStructure(string filePath)
     {
@@ -35,7 +35,7 @@ public class FileDigestService(IFileReader fileReader) : IFileDigestService
         sb.AppendLine($"/*{pos}*/ usings");
     }
 
-    static void WalkNodes(IEnumerable<SyntaxNode> nodes, StringBuilder sb, int indent)
+    void WalkNodes(IEnumerable<SyntaxNode> nodes, StringBuilder sb, int indent)
     {
         foreach (var node in nodes)
         {
@@ -54,7 +54,8 @@ public class FileDigestService(IFileReader fileReader) : IFileDigestService
                 case TypeDeclarationSyntax type:
                     foreach (var a in type.AttributeLists)
                         sb.AppendLine($"{SyntaxNodeFormatter.Pad(indent)}/*{SyntaxNodeFormatter.Pos(a)}*/ {a.ToString().Trim()}");
-                    XmlDocExtractor.AppendXmlDoc(type, sb, indent);
+                    if (xmlDoc.ExtractDocDigest(type) is { } typeDoc)
+                        sb.AppendLine($"{SyntaxNodeFormatter.Pad(indent)}/// {typeDoc}");
                     sb.AppendLine($"{SyntaxNodeFormatter.Pad(indent)}/*{SyntaxNodeFormatter.Pos(type)}*/ {SyntaxNodeFormatter.Sig(type)}");
                     WalkNodes(type.Members, sb, indent + 1);
                     break;
@@ -62,7 +63,8 @@ public class FileDigestService(IFileReader fileReader) : IFileDigestService
                 case EnumDeclarationSyntax enumDecl:
                     foreach (var a in enumDecl.AttributeLists)
                         sb.AppendLine($"{SyntaxNodeFormatter.Pad(indent)}/*{SyntaxNodeFormatter.Pos(a)}*/ {a.ToString().Trim()}");
-                    XmlDocExtractor.AppendXmlDoc(enumDecl, sb, indent);
+                    if (xmlDoc.ExtractDocDigest(enumDecl) is { } enumDoc)
+                        sb.AppendLine($"{SyntaxNodeFormatter.Pad(indent)}/// {enumDoc}");
                     sb.AppendLine($"{SyntaxNodeFormatter.Pad(indent)}/*{SyntaxNodeFormatter.Pos(enumDecl)}*/ {SyntaxNodeFormatter.Sig(enumDecl)}");
                     foreach (var member in enumDecl.Members)
                         sb.AppendLine($"{SyntaxNodeFormatter.Pad(indent + 1)}/*{SyntaxNodeFormatter.Pos(member)}*/ {member.ToString().Trim()}");
@@ -75,7 +77,7 @@ public class FileDigestService(IFileReader fileReader) : IFileDigestService
         }
     }
 
-    static void AppendMember(MemberDeclarationSyntax member, StringBuilder sb, int indent)
+    void AppendMember(MemberDeclarationSyntax member, StringBuilder sb, int indent)
     {
         var sig = MemberSignatureExtractor.GetSignature(member);
         if (string.IsNullOrWhiteSpace(sig)) return;
@@ -83,7 +85,8 @@ public class FileDigestService(IFileReader fileReader) : IFileDigestService
         sig = MemberSignatureExtractor.StripLeadingAttributes(member, sig);
         if (string.IsNullOrWhiteSpace(sig)) return;
 
-        XmlDocExtractor.AppendXmlDoc(member, sb, indent);
+        if (xmlDoc.ExtractDocDigest(member) is { } memberDoc)
+            sb.AppendLine($"{SyntaxNodeFormatter.Pad(indent)}/// {memberDoc}");
 
         foreach (var attrList in member.AttributeLists)
             sb.AppendLine($"{SyntaxNodeFormatter.Pad(indent)}{attrList.ToString().Trim()}");

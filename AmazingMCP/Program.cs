@@ -15,6 +15,7 @@ builder.Services.AddSingleton<IWildcardPatternFactory, WildcardPatternFactory>()
 builder.Services.AddSingleton<WorkspaceProvider>();
 builder.Services.AddSingleton<IWorkspaceProvider>(sp => sp.GetRequiredService<WorkspaceProvider>());
 builder.Services.AddSingleton<SolutionResolver>();
+builder.Services.AddSingleton<IXmlDocExtractor, XmlDocExtractor>();
 builder.Services.AddSingleton<RoslynSymbolService>();
 builder.Services.AddSingleton<SymbolInfoService>();
 builder.Services.AddSingleton<IFileReader, FileSystemFileReader>();

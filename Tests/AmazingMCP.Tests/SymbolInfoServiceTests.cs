@@ -15,7 +15,7 @@ public class SymbolInfoServiceTests
     public async Task OneTimeSetUp()
     {
         _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
-        _sut = new SymbolInfoService(new RoslynSymbolService(new TestWorkspaceProvider(_cachedSolution), new WildcardPatternFactory()));
+        _sut = new SymbolInfoService(new RoslynSymbolService(new TestWorkspaceProvider(_cachedSolution), new WildcardPatternFactory()), new XmlDocExtractor());
     }
 
     async Task<string> Act(string typeName) =>
@@ -746,6 +746,96 @@ public class SymbolInfoServiceTests
         // assert
         result.Should().MatchRegex(@"operator >\(AnimalWeight");
         result.Should().MatchRegex(@"operator <\(AnimalWeight");
+    }
+
+    #endregion
+
+    #region XML doc for third-party types
+
+    [Test]
+    public async Task GetSymbolInfoAsync_SourceType_DoesNotContainXmlDoc()
+    {
+        // Source types have no ISymbol XML doc — only syntax-based doc shown via FileDigest
+        var result = await Act("TestProject.Core.Models.Animal");
+
+        // The header line should not contain "///"
+        var headerLine = result.Split('\n').First(l => l.Contains("Animal") && l.Contains("source:"));
+        headerLine.Should().NotContain("///");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ThirdPartyType_XmlDocAppearsBeforeTypeHeader()
+    {
+        // AutoMapper.TypeMap has XML doc on the type itself
+        var result = await Act("AutoMapper.TypeMap");
+
+        // Find the assembly comment line, doc should follow, then type header
+        var lines = result.Split('\n');
+        var assemblyIdx = Array.FindIndex(lines, l => l.TrimStart().StartsWith("// assembly: AutoMapper"));
+        assemblyIdx.Should().BeGreaterThanOrEqualTo(0, "assembly comment line should exist");
+        lines[assemblyIdx + 2].TrimStart().Should().StartWith("///");
+        result.Should().Contain("TypeMap");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ThirdPartyType_MultilineXmlDocHasTripleSlashOnEveryLine()
+    {
+        // IMapper's doc is multi-line — every line must start with "///"
+        var result = await Act("AutoMapper.IMapper");
+
+        var lines = result.Split('\n');
+        var docLines = lines
+            .SkipWhile(l => !l.TrimStart().StartsWith("///"))
+            .TakeWhile(l => l.TrimStart().StartsWith("///"))
+            .ToList();
+
+        docLines.Should().HaveCountGreaterThan(1, "IMapper XML doc should be multi-line");
+        docLines.Should().AllSatisfy(l => l.TrimStart().Should().StartWith("///"));
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ThirdPartyType_XmlDocDoesNotContainMemberWrapperTag()
+    {
+        // GetDocumentationCommentXml() wraps content in <member name="..."> — must be stripped
+        var result = await Act("AutoMapper.IMapper");
+
+        result.Should().NotContain("<member ");
+        result.Should().NotContain("</member>");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ThirdPartyType_XmlDocContainsSummaryTag()
+    {
+        // after stripping <member>, the <summary> content should be present
+        var result = await Act("AutoMapper.IMapper");
+
+        result.Should().Contain("<summary>");
+        result.Should().Contain("</summary>");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ThirdPartyType_MemberXmlDocAppearsBeforeMemberSignature()
+    {
+        // doc for a member must appear before the member's signature line
+        var result = await Act("AutoMapper.IMapper");
+
+        // Find a "/// " line followed by a non-doc line (the member signature)
+        result.Should().MatchRegex(@"/// .*\n\s+\S");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_ThirdPartyBaseType_XmlDocIsShown()
+    {
+        // When a third-party type has a third-party base type, the base type's doc should also appear.
+        // AutoMapper.Mapper extends internal base — use IMapper which has IMapperBase as interface.
+        // IMapperBase is a third-party type and should show its doc.
+        var result = await Act("AutoMapper.IMapper");
+
+        // IMapperBase is listed under "Implements:" — its doc should appear there too
+        var implementsIndex = result.IndexOf("Implements:", StringComparison.Ordinal);
+        implementsIndex.Should().BeGreaterThanOrEqualTo(0);
+        var afterImplements = result[implementsIndex..];
+        afterImplements.Should().Contain("///");
     }
 
     #endregion

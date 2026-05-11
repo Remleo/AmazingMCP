@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services;
 
-public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
+public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocExtractor xmlDoc)
 {
 
     // Displays: accessibility + modifiers (abstract/virtual/override/static/readonly/const) + type + name + params + constant value.
@@ -41,7 +41,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
         return sb.ToString();
     }
 
-    static void Describe(INamedTypeSymbol type, StringBuilder sb, int indent, HashSet<string> visited)
+    void Describe(INamedTypeSymbol type, StringBuilder sb, int indent, HashSet<string> visited)
     {
         var prefix = new string(' ', indent);
         var fullName = type.ToDisplayString();
@@ -61,7 +61,12 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
         }
         else
         {
-            sb.AppendLine($"{prefix}{typeHeader}  (assembly: {type.ContainingAssembly?.Name})");
+            sb.AppendLine($"{prefix}// assembly: {type.ContainingAssembly?.Name}");
+            sb.AppendLine();
+            var doc = xmlDoc.ExtractSymbolDoc(type, prefix);
+            if (doc is not null)
+                sb.AppendLine(doc);
+            sb.AppendLine($"{prefix}{typeHeader}");
         }
 
         if (type.TypeKind == TypeKind.Enum)
@@ -70,7 +75,8 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
             return;
         }
 
-        DescribeMembers(type, sb, indent + 2);
+        var isThirdParty = type.DeclaringSyntaxReferences.IsEmpty;
+        DescribeMembers(type, sb, indent + 2, isThirdParty);
         DescribeHierarchy(type, sb, indent + 2, visited);
     }
 
@@ -88,7 +94,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
         }
     }
 
-    static void DescribeMembers(INamedTypeSymbol type, StringBuilder sb, int indent)
+    void DescribeMembers(INamedTypeSymbol type, StringBuilder sb, int indent, bool isThirdParty = false)
     {
         var prefix = new string(' ', indent);
 
@@ -101,23 +107,28 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
             switch (member)
             {
                 case IFieldSymbol f:
+                    AppendMemberDoc(f, sb, prefix, isThirdParty);
                     sb.AppendLine($"{prefix}{f.ToDisplayString(MemberFormat)}");
                     break;
 
                 case IPropertySymbol p:
                     // Skip indexers for now; they appear as IPropertySymbol with IsIndexer == true.
+                    AppendMemberDoc(p, sb, prefix, isThirdParty);
                     sb.AppendLine($"{prefix}{p.ToDisplayString(MemberFormat)} {{ {FormatAccessors(p)} }}");
                     break;
 
                 case IMethodSymbol m when m.MethodKind == MethodKind.Constructor:
+                    AppendMemberDoc(m, sb, prefix, isThirdParty);
                     sb.AppendLine($"{prefix}{m.ToDisplayString(MemberFormat)}");
                     break;
 
                 case IMethodSymbol m when m.MethodKind == MethodKind.Ordinary:
+                    AppendMemberDoc(m, sb, prefix, isThirdParty);
                     sb.AppendLine($"{prefix}{m.ToDisplayString(MemberFormat)}");
                     break;
 
                 case IMethodSymbol m when IsOperator(m):
+                    AppendMemberDoc(m, sb, prefix, isThirdParty);
                     sb.AppendLine($"{prefix}{m.ToDisplayString(MemberFormat)}");
                     break;
             }
@@ -126,6 +137,14 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
         // Nested types follow after all other members.
         foreach (var nested in type.GetTypeMembers().Where(t => IsVisible(t.DeclaredAccessibility)))
             sb.AppendLine($"{prefix}{FormatTypeHeader(nested)}");
+    }
+
+    void AppendMemberDoc(ISymbol member, StringBuilder sb, string prefix, bool isThirdParty)
+    {
+        if (!isThirdParty) return;
+        var doc = xmlDoc.ExtractSymbolDoc(member, prefix);
+        if (doc is not null)
+            sb.AppendLine(doc);
     }
 
     static bool IsOperator(IMethodSymbol m) =>
@@ -177,7 +196,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService)
     static bool IsWellKnownFrameworkType(INamedTypeSymbol type) =>
         WellKnownFrameworkTypes.IsWellKnown(type);
 
-    static void DescribeHierarchy(
+    void DescribeHierarchy(
         INamedTypeSymbol type, StringBuilder sb, int indent, HashSet<string> visited)
     {
         var prefix = new string(' ', indent);

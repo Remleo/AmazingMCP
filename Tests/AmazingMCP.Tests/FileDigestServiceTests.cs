@@ -16,7 +16,7 @@ public class FileDigestServiceTests
         Path.Combine([TestProjectAppPath, ..parts]);
 
     [SetUp]
-    public void SetUp() => _sut = new FileDigestService(new FileSystemFileReader());
+    public void SetUp() => _sut = new FileDigestService(new FileSystemFileReader(), new XmlDocExtractor());
 
     // ── file-scoped namespace ──────────────────────────────────────────────────
 
