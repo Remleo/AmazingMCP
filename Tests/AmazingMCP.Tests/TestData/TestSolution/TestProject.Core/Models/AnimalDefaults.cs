@@ -39,6 +39,7 @@ public class AnimalDefaults
 
     public string InstanceMethod() => "instance";
 
+    public event EventHandler? LabelChanged;
     private string _privateField = "secret";
     private int PrivateProp { get; set; }
     private event EventHandler? PrivateEvent;

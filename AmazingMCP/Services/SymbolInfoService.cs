@@ -105,6 +105,11 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
 
             switch (member)
             {
+                case IEventSymbol e:
+                    AppendMemberDoc(e, sb, prefix, isThirdParty);
+                    sb.AppendLine($"{prefix}{e.ToDisplayString(MemberFormat)}");
+                    break;
+
                 case IFieldSymbol f:
                     AppendMemberDoc(f, sb, prefix, isThirdParty);
                     sb.AppendLine($"{prefix}{f.ToDisplayString(MemberFormat)}");

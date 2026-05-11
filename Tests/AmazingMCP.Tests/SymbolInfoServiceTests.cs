@@ -157,6 +157,21 @@ public class SymbolInfoServiceTests
 
     #endregion
 
+    #region Events
+
+    [Test]
+    public async Task GetSymbolInfoAsync_TypeWithEvent_ReturnsEvent()
+    {
+        // act
+        var result = await Act("TestProject.Core.Models.AnimalDefaults");
+
+        // assert
+        result.Should().Contain("LabelChanged");
+        result.Should().MatchRegex(@"public\s+event\s+EventHandler\??\s+LabelChanged");
+    }
+
+    #endregion
+
     #region Properties
 
     [Test]
