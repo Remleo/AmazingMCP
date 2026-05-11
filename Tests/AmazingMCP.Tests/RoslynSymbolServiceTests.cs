@@ -385,6 +385,56 @@ public class RoslynSymbolServiceTests
         results.Should().BeEmpty();
     }
 
+    [Test]
+    public async Task QuerySymbolsAsync_Constant_IsFound()
+    {
+        // act — MaxNameLength is a public const on AnimalDefaults
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "MaxNameLength");
+
+        // assert
+        results.Should().Contain(r => r.Kind == "Const" && r.Name == "MaxNameLength");
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_Field_IsFound()
+    {
+        // act — DisplayLabel is a public field on AnimalDefaults
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "DisplayLabel");
+
+        // assert
+        results.Should().Contain(r => r.Kind == "Field" && r.Name == "DisplayLabel");
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_Event_IsFound()
+    {
+        // act — LabelChanged is a public event on AnimalDefaults
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "LabelChanged");
+
+        // assert
+        results.Should().Contain(r => r.Kind == "Event" && r.Name == "LabelChanged");
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_PrivateField_IsNotFound()
+    {
+        // act — _privateField is a private field on AnimalDefaults (source type)
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "_privateField");
+
+        // assert — private fields on source types are excluded
+        results.Should().BeEmpty();
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_StaticProperty_IsFound()
+    {
+        // act — MaxAllowed is a public static property on AnimalDefaults
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "MaxAllowed");
+
+        // assert
+        results.Should().ContainSingle(r => r.Kind == "Property" && r.Name == "MaxAllowed");
+    }
+
     class TestWorkspaceProvider(CachedSolution solution) : IWorkspaceProvider
     {
         public Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default)

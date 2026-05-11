@@ -55,6 +55,10 @@ internal static class SymbolQueryCollector
                     TryAddMethod(method, declaringType, assembly, pattern, seen, results);
                 else if (member is IPropertySymbol property)
                     TryAddProperty(property, declaringType, assembly, pattern, seen, results);
+                else if (member is IFieldSymbol field)
+                    TryAddField(field, declaringType, assembly, pattern, seen, results);
+                else if (member is IEventSymbol evt)
+                    TryAddEvent(evt, declaringType, assembly, pattern, seen, results);
             }
         }
     }
@@ -109,6 +113,40 @@ internal static class SymbolQueryCollector
             assembly: assembly);
         if (seen.Add(key))
             results.Add(SymbolResultFactory.ForProperty(property, declaringType));
+    }
+
+    static void TryAddField(
+        IFieldSymbol field,
+        SymbolResult declaringType,
+        string assembly,
+        IWildcardPattern pattern,
+        HashSet<SeenSymbolKey> seen,
+        List<SymbolResult> results)
+    {
+        if (!pattern.IsMatch(field.Name)) return;
+        var key = SeenSymbolKey.ForMember(
+            containingTypeDisplayName: field.ContainingType.ToDisplayString(),
+            memberSignature: field.Name,
+            assembly: assembly);
+        if (seen.Add(key))
+            results.Add(SymbolResultFactory.ForField(field, declaringType));
+    }
+
+    static void TryAddEvent(
+        IEventSymbol evt,
+        SymbolResult declaringType,
+        string assembly,
+        IWildcardPattern pattern,
+        HashSet<SeenSymbolKey> seen,
+        List<SymbolResult> results)
+    {
+        if (!pattern.IsMatch(evt.Name)) return;
+        var key = SeenSymbolKey.ForMember(
+            containingTypeDisplayName: evt.ContainingType.ToDisplayString(),
+            memberSignature: evt.Name,
+            assembly: assembly);
+        if (seen.Add(key))
+            results.Add(SymbolResultFactory.ForEvent(evt, declaringType));
     }
 
     static bool IsClassOrInterface(INamedTypeSymbol type) =>

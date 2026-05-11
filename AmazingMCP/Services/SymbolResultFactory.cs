@@ -50,6 +50,38 @@ internal static class SymbolResultFactory
         };
     }
 
+    public static SymbolResult ForField(IFieldSymbol field, SymbolResult declaringType)
+    {
+        var (path, line) = SourceLocation(field.DeclaringSyntaxReferences.FirstOrDefault());
+        return new()
+        {
+            Name = field.Name,
+            FullName = field.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat
+                .WithMemberOptions(SymbolDisplayMemberOptions.IncludeType | SymbolDisplayMemberOptions.IncludeConstantValue)),
+            Kind = field.IsConst ? "Const" : "Field",
+            ContainingAssembly = field.ContainingAssembly?.Name,
+            SourceFilePath = path,
+            DefinitionLine = line,
+            DeclaringType = declaringType,
+        };
+    }
+
+    public static SymbolResult ForEvent(IEventSymbol evt, SymbolResult declaringType)
+    {
+        var (path, line) = SourceLocation(evt.DeclaringSyntaxReferences.FirstOrDefault());
+        return new()
+        {
+            Name = evt.Name,
+            FullName = evt.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat
+                .WithMemberOptions(SymbolDisplayMemberOptions.IncludeType)),
+            Kind = "Event",
+            ContainingAssembly = evt.ContainingAssembly?.Name,
+            SourceFilePath = path,
+            DefinitionLine = line,
+            DeclaringType = declaringType,
+        };
+    }
+
     public static SymbolResult ForEnumValue(IFieldSymbol field, SymbolResult declaringType)
     {
         var (path, line) = SourceLocation(field.DeclaringSyntaxReferences.FirstOrDefault());
