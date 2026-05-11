@@ -296,13 +296,24 @@ public class SymbolInfoServiceTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithPrivateNestedType_DoesNotReturnPrivateNestedType()
+    public async Task GetSymbolInfoAsync_TypeWithPrivateNestedType_ReturnsPrivateNestedType()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
-        // assert
-        result.Should().NotContain("PrivateInner");
+        // assert — source types show all nested types including private
+        result.Should().Contain("PrivateInner");
+        result.Should().MatchRegex(@"private\s+class\s+.*PrivateInner");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_NestedType_HasNestedMarker()
+    {
+        // act — query the nested type directly
+        var result = await Act("TestProject.Core.Models.AnimalDefaults.ValidationRules");
+
+        // assert — the type header is prefixed with /* nested */
+        result.Should().MatchRegex(@"/\* nested \*/\s+public\s+class\s+.*ValidationRules");
     }
 
     #endregion
@@ -426,8 +437,8 @@ public class SymbolInfoServiceTests
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
 
-        // assert
-        result.Should().NotContain("PrivateInner");
+        // assert — private fields are not shown; nested type members are not expanded
+        result.Should().NotContain("_privateField");
         result.Should().NotContain("Secret");
     }
 
@@ -769,12 +780,11 @@ public class SymbolInfoServiceTests
         // AutoMapper.TypeMap has XML doc on the type itself
         var result = await Act("AutoMapper.TypeMap");
 
-        // Find the assembly comment line, doc should follow, then type header
+        // Doc lines appear before the type header line which ends with "// assembly: ..."
         var lines = result.Split('\n');
-        var assemblyIdx = Array.FindIndex(lines, l => l.TrimStart().StartsWith("// assembly: AutoMapper"));
-        assemblyIdx.Should().BeGreaterThanOrEqualTo(0, "assembly comment line should exist");
-        lines[assemblyIdx + 2].TrimStart().Should().StartWith("///");
-        result.Should().Contain("TypeMap");
+        var headerIdx = Array.FindIndex(lines, l => l.Contains("TypeMap") && l.Contains("// assembly:"));
+        headerIdx.Should().BeGreaterThan(0, "type header with assembly comment should exist");
+        lines[..headerIdx].Should().Contain(l => l.TrimStart().StartsWith("///"));
     }
 
     [Test]

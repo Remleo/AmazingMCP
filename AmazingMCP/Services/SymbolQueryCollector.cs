@@ -114,10 +114,16 @@ internal static class SymbolQueryCollector
     static bool IsClassOrInterface(INamedTypeSymbol type) =>
         type.TypeKind is TypeKind.Class or TypeKind.Interface;
 
-    static bool IsVisibleMember(ISymbol member) =>
-        member.DeclaredAccessibility is
-            Accessibility.Public or
-            Accessibility.Internal or
-            Accessibility.Protected or
-            Accessibility.ProtectedOrInternal;
+    static bool IsVisibleMember(ISymbol member)
+    {
+        if (member.Locations.Any(l => l.IsInSource))
+        {
+            if (member is IFieldSymbol or IPropertySymbol or IEventSymbol)
+                return member.DeclaredAccessibility is not Accessibility.Private;
+
+            return true;
+        }
+
+        return member.DeclaredAccessibility is not (Accessibility.Private or Accessibility.ProtectedAndInternal);
+    }
 }

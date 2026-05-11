@@ -335,6 +335,56 @@ public class RoslynSymbolServiceTests
             .Should().NotBeEmpty();
     }
 
+    [Test]
+    public async Task QuerySymbolsAsync_PrivateNestedSourceType_IsFound()
+    {
+        // act — PrivateInner is a private nested class inside AnimalDefaults (source type)
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "PrivateInner");
+
+        // assert — source types are returned regardless of access modifier
+        results.Should().ContainSingle(r => r.Name == "PrivateInner" && r.DeclaringType == null);
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_PrivateMethodOnSourceType_IsFound()
+    {
+        // act — PrivateMethod is a private method on AnimalDefaults (source type)
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "PrivateMethod");
+
+        // assert — private methods on source types are included
+        results.Should().ContainSingle(r => r.Kind == "Method" && r.Name == "PrivateMethod");
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_PrivateFieldOnSourceType_IsNotFound()
+    {
+        // act — _privateField is a private field on AnimalDefaults (source type)
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "_privateField");
+
+        // assert — private fields on source types are excluded
+        results.Should().BeEmpty();
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_PrivatePropertyOnSourceType_IsNotFound()
+    {
+        // act — PrivateProp is a private property on AnimalDefaults (source type)
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "PrivateProp");
+
+        // assert — private properties on source types are excluded
+        results.Should().BeEmpty();
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_PrivateEventOnSourceType_IsNotFound()
+    {
+        // act — PrivateEvent is a private event on AnimalDefaults (source type)
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "PrivateEvent");
+
+        // assert — private events on source types are excluded
+        results.Should().BeEmpty();
+    }
+
     class TestWorkspaceProvider(CachedSolution solution) : IWorkspaceProvider
     {
         public Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default)

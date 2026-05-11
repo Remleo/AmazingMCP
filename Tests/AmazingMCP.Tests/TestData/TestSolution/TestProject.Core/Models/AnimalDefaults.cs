@@ -39,6 +39,11 @@ public class AnimalDefaults
 
     public string InstanceMethod() => "instance";
 
+    private string _privateField = "secret";
+    private int PrivateProp { get; set; }
+    private event EventHandler? PrivateEvent;
+    private void PrivateMethod() { }
+
     public class ValidationRules
     {
         public int MinNameLength { get; set; } = 1;

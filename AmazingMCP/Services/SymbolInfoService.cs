@@ -53,20 +53,19 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         }
 
         var syntaxRef = type.DeclaringSyntaxReferences.FirstOrDefault();
-        var typeHeader = FormatTypeHeader(type);
+        var nestedPrefix = type.ContainingType is not null ? "/* nested */ " : "";
+        var typeHeader = $"{nestedPrefix}{FormatTypeHeader(type)}";
         if (syntaxRef is not null)
         {
             var line = syntaxRef.SyntaxTree.GetLineSpan(syntaxRef.Span).StartLinePosition.Line + 1;
-            sb.AppendLine($"{prefix}{typeHeader}  (source: {syntaxRef.SyntaxTree.FilePath}, line {line})");
+            sb.AppendLine($"{prefix}{typeHeader} // source: {syntaxRef.SyntaxTree.FilePath}, line {line}");
         }
         else
         {
-            sb.AppendLine($"{prefix}// assembly: {type.ContainingAssembly?.Name}");
-            sb.AppendLine();
             var doc = xmlDoc.ExtractSymbolDoc(type, prefix);
             if (doc is not null)
                 sb.AppendLine(doc);
-            sb.AppendLine($"{prefix}{typeHeader}");
+            sb.AppendLine($"{prefix}{typeHeader} // assembly: {type.ContainingAssembly?.Name}");
         }
 
         if (type.TypeKind == TypeKind.Enum)
@@ -135,7 +134,10 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         }
 
         // Nested types follow after all other members.
-        foreach (var nested in type.GetTypeMembers().Where(t => IsVisible(t.DeclaredAccessibility)))
+        var nestedTypes = isThirdParty
+            ? type.GetTypeMembers().Where(t => IsVisible(t.DeclaredAccessibility))
+            : type.GetTypeMembers();
+        foreach (var nested in nestedTypes)
             sb.AppendLine($"{prefix}{FormatTypeHeader(nested)}");
     }
 
@@ -166,6 +168,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         Accessibility.Protected => "protected ",
         Accessibility.ProtectedOrInternal => "protected internal ",
         Accessibility.ProtectedAndInternal => "private protected ",
+        Accessibility.Private => "private ",
         _ => ""
     };
 

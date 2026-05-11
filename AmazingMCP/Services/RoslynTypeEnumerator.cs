@@ -33,7 +33,7 @@ public static class RoslynTypeEnumerator
     {
         foreach (var nested in parent.GetTypeMembers())
         {
-            if (nested.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal))
+            if (!IsNestedTypeVisible(nested))
                 continue;
 
             if (pattern.IsMatch(nested.ToDisplayString()) || pattern.IsMatch(nested.Name))
@@ -72,9 +72,20 @@ public static class RoslynTypeEnumerator
     {
         foreach (var nested in parent.GetTypeMembers())
         {
+            if (!IsNestedTypeVisible(nested))
+                continue;
+
             yield return nested;
             foreach (var deeper in EnumerateNested(nested))
                 yield return deeper;
         }
+    }
+
+    static bool IsNestedTypeVisible(INamedTypeSymbol type)
+    {
+        if (type.Locations.Any(l => l.IsInSource))
+            return true;
+
+        return type.DeclaredAccessibility is not (Accessibility.Private or Accessibility.ProtectedAndInternal);
     }
 }
