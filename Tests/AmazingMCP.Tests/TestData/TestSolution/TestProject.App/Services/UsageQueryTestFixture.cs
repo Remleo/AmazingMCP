@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using TestProject.App.Helpers;
 using TestProject.Core.Logging;
 using TestProject.Core.Models;

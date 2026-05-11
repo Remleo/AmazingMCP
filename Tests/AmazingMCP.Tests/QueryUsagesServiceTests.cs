@@ -1,6 +1,7 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services;
 using AmazingMCP.Tests.Helpers;
+using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using FluentAssertions;
 using NUnit.Framework;
 
@@ -16,7 +17,7 @@ public class QueryUsagesServiceTests
     {
         _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _sut = new UsageQueryService(
-            new TestWorkspaceProvider(_cachedSolution),
+            CreateWorkspaceProvider(_cachedSolution),
             new WildcardPatternFactory());
     }
 
@@ -969,11 +970,5 @@ public class QueryUsagesServiceTests
         matches.Should().Contain(m =>
             m.Entry.PropertyName == "Name" &&
             m.Scope.MethodName == "BuildSnapshot");
-    }
-
-    class TestWorkspaceProvider(CachedSolution solution) : IWorkspaceProvider
-    {
-        public Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default)
-            => Task.FromResult(solution);
     }
 }

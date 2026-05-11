@@ -4,5 +4,5 @@ namespace AmazingMCP.Services;
 
 public interface IWorkspaceProvider
 {
-    Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default);
+    Task<ICachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default);
 }

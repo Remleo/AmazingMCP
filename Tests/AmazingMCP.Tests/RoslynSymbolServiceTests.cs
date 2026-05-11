@@ -1,6 +1,7 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services;
 using AmazingMCP.Tests.Helpers;
+using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using FluentAssertions;
 using NUnit.Framework;
 
@@ -15,7 +16,7 @@ public class RoslynSymbolServiceTests
     public async Task OneTimeSetUp()
     {
         _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
-        _sut = new RoslynSymbolService(new TestWorkspaceProvider(_cachedSolution), new WildcardPatternFactory());
+        _sut = new RoslynSymbolService(CreateWorkspaceProvider(_cachedSolution), new WildcardPatternFactory());
     }
 
     async Task<(string? FullName, string? Error)> Act(string fullTypeName)
@@ -433,11 +434,5 @@ public class RoslynSymbolServiceTests
 
         // assert
         results.Should().ContainSingle(r => r.Kind == "Property" && r.Name == "MaxAllowed");
-    }
-
-    class TestWorkspaceProvider(CachedSolution solution) : IWorkspaceProvider
-    {
-        public Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default)
-            => Task.FromResult(solution);
     }
 }

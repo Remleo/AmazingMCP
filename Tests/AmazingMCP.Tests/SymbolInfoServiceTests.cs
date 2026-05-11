@@ -1,6 +1,7 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services;
 using AmazingMCP.Tests.Helpers;
+using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using FluentAssertions;
 using NUnit.Framework;
 
@@ -15,7 +16,7 @@ public class SymbolInfoServiceTests
     public async Task OneTimeSetUp()
     {
         _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
-        _sut = new SymbolInfoService(new RoslynSymbolService(new TestWorkspaceProvider(_cachedSolution), new WildcardPatternFactory()), new XmlDocExtractor());
+        _sut = new SymbolInfoService(new RoslynSymbolService(CreateWorkspaceProvider(_cachedSolution), new WildcardPatternFactory()), new XmlDocExtractor());
     }
 
     async Task<string> Act(string typeName) =>
@@ -864,10 +865,4 @@ public class SymbolInfoServiceTests
     }
 
     #endregion
-
-    class TestWorkspaceProvider(CachedSolution solution) : IWorkspaceProvider
-    {
-        public Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default)
-            => Task.FromResult(solution);
-    }
 }

@@ -33,7 +33,7 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
     /// Supports CLR metadata notation (Foo`2), C# generic syntax (Foo&lt;T, TVal&gt;),
     /// and wildcard form (Foo&lt;*,*&gt;). Returns null if not found or ambiguous.
     /// </summary>
-    public async Task<(INamedTypeSymbol? Symbol, string? Error, CachedSolution Solution)> FindExactTypeAsync(
+    public async Task<(INamedTypeSymbol? Symbol, string? Error, ICachedSolution Solution)> FindExactTypeAsync(
         string solutionPath,
         string fullTypeName,
         CancellationToken ct = default)

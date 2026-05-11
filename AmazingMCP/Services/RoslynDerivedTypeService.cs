@@ -21,7 +21,7 @@ public static class RoslynDerivedTypeService
     /// For class targets: walks the <see cref="INamedTypeSymbol.BaseType"/> chain.
     /// </summary>
     public static IReadOnlyList<INamedTypeSymbol> FindDerivedTypes(
-        CachedSolution cachedSolution,
+        ICachedSolution cachedSolution,
         INamedTypeSymbol targetType)
     {
         var targetFullName = targetType.ToDisplayString();

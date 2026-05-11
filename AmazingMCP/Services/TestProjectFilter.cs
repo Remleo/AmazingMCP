@@ -11,7 +11,7 @@ public static class TestProjectFilter
     public static IReadOnlyList<(string ProjectName, Microsoft.CodeAnalysis.Compilation Compilation)>
         ExcludeTestProjects(
             IReadOnlyList<(string ProjectName, Microsoft.CodeAnalysis.Compilation Compilation)> compilations,
-            CachedSolution solution)
+            ICachedSolution solution)
     {
         var testProjectNames = solution.Solution.Projects
             .Where(p => p.FilePath is not null && IsTestSdkInCsproj(p.FilePath))

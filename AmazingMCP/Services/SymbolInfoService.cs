@@ -265,7 +265,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         return string.Join(" ", parts);
     }
 
-    static void DescribeDerivedTypes(INamedTypeSymbol type, CachedSolution cachedSolution, StringBuilder sb)
+    static void DescribeDerivedTypes(INamedTypeSymbol type, ICachedSolution cachedSolution, StringBuilder sb)
     {
         if (type.TypeKind is not (TypeKind.Class or TypeKind.Interface))
             return;

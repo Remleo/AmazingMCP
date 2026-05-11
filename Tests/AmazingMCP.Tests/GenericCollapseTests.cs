@@ -2,6 +2,7 @@ using AmazingMCP.Models;
 using AmazingMCP.Services;
 using AmazingMCP.Services.Scanning;
 using AmazingMCP.Tests.Helpers;
+using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using AmazingMCP.Tools;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
@@ -36,7 +37,7 @@ public class GenericCollapseTests
         _cache = new MemoryCache(new MemoryCacheOptions());
         var typeFilter = new TypeFilter();
         var depMapService = new DependencyMapService(
-            new TestWorkspaceProvider(_cachedSolution),
+            CreateWorkspaceProvider(_cachedSolution),
             new TypeCollector(typeFilter),
             new MemberUsageAnalyzer(new InvocationAnalyzer(), new MemberAccessAnalyzer(), typeFilter),
             new AbstractionExtractor(),
@@ -171,11 +172,5 @@ public class GenericCollapseTests
 
         // Trace() is called in TracedServiceA and TracedServiceB — must appear under open generic dep
         md.Should().Contain("Trace()");
-    }
-
-    class TestWorkspaceProvider(CachedSolution solution) : IWorkspaceProvider
-    {
-        public Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default)
-            => Task.FromResult(solution);
     }
 }

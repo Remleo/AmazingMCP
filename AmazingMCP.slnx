@@ -4,5 +4,4 @@
     <File Path="Tests/TESTING_STYLE_GUIDE.md" />
     <Project Path="Tests/AmazingMCP.Tests/AmazingMCP.Tests.csproj" />
   </Folder>
-  <Project Path="AmazingMCP.Launcher/AmazingMCP.Launcher.csproj" />
 </Solution>

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using TestProject.Core.EventHandling;
 using TestProject.Core.Models;
 

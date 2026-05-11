@@ -1,6 +1,7 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services;
 using AmazingMCP.Tests.Helpers;
+using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using NUnit.Framework;
@@ -17,7 +18,7 @@ public class RoslynDerivedTypeServiceTests
     {
         _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _symbolService = new RoslynSymbolService(
-            new TestWorkspaceProvider(_cachedSolution),
+            CreateWorkspaceProvider(_cachedSolution),
             new WildcardPatternFactory());
     }
 
@@ -158,11 +159,5 @@ public class RoslynDerivedTypeServiceTests
 
         // assert — each type appears exactly once
         result.Should().OnlyHaveUniqueItems();
-    }
-
-    class TestWorkspaceProvider(CachedSolution solution) : IWorkspaceProvider
-    {
-        public Task<CachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default)
-            => Task.FromResult(solution);
     }
 }

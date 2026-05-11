@@ -20,7 +20,6 @@ public sealed class CodeLensService(IWorkspaceProvider workspaceProvider) : ICod
         CancellationToken ct = default)
     {
         var cachedSolution = await workspaceProvider.GetSolutionAsync(solutionPath, ct);
-        await cachedSolution.EnsureUpToDateAsync();
 
         var absolutePath = Path.GetFullPath(filePath);
 

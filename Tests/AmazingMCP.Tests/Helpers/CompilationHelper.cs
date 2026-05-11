@@ -1,7 +1,9 @@
 using AmazingMCP.Models;
+using AmazingMCP.Services;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
+using NSubstitute;
 
 namespace AmazingMCP.Tests.Helpers;
 
@@ -24,6 +26,13 @@ public static class CompilationHelper
     public static string WorkspacePath => Path.GetDirectoryName(TestSolutionPath)!;
 
     // Shared across all test classes — compiled once per test process.
+    public static IWorkspaceProvider CreateWorkspaceProvider(ICachedSolution solution)
+    {
+        var wp = Substitute.For<IWorkspaceProvider>();
+        wp.GetSolutionAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(solution);
+        return wp;
+    }
+
     static readonly Lazy<Task<CachedSolution>> SharedSolution =
         new(() => LoadAsync(), LazyThreadSafetyMode.ExecutionAndPublication);
 
