@@ -75,6 +75,15 @@
     <Compile Update="Services\Workspace\ISolutionRecompiler.cs">
       <DependentUpon>SolutionRecompiler.cs</DependentUpon>
     </Compile>
+    <Compile Update="Services\Workspace\ISolutionWatcher.cs">
+      <DependentUpon>SolutionWatcher.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\Workspace\ISolutionLoader.cs">
+      <DependentUpon>SolutionLoader.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\Workspace\ISolutionCache.cs">
+      <DependentUpon>SolutionCache.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

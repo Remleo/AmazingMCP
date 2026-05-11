@@ -14,39 +14,89 @@ public sealed class SolutionRecompiler(ILogger<SolutionRecompiler> logger) : ISo
         logger.LogInformation("Recompiler: processing {Count} dirty file(s): {Files}",
             dirtyFiles.Count, string.Join(", ", dirtyFiles));
 
-        var updatedSolution = UpdateDocumentTexts(solution, dirtyFiles);
-        var affectedProjectIds = GetAffectedProjectIds(updatedSolution, dirtyFiles);
+        var updatedSolution = ApplyFileChanges(solution, dirtyFiles);
+        var affectedProjectIds = GetAffectedProjectIds(updatedSolution, solution, dirtyFiles);
         var updatedCompilations = await RecompileAffectedProjects(updatedSolution, compilations, affectedProjectIds);
 
         return (updatedSolution, updatedCompilations);
     }
 
-    Solution UpdateDocumentTexts(Solution solution, IReadOnlyCollection<string> files)
+    Solution ApplyFileChanges(Solution solution, IReadOnlyCollection<string> files)
     {
         foreach (var filePath in files)
         {
-            var docId = solution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
-            if (docId is null)
-            {
-                logger.LogWarning("Recompiler: file not found in solution, skipping: {File}", filePath);
-                continue;
-            }
+            var existingDocId = solution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
 
-            var text = SourceText.From(File.ReadAllText(filePath));
-            solution = solution.WithDocumentText(docId, text);
-            logger.LogInformation("Recompiler: updated document text for {File}", filePath);
+            solution = File.Exists(filePath)
+                ? existingDocId is not null
+                    ? UpdateDocument(solution, existingDocId, filePath)
+                    : AddDocument(solution, filePath)
+                : RemoveDocument(solution, existingDocId, filePath);
         }
 
         return solution;
     }
 
-    static List<ProjectId> GetAffectedProjectIds(Solution solution, IReadOnlyCollection<string> files)
+    Solution UpdateDocument(Solution solution, DocumentId docId, string filePath)
     {
-        var graph = solution.GetProjectDependencyGraph();
-        return files
-            .SelectMany(f => solution.GetDocumentIdsWithFilePath(f))
+        var text = SourceText.From(File.ReadAllText(filePath));
+        logger.LogInformation("Recompiler: updated document {File}", filePath);
+        return solution.WithDocumentText(docId, text);
+    }
+
+    Solution AddDocument(Solution solution, string filePath)
+    {
+        var project = FindProjectForFile(solution, filePath);
+        if (project is null)
+        {
+            logger.LogWarning("Recompiler: no project found for new file, skipping: {File}", filePath);
+            return solution;
+        }
+
+        var text = SourceText.From(File.ReadAllText(filePath));
+        var docInfo = DocumentInfo.Create(
+            DocumentId.CreateNewId(project.Id),
+            name: Path.GetFileName(filePath),
+            filePath: filePath,
+            loader: TextLoader.From(TextAndVersion.Create(text, VersionStamp.Create(), filePath)));
+
+        logger.LogInformation("Recompiler: added document {File} to project {Project}", filePath, project.Name);
+        return solution.AddDocument(docInfo);
+    }
+
+    Solution RemoveDocument(Solution solution, DocumentId? docId, string filePath)
+    {
+        if (docId is null)
+        {
+            logger.LogWarning("Recompiler: deleted file not found in solution, skipping: {File}", filePath);
+            return solution;
+        }
+
+        logger.LogInformation("Recompiler: removed document {File}", filePath);
+        return solution.RemoveDocument(docId);
+    }
+
+    static Project? FindProjectForFile(Solution solution, string filePath)
+    {
+        return solution.Projects
+            .Where(p => p.FilePath is not null)
+            .OrderByDescending(p => p.FilePath!.Length)
+            .FirstOrDefault(p =>
+                filePath.StartsWith(Path.GetDirectoryName(p.FilePath!)!, StringComparison.OrdinalIgnoreCase));
+    }
+
+    static List<ProjectId> GetAffectedProjectIds(Solution updatedSolution, Solution originalSolution, IReadOnlyCollection<string> files)
+    {
+        var graph = updatedSolution.GetProjectDependencyGraph();
+
+        var directIds = files
+            .SelectMany(f =>
+                updatedSolution.GetDocumentIdsWithFilePath(f)
+                    .Concat(originalSolution.GetDocumentIdsWithFilePath(f)))
             .Select(d => d.ProjectId)
-            .Distinct()
+            .Distinct();
+
+        return directIds
             .SelectMany(id => graph.GetProjectsThatTransitivelyDependOnThisProject(id).Append(id))
             .Distinct()
             .ToList();

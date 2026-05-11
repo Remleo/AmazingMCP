@@ -18,13 +18,16 @@ public class WorkspaceProviderTests
     }
 
     [Test]
-    public async Task NestedTypeRemovedFromFile_IsNoLongerVisibleAfterFileChange()
+    public async Task NestedTypeAddedThenRemovedFromFile_IsVisibleThenGone()
     {
-        // arrange — WatcherTestFixture.cs already contains TemporaryNested on disk at solution load time
-        using var cache = new MemoryCache(new MemoryCacheOptions());
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var recompiler = new SolutionRecompiler(NullLogger<SolutionRecompiler>.Instance);
-        var provider = new WorkspaceProvider(cache, NullLogger<WorkspaceProvider>.Instance, recompiler);
+        var solutionCache = new SolutionCache(memoryCache);
+        var solutionWatcher = new SolutionWatcher(NullLogger<SolutionWatcher>.Instance);
+        var solutionLoader = new SolutionLoader();
+        using var provider = new WorkspaceProvider(solutionLoader, solutionCache, solutionWatcher, recompiler, NullLogger<WorkspaceProvider>.Instance);
 
+        // arrange — load solution while WatcherTestFixture.cs has no nested type
         var solution = await provider.GetSolutionAsync(CompilationHelper.SolutionPath);
 
         var filePath = solution.Solution.Projects
@@ -45,10 +48,24 @@ public class WorkspaceProviderTests
                 .Any(t => t.Name == "TemporaryNested");
         }
 
-        // assert — nested type is visible in the initial load
-        HasTemporaryNested().Should().BeTrue("nested type should be visible in the initial compilation");
+        HasTemporaryNested().Should().BeFalse("nested type should not exist in the initial load");
 
-        // act — remove nested type from file
+        // act — add nested type
+        await File.WriteAllTextAsync(filePath, """
+            namespace TestProject.Core.Models;
+
+            public class WatcherTestFixture
+            {
+                public class TemporaryNested { }
+            }
+            """);
+
+        await Task.Delay(500);
+        solution = await provider.GetSolutionAsync(CompilationHelper.SolutionPath);
+
+        HasTemporaryNested().Should().BeTrue("nested type should be visible after adding it");
+
+        // act — remove nested type (restore stable state)
         await File.WriteAllTextAsync(filePath, """
             namespace TestProject.Core.Models;
 
@@ -60,17 +77,6 @@ public class WorkspaceProviderTests
         await Task.Delay(500);
         solution = await provider.GetSolutionAsync(CompilationHelper.SolutionPath);
 
-        // assert — nested type is gone
         HasTemporaryNested().Should().BeFalse("nested type should not be visible after removing it");
-
-        // cleanup — restore original file
-        await File.WriteAllTextAsync(filePath, """
-            namespace TestProject.Core.Models;
-
-            public class WatcherTestFixture
-            {
-                public class TemporaryNested { }
-            }
-            """);
     }
 }

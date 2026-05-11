@@ -13,6 +13,9 @@ builder.Services.AddMemoryCache();
 
 // Infrastructure
 builder.Services.AddSingleton<IWildcardPatternFactory, WildcardPatternFactory>();
+builder.Services.AddSingleton<ISolutionLoader, SolutionLoader>();
+builder.Services.AddSingleton<ISolutionWatcher, SolutionWatcher>();
+builder.Services.AddSingleton<ISolutionCache, SolutionCache>();
 builder.Services.AddSingleton<ISolutionRecompiler, SolutionRecompiler>();
 builder.Services.AddSingleton<WorkspaceProvider>();
 builder.Services.AddSingleton<IWorkspaceProvider>(sp => sp.GetRequiredService<WorkspaceProvider>());
