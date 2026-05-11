@@ -1,6 +1,6 @@
 using AmazingMCP.Models;
 
-namespace AmazingMCP.Services;
+namespace AmazingMCP.Services.Workspace;
 
 public interface IWorkspaceProvider
 {

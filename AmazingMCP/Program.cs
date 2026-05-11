@@ -2,6 +2,7 @@ using Microsoft.Build.Locator;
 using AmazingMCP.Infrastructure;
 using AmazingMCP.Services;
 using AmazingMCP.Services.Scanning;
+using AmazingMCP.Services.Workspace;
 
 // MSBuild Locator MUST be registered before any Roslyn Workspace types are loaded
 MSBuildLocator.RegisterDefaults();
@@ -12,6 +13,7 @@ builder.Services.AddMemoryCache();
 
 // Infrastructure
 builder.Services.AddSingleton<IWildcardPatternFactory, WildcardPatternFactory>();
+builder.Services.AddSingleton<ISolutionRecompiler, SolutionRecompiler>();
 builder.Services.AddSingleton<WorkspaceProvider>();
 builder.Services.AddSingleton<IWorkspaceProvider>(sp => sp.GetRequiredService<WorkspaceProvider>());
 builder.Services.AddSingleton<SolutionResolver>();

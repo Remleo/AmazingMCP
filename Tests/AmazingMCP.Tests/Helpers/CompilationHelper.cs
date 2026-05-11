@@ -1,5 +1,6 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services;
+using AmazingMCP.Services.Workspace;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;

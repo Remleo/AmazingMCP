@@ -1,5 +1,6 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services.Scanning;
+using AmazingMCP.Services.Workspace;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Caching.Memory;
 

@@ -1,4 +1,5 @@
 using AmazingMCP.Services;
+using AmazingMCP.Services.Workspace;
 using AmazingMCP.Tests.Helpers;
 using FluentAssertions;
 using NSubstitute;

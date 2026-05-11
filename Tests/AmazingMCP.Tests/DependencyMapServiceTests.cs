@@ -1,6 +1,7 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services;
 using AmazingMCP.Services.Scanning;
+using AmazingMCP.Services.Workspace;
 using AmazingMCP.Tests.Helpers;
 using Microsoft.Extensions.Caching.Memory;
 using NSubstitute;

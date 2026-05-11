@@ -1,5 +1,6 @@
 using AmazingMCP.Models;
 using AmazingMCP.Services.CodeLens;
+using AmazingMCP.Services.Workspace;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;

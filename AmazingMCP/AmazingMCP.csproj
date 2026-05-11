@@ -39,9 +39,6 @@
     <Compile Update="Services\IDependencyAggregator.cs">
       <DependentUpon>DependencyAggregator.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IWorkspaceProvider.cs">
-      <DependentUpon>WorkspaceProvider.cs</DependentUpon>
-    </Compile>
     <Compile Update="Services\IFileStructureService.cs">
       <DependentUpon>FileStructureService.cs</DependentUpon>
     </Compile>
@@ -71,6 +68,12 @@
     </Compile>
     <Compile Update="Models\ICachedSolution.cs">
       <DependentUpon>CachedSolution.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\IXmlDocExtractor.cs">
+      <DependentUpon>XmlDocExtractor.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\Workspace\ISolutionRecompiler.cs">
+      <DependentUpon>SolutionRecompiler.cs</DependentUpon>
     </Compile>
   </ItemGroup>
 

@@ -1,4 +1,5 @@
 using AmazingMCP.Models;
+using AmazingMCP.Services.Workspace;
 using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services;

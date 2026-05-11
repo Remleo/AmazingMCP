@@ -5,14 +5,14 @@ using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Caching.Memory;
 using Nito.AsyncEx;
 
-namespace AmazingMCP.Services;
+namespace AmazingMCP.Services.Workspace;
 
 /// <summary>
 /// Caches MSBuildWorkspace + Compilations per solution path.
 /// Watches .cs files for changes and incrementally updates compilations.
 /// Unused solutions are evicted after a sliding timeout and their workspaces disposed.
 /// </summary>
-public sealed class WorkspaceProvider(IMemoryCache cache, ILogger<WorkspaceProvider> logger) : IWorkspaceProvider, IDisposable
+public sealed class WorkspaceProvider(IMemoryCache cache, ILogger<WorkspaceProvider> logger, ISolutionRecompiler recompiler) : IWorkspaceProvider, IDisposable
 {
     static readonly TimeSpan SlidingExpiration = TimeSpan.FromMinutes(15);
 
@@ -46,13 +46,22 @@ public sealed class WorkspaceProvider(IMemoryCache cache, ILogger<WorkspaceProvi
 
     async Task<CachedSolution?> TryGetFromCacheAsync(string solutionPath)
     {
-        if (TryGetCachedSolution(solutionPath, out var existing))
-        {
-            await existing.EnsureUpToDateAsync();
-            return existing;
-        }
+        if (!TryGetCachedSolution(solutionPath, out var existing)) return null;
 
-        return null;
+        await RecompileIfDirtyAsync(existing);
+        return existing;
+    }
+
+    async Task RecompileIfDirtyAsync(CachedSolution cached)
+    {
+        if (!cached.HasDirtyFiles) return;
+
+        var dirtyFiles = cached.DrainDirtyFiles();
+        var (updatedSolution, updatedCompilations) = await recompiler.RecompileAsync(
+            cached.Solution, cached.Compilations, dirtyFiles);
+
+        cached.Solution = updatedSolution;
+        cached.Compilations = updatedCompilations;
     }
 
     void AddToCache(string solutionPath, CachedSolution entry)
@@ -184,7 +193,7 @@ public sealed class WorkspaceProvider(IMemoryCache cache, ILogger<WorkspaceProvi
                 compilations.Add((project.Name, compilation));
         }
 
-        return new(workspace, solution, compilations, logger);
+        return new(workspace, solution, compilations);
     }
 
     public void Dispose()
