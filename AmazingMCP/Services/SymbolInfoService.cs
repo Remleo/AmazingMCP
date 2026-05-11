@@ -57,15 +57,14 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         var typeHeader = $"{nestedPrefix}{FormatTypeHeader(type)}";
         if (syntaxRef is not null)
         {
-            var line = syntaxRef.SyntaxTree.GetLineSpan(syntaxRef.Span).StartLinePosition.Line + 1;
-            sb.AppendLine($"{prefix}{typeHeader} // source: {syntaxRef.SyntaxTree.FilePath}, line {line}");
+            sb.AppendLine($"{prefix}{typeHeader} {FormatTypeLocation(type)}");
         }
         else
         {
             var doc = xmlDoc.ExtractSymbolDoc(type, prefix);
             if (doc is not null)
                 sb.AppendLine(doc);
-            sb.AppendLine($"{prefix}{typeHeader} // assembly: {type.ContainingAssembly?.Name}");
+            sb.AppendLine($"{prefix}{typeHeader} {FormatTypeLocation(type)}");
         }
 
         if (type.TypeKind == TypeKind.Enum)
@@ -201,6 +200,17 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         return sb.ToString();
     }
 
+    static string FormatTypeLocation(INamedTypeSymbol type)
+    {
+        var syntaxRef = type.DeclaringSyntaxReferences.FirstOrDefault();
+        if (syntaxRef is not null)
+        {
+            var line = syntaxRef.SyntaxTree.GetLineSpan(syntaxRef.Span).StartLinePosition.Line + 1;
+            return $"// source: {syntaxRef.SyntaxTree.FilePath}, line {line}";
+        }
+        return $"// assembly: {type.ContainingAssembly?.Name}";
+    }
+
     static bool IsWellKnownFrameworkType(INamedTypeSymbol type) =>
         WellKnownFrameworkTypes.IsWellKnown(type);
 
@@ -280,6 +290,6 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
             : "Known derived types:");
 
         foreach (var d in derived)
-            sb.AppendLine($"  {d.ToDisplayString()}");
+            sb.AppendLine($"  {d.ToDisplayString()} {FormatTypeLocation(d)}");
     }
 }

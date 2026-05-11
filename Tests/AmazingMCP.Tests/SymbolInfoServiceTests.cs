@@ -864,5 +864,33 @@ public class SymbolInfoServiceTests
         afterImplements.Should().Contain("///");
     }
 
+    [Test]
+    public async Task GetSymbolInfoAsync_Interface_KnownImplementors_ContainSourceFileInfo()
+    {
+        // act
+        var result = await Act("TestProject.Core.Services.IAnimalService");
+
+        // assert — each implementor line should have "// source:" and the filename
+        var implementorsIndex = result.IndexOf("Known implementors", StringComparison.Ordinal);
+        implementorsIndex.Should().BeGreaterThanOrEqualTo(0);
+        var afterImplementors = result[implementorsIndex..];
+        afterImplementors.Should().Contain("AnimalService // source:");
+        afterImplementors.Should().Contain("AnimalService.cs");
+    }
+
+    [Test]
+    public async Task GetSymbolInfoAsync_AbstractClass_KnownDerivedTypes_ContainSourceFileInfo()
+    {
+        // act
+        var result = await Act("TestProject.App.Services.AnimalServiceBase");
+
+        // assert — derived type line should have "// source:" and the filename
+        var derivedIndex = result.IndexOf("Known derived types", StringComparison.Ordinal);
+        derivedIndex.Should().BeGreaterThanOrEqualTo(0);
+        var afterDerived = result[derivedIndex..];
+        afterDerived.Should().Contain("AdvancedAnimalService // source:");
+        afterDerived.Should().Contain("AdvancedAnimalService.cs");
+    }
+
     #endregion
 }
