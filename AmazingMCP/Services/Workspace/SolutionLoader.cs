@@ -1,4 +1,5 @@
 using AmazingMCP.Models;
+using AmazingMCP.Models.Workspace;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
 

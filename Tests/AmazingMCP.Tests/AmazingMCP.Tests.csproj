@@ -22,52 +22,52 @@
   <ItemGroup>
     <Compile Remove="TestData\**\*.cs" />
     <Content Include="TestData\**\*" CopyToOutputDirectory="Never" />
-    <Compile Update="DependencyMapServiceTests.Abstractions.cs">
+    <Compile Update="Design\DependencyMapServiceTests.Abstractions.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="DependencyMapServiceTests.Dependencies.cs">
+    <Compile Update="Design\DependencyMapServiceTests.Dependencies.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="DependencyMapServiceTests.Generics.cs">
+    <Compile Update="Design\DependencyMapServiceTests.Generics.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="DependencyMapServiceTests.IEnumerableNonGeneric.cs">
+    <Compile Update="Design\DependencyMapServiceTests.IEnumerableNonGeneric.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="DependencyMapServiceTests.Implementations.cs">
+    <Compile Update="Design\DependencyMapServiceTests.Implementations.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="DependencyMapServiceTests.MemberUsages.cs">
+    <Compile Update="Design\DependencyMapServiceTests.MemberUsages.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="DependencyMapServiceTests.StandaloneWithDeps.cs">
+    <Compile Update="Design\DependencyMapServiceTests.StandaloneWithDeps.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="DependencyMapServiceTests.NuGetClosedGeneric.cs">
+    <Compile Update="Design\DependencyMapServiceTests.NuGetClosedGeneric.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="DependencyMapServiceTests.NullConditional.cs">
+    <Compile Update="Design\DependencyMapServiceTests.NullConditional.cs">
       <DependentUpon>DependencyMapServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="CodeLensServiceTests.Calls.cs">
+    <Compile Update="CodeLens\CodeLensServiceTests.Calls.cs">
       <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="CodeLensServiceTests.Definitions.cs">
+    <Compile Update="CodeLens\CodeLensServiceTests.Definitions.cs">
       <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="CodeLensServiceTests.Extensions.cs">
+    <Compile Update="CodeLens\CodeLensServiceTests.Extensions.cs">
       <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="CodeLensServiceTests.Fields.cs">
+    <Compile Update="CodeLens\CodeLensServiceTests.Fields.cs">
       <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="CodeLensServiceTests.Misc.cs">
+    <Compile Update="CodeLens\CodeLensServiceTests.Misc.cs">
       <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="CodeLensServiceTests.Properties.cs">
+    <Compile Update="CodeLens\CodeLensServiceTests.Properties.cs">
       <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
     </Compile>
-    <Compile Update="CodeLensServiceTests.Variables.cs">
+    <Compile Update="CodeLens\CodeLensServiceTests.Variables.cs">
       <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
     </Compile>
   </ItemGroup>

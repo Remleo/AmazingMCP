@@ -1,7 +1,13 @@
 using Microsoft.Build.Locator;
 using AmazingMCP.Infrastructure;
 using AmazingMCP.Services;
+using AmazingMCP.Services.CodeLens;
+using AmazingMCP.Services.Design;
+using AmazingMCP.Services.FileAnalysis;
 using AmazingMCP.Services.Scanning;
+using AmazingMCP.Services.SymbolQuery;
+using AmazingMCP.Services.UsageQuery;
+using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Services.Workspace;
 
 // MSBuild Locator MUST be registered before any Roslyn Workspace types are loaded

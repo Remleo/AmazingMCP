@@ -30,46 +30,46 @@
     <Compile Update="Services\Scanning\IInvocationAnalyzer.cs">
       <DependentUpon>InvocationAnalyzer.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IAbstractionExtractor.cs">
+    <Compile Update="Services\Design\IAbstractionExtractor.cs">
       <DependentUpon>AbstractionExtractor.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\ITypeCollector.cs">
+    <Compile Update="Services\Design\ITypeCollector.cs">
       <DependentUpon>TypeCollector.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IDependencyAggregator.cs">
+    <Compile Update="Services\Design\IDependencyAggregator.cs">
       <DependentUpon>DependencyAggregator.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IFileStructureService.cs">
+    <Compile Update="Services\FileAnalysis\IFileStructureService.cs">
       <DependentUpon>FileStructureService.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IFilteredSourceService.cs">
+    <Compile Update="Services\FileAnalysis\IFilteredSourceService.cs">
       <DependentUpon>FilteredSourceService.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IWildcardPattern.cs">
+    <Compile Update="Services\Wildcard\IWildcardPattern.cs">
       <DependentUpon>WildcardPattern.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IWildcardPatternFactory.cs">
+    <Compile Update="Services\Wildcard\IWildcardPatternFactory.cs">
       <DependentUpon>WildcardPatternFactory.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IDependencyMapService.cs">
+    <Compile Update="Services\Design\IDependencyMapService.cs">
       <DependentUpon>DependencyMapService.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IUsageQueryService.cs">
+    <Compile Update="Services\UsageQuery\IUsageQueryService.cs">
       <DependentUpon>UsageQueryService.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\ICodeLensService.cs">
+    <Compile Update="Services\CodeLens\ICodeLensService.cs">
       <DependentUpon>CodeLensService.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IFileDigestService.cs">
+    <Compile Update="Services\FileAnalysis\IFileDigestService.cs">
       <DependentUpon>FileDigestService.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IFileReader.cs">
+    <Compile Update="Services\FileAnalysis\IFileReader.cs">
       <DependentUpon>FileSystemFileReader.cs</DependentUpon>
     </Compile>
-    <Compile Update="Models\ICachedSolution.cs">
+    <Compile Update="Models\Workspace\ICachedSolution.cs">
       <DependentUpon>CachedSolution.cs</DependentUpon>
     </Compile>
-    <Compile Update="Services\IXmlDocExtractor.cs">
+    <Compile Update="Services\FileAnalysis\IXmlDocExtractor.cs">
       <DependentUpon>XmlDocExtractor.cs</DependentUpon>
     </Compile>
     <Compile Update="Services\Workspace\ISolutionRecompiler.cs">

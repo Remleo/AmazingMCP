@@ -1,4 +1,5 @@
 using AmazingMCP.Models;
+using AmazingMCP.Models.UsageQuery;
 using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services.Scanning;

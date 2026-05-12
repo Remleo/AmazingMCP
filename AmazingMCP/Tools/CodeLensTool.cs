@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using AmazingMCP.Services;
+using AmazingMCP.Services.CodeLens;
+using AmazingMCP.Services.Workspace;
 using ModelContextProtocol.Server;
 
 namespace AmazingMCP.Tools;

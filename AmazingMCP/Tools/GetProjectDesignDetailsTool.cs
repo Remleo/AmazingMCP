@@ -2,7 +2,11 @@ using System.ComponentModel;
 using System.Text;
 using System.Text.RegularExpressions;
 using AmazingMCP.Models;
+using AmazingMCP.Models.Design;
 using AmazingMCP.Services;
+using AmazingMCP.Services.Design;
+using AmazingMCP.Services.Wildcard;
+using AmazingMCP.Services.Workspace;
 using ModelContextProtocol.Server;
 
 namespace AmazingMCP.Tools;

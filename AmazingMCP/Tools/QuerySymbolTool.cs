@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Text;
 using AmazingMCP.Models;
 using AmazingMCP.Services;
+using AmazingMCP.Services.SymbolQuery;
+using AmazingMCP.Services.Workspace;
 using ModelContextProtocol.Server;
 
 namespace AmazingMCP.Tools;

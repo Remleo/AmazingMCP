@@ -1,4 +1,5 @@
 using AmazingMCP.Models;
+using AmazingMCP.Models.Workspace;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace AmazingMCP.Services.Workspace;

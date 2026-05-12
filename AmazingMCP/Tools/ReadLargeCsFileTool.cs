@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using AmazingMCP.Services;
+using AmazingMCP.Services.FileAnalysis;
 using ModelContextProtocol.Server;
 
 namespace AmazingMCP.Tools;

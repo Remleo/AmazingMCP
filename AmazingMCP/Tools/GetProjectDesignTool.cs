@@ -1,7 +1,10 @@
 using System.ComponentModel;
 using System.Text;
 using AmazingMCP.Models;
+using AmazingMCP.Models.Design;
 using AmazingMCP.Services;
+using AmazingMCP.Services.Design;
+using AmazingMCP.Services.Workspace;
 using ModelContextProtocol.Server;
 
 namespace AmazingMCP.Tools;

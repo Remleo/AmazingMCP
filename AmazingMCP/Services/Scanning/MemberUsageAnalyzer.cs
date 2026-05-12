@@ -1,4 +1,6 @@
 using AmazingMCP.Models;
+using AmazingMCP.Models.Design;
+using AmazingMCP.Models.UsageQuery;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 

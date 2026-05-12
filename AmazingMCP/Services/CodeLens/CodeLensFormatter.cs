@@ -1,5 +1,6 @@
 using AmazingMCP.Models;
 using System.Text;
+using AmazingMCP.Models.CodeLens;
 
 namespace AmazingMCP.Services.CodeLens;
 
