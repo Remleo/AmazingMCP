@@ -2,12 +2,15 @@ using System.Text;
 using AmazingMCP.Models;
 using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.FileAnalysis;
+using AmazingMCP.Services.Wildcard;
 using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services.SymbolQuery;
 
-public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocExtractor xmlDoc)
+public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocExtractor xmlDoc, IWildcardPatternFactory wildcardFactory)
 {
+
+    public int CompactModeThreshold { get; set; } = 25;
 
     // Displays: accessibility + modifiers (abstract/virtual/override/static/readonly/const) + type + name + params + constant value.
     // Does NOT include the containing type name in the output.
@@ -29,6 +32,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
     public async Task<string> GetSymbolInfoAsync(
         string solutionPath,
         string fullTypeName,
+        string[]? memberFilters = null,
         CancellationToken ct = default)
     {
         var (found, error, cachedSolution) = await roslynSymbolService.FindExactTypeAsync(solutionPath, fullTypeName, ct);
@@ -38,12 +42,20 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
 
         var sb = new StringBuilder();
         var visited = new HashSet<string>();
-        Describe(found, sb, indent: 0, visited);
+        Describe(found, sb, indent: 0, visited, memberFilters, inheritedCompact: false);
         DescribeDerivedTypes(found, cachedSolution, sb);
+
+        if (memberFilters is { Length: > 0 })
+        {
+            var filters = string.Join(", ", memberFilters.Select(f => $"\"{f}\""));
+            sb.AppendLine();
+            sb.AppendLine($"// NOTE: Output is filtered. Only members matching [{filters}] are shown.");
+        }
+
         return sb.ToString();
     }
 
-    void Describe(INamedTypeSymbol type, StringBuilder sb, int indent, HashSet<string> visited)
+    void Describe(INamedTypeSymbol type, StringBuilder sb, int indent, HashSet<string> visited, string[]? memberFilters, bool inheritedCompact)
     {
         var prefix = new string(' ', indent);
         var fullName = type.ToDisplayString();
@@ -57,17 +69,13 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         var syntaxRef = type.DeclaringSyntaxReferences.FirstOrDefault();
         var nestedPrefix = type.ContainingType is not null ? "/* nested */ " : "";
         var typeHeader = $"{nestedPrefix}{FormatTypeHeader(type)}";
-        if (syntaxRef is not null)
-        {
-            sb.AppendLine($"{prefix}{typeHeader} {FormatTypeLocation(type)}");
-        }
-        else
+        if (syntaxRef is null)
         {
             var doc = xmlDoc.ExtractSymbolDoc(type, prefix);
             if (doc is not null)
                 sb.AppendLine(doc);
-            sb.AppendLine($"{prefix}{typeHeader} {FormatTypeLocation(type)}");
         }
+        sb.AppendLine($"{prefix}{typeHeader} {FormatTypeLocation(type)}");
 
         if (type.TypeKind == TypeKind.Enum)
         {
@@ -75,15 +83,18 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
             return;
         }
 
-        var isThirdParty = type.DeclaringSyntaxReferences.IsEmpty;
-        DescribeMembers(type, sb, indent + 2, isThirdParty);
-        DescribeHierarchy(type, sb, indent + 2, visited);
+        var isCompact = IsCompactMode(type, memberFilters) || inheritedCompact;
+        DescribeMembers(type, sb, indent + 2, memberFilters, inheritedCompact);
+        DescribeHierarchy(type, sb, indent + 2, visited, isCompact, memberFilters);
     }
 
     static void DescribeEnum(INamedTypeSymbol type, StringBuilder sb, int indent)
     {
         var prefix = new string(' ', indent);
-        var underlyingType = type.EnumUnderlyingType?.ToDisplayString() ?? "int";
+
+        var underlyingType = type.EnumUnderlyingType?.ToDisplayString()
+            ?? "int";
+
         sb.AppendLine($"{prefix}Underlying type: {underlyingType}");
         sb.AppendLine($"{prefix}Values:");
 
@@ -94,16 +105,56 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         }
     }
 
-    void DescribeMembers(INamedTypeSymbol type, StringBuilder sb, int indent, bool isThirdParty = false)
+    void DescribeMembers(INamedTypeSymbol type, StringBuilder sb, int indent, string[]? memberFilters, bool inheritedCompact)
     {
         var prefix = new string(' ', indent);
+        var isThirdParty = type.DeclaringSyntaxReferences.IsEmpty;
+        var members = FilterMembers(type, memberFilters);
+        var isCompact = inheritedCompact || members.Count > CompactModeThreshold;
 
-        // Emit members in declaration order, skipping property accessors and invisible members.
-        foreach (var member in type.GetMembers())
+        if (isCompact)
+            AppendCompactMembers(members, sb, prefix, inheritedCompact);
+        else
+            AppendFullMembers(members, sb, prefix, isThirdParty);
+
+        AppendNestedTypes(type, sb, prefix, isThirdParty);
+    }
+
+    List<ISymbol> FilterMembers(INamedTypeSymbol type, string[]? memberFilters)
+    {
+        var members = CollectVisibleMembers(type);
+
+        if (memberFilters is not { Length: > 0 })
+            return members;
+
+        var matchers = memberFilters
+            .Select(wildcardFactory.CreateGlob)
+            .ToArray();
+
+        return members
+            .Where(m => matchers.Any(p => p.IsMatch(m.Name)))
+            .ToList();
+    }
+
+    bool IsCompactMode(INamedTypeSymbol type, string[]? memberFilters) =>
+        FilterMembers(type, memberFilters).Count > CompactModeThreshold;
+
+    static void AppendCompactMembers(List<ISymbol> members, StringBuilder sb, string prefix, bool inheritedCompact)
+    {
+        if (!inheritedCompact)
         {
-            if (!IsVisible(member.DeclaredAccessibility))
-                continue;
+            sb.AppendLine($"{prefix}// NOTE: This type has too many members ({members.Count}). Only member names are shown.");
+            sb.AppendLine($"{prefix}// To see full signatures, pass memberFilters, e.g.: memberFilters: [\"*Get*\", \"Create*\", \"MemberFullName\"]");
+        }
 
+        foreach (var member in members)
+            sb.AppendLine($"{prefix}{member.Name}");
+    }
+
+    void AppendFullMembers(List<ISymbol> members, StringBuilder sb, string prefix, bool isThirdParty)
+    {
+        foreach (var member in members)
+        {
             switch (member)
             {
                 case IEventSymbol e:
@@ -117,34 +168,52 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
                     break;
 
                 case IPropertySymbol p:
-                    // Skip indexers for now; they appear as IPropertySymbol with IsIndexer == true.
                     AppendMemberDoc(p, sb, prefix, isThirdParty);
                     sb.AppendLine($"{prefix}{p.ToDisplayString(MemberFormat)} {{ {FormatAccessors(p)} }}");
                     break;
 
-                case IMethodSymbol m when m.MethodKind == MethodKind.Constructor:
-                    AppendMemberDoc(m, sb, prefix, isThirdParty);
-                    sb.AppendLine($"{prefix}{m.ToDisplayString(MemberFormat)}");
-                    break;
-
-                case IMethodSymbol m when m.MethodKind == MethodKind.Ordinary:
-                    AppendMemberDoc(m, sb, prefix, isThirdParty);
-                    sb.AppendLine($"{prefix}{m.ToDisplayString(MemberFormat)}");
-                    break;
-
-                case IMethodSymbol m when IsOperator(m):
+                case IMethodSymbol m:
                     AppendMemberDoc(m, sb, prefix, isThirdParty);
                     sb.AppendLine($"{prefix}{m.ToDisplayString(MemberFormat)}");
                     break;
             }
         }
+    }
 
-        // Nested types follow after all other members.
+    static void AppendNestedTypes(INamedTypeSymbol type, StringBuilder sb, string prefix, bool isThirdParty)
+    {
         var nestedTypes = isThirdParty
             ? type.GetTypeMembers().Where(t => IsVisible(t.DeclaredAccessibility))
             : type.GetTypeMembers();
+
         foreach (var nested in nestedTypes)
             sb.AppendLine($"{prefix}{FormatTypeHeader(nested)}");
+    }
+
+    static List<ISymbol> CollectVisibleMembers(INamedTypeSymbol type)
+    {
+        var result = new List<ISymbol>();
+        foreach (var member in type.GetMembers())
+        {
+            if (!IsVisible(member.DeclaredAccessibility))
+                continue;
+
+            switch (member)
+            {
+                case IEventSymbol:
+                case IFieldSymbol:
+                case IPropertySymbol:
+                    result.Add(member);
+                    break;
+
+                case IMethodSymbol m when
+                    m.MethodKind is MethodKind.Constructor or MethodKind.Ordinary
+                    || IsOperator(m):
+                    result.Add(member);
+                    break;
+            }
+        }
+        return result;
     }
 
     void AppendMemberDoc(ISymbol member, StringBuilder sb, string prefix, bool isThirdParty)
@@ -207,7 +276,11 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         var syntaxRef = type.DeclaringSyntaxReferences.FirstOrDefault();
         if (syntaxRef is not null)
         {
-            var line = syntaxRef.SyntaxTree.GetLineSpan(syntaxRef.Span).StartLinePosition.Line + 1;
+
+            var line = syntaxRef.SyntaxTree
+                .GetLineSpan(syntaxRef.Span)
+                .StartLinePosition.Line + 1;
+
             return $"// source: {syntaxRef.SyntaxTree.FilePath}, line {line}";
         }
         return $"// assembly: {type.ContainingAssembly?.Name}";
@@ -217,7 +290,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         WellKnownFrameworkTypes.IsWellKnown(type);
 
     void DescribeHierarchy(
-        INamedTypeSymbol type, StringBuilder sb, int indent, HashSet<string> visited)
+        INamedTypeSymbol type, StringBuilder sb, int indent, HashSet<string> visited, bool inheritedCompact, string[]? memberFilters)
     {
         var prefix = new string(' ', indent);
 
@@ -233,7 +306,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
             {
                 sb.AppendLine();
                 sb.AppendLine($"{prefix}Base type:");
-                Describe(type.BaseType, sb, indent + 2, visited);
+                Describe(type.BaseType, sb, indent + 2, visited, memberFilters, inheritedCompact);
             }
         }
 
@@ -255,14 +328,16 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
             {
                 sb.AppendLine();
                 sb.AppendLine($"{prefix}Implements:");
+
                 foreach (var iface in toDescribe)
-                    Describe(iface, sb, indent + 2, visited);
+                    Describe(iface, sb, indent + 2, visited, memberFilters, inheritedCompact);
             }
 
             if (skipped.Count > 0)
             {
                 sb.AppendLine();
                 sb.AppendLine($"{prefix}Implements (skipped — well-known framework types):");
+
                 foreach (var name in skipped)
                     sb.AppendLine($"{prefix}  {name}");
             }

@@ -20,11 +20,17 @@ public class SymbolInfoServiceTests
     public async Task OneTimeSetUp()
     {
         _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
-        _sut = new SymbolInfoService(new RoslynSymbolService(CreateWorkspaceProvider(_cachedSolution), new WildcardPatternFactory()), new XmlDocExtractor());
+        _sut = new SymbolInfoService(new RoslynSymbolService(CreateWorkspaceProvider(_cachedSolution), new WildcardPatternFactory()), new XmlDocExtractor(), new WildcardPatternFactory())
+        {
+            CompactModeThreshold = 200
+        };
     }
 
     async Task<string> Act(string typeName) =>
         await _sut.GetSymbolInfoAsync(CompilationHelper.SolutionPath, typeName);
+
+    async Task<string> ActWithFilters(string typeName, string[] memberFilters) =>
+        await _sut.GetSymbolInfoAsync(CompilationHelper.SolutionPath, typeName, memberFilters);
 
     #region Not found
 
