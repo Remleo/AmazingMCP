@@ -32,6 +32,7 @@ public static class UsagePredicateCompiler
                            using System.Linq;
                            using System.Collections.Generic;
                            using AmazingMCP.Models;
+                           using AmazingMCP.Models.UsageQuery;
 
                            public static class __Predicate
                            {
