@@ -9,9 +9,9 @@ namespace AmazingMCP.Services.UsageQuery;
 /// Groups <see cref="UsageMatch"/> results by Type+FilePath, merges all section ranges
 /// globally per file, and formats the output as a single csharp block per file.
 /// </summary>
-public static class UsageResultFormatter
+public class UsageResultFormatter : IUsageResultFormatter
 {
-    public static string Format(IReadOnlyList<UsageMatch> matches, bool truncated = false)
+    public string Format(IReadOnlyList<UsageMatch> matches, bool truncated = false)
     {
         if (matches.Count == 0)
             return

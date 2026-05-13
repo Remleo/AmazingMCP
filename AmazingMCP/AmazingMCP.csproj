@@ -94,6 +94,24 @@
     <Compile Update="Services\Design\IProjectDesignService.cs">
       <DependentUpon>ProjectDesignService.cs</DependentUpon>
     </Compile>
+    <Compile Update="Services\SymbolQuery\ISymbolQueryService.cs">
+      <DependentUpon>SymbolQueryService.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\UsageQuery\IUsageResultFormatter.cs">
+      <DependentUpon>UsageResultFormatter.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\UsageQuery\IQueryUsagesService.cs">
+      <DependentUpon>QueryUsagesService.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\UsageQuery\IUsageQueryProvider.cs">
+      <DependentUpon>UsageQueryProvider.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\FileAnalysis\IReadCsFileDigestService.cs">
+      <DependentUpon>ReadCsFileDigestService.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\FileAnalysis\IReadLargeCsFileService.cs">
+      <DependentUpon>ReadLargeCsFileService.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

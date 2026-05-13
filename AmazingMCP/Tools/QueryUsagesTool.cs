@@ -1,5 +1,4 @@
-﻿using System.ComponentModel;
-using AmazingMCP.Services;
+using System.ComponentModel;
 using AmazingMCP.Services.UsageQuery;
 using AmazingMCP.Services.Workspace;
 using ModelContextProtocol.Server;
@@ -8,7 +7,7 @@ namespace AmazingMCP.Tools;
 
 [McpServerToolType]
 public class QueryUsagesTool(
-    IUsageQueryService usageQueryService,
+    IQueryUsagesService queryUsagesService,
     SolutionResolver solutionResolver)
 {
     [McpServerTool(Name = "query_usages"), Description(
@@ -45,33 +44,23 @@ public class QueryUsagesTool(
             "Only types matching at least one pattern are traversed. " +
             "Leave null to scan the entire solution. " +
             "Examples: [\"MyApp.Services.*\", \"*.Persistence.*\"]")]
-        string[] scanInclude = null!,
+#pragma warning disable CS8625
+        string[] scanInclude = null,
         [Description(
             "Optional. Excludes specific containing types from scanning. " +
             "Wildcard patterns matched against the full name of the containing type. " +
             "Types matching any pattern are skipped even if they match scanInclude. " +
             "Leave null to exclude nothing. " +
             "Examples: [\"*.Tests.*\", \"MyApp.Generated.*\"]")]
-        string[] scanExclude = null!,
+        string[] scanExclude = null,
+#pragma warning restore CS8625
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")]
         string? solutionPath = null,
         CancellationToken ct = default)
     {
         var (resolved, error) = solutionResolver.Resolve(solutionWorkspacePath, solutionPath);
-        if (resolved is null)
-            return error!;
+        if (resolved is null) return error!;
 
-        var (matches, queryError, truncated) = await usageQueryService.QueryAsync(
-            resolved,
-            typeName,
-            predicate,
-            scanInclude,
-            scanExclude,
-            ct);
-
-        if (queryError is not null)
-            return $"Error: {queryError}";
-
-        return UsageResultFormatter.Format(matches, truncated);
+        return await queryUsagesService.QueryAsync(resolved, typeName, predicate, scanInclude, scanExclude, ct);
     }
 }

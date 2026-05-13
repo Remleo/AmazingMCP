@@ -24,8 +24,8 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
 
         foreach (var (_, compilation) in solution.Compilations)
         {
-            SymbolQueryCollector.CollectTypes(compilation.GlobalNamespace, pattern, seen, results);
-            SymbolQueryCollector.CollectMembers(compilation.GlobalNamespace, pattern, seen, results);
+            SymbolWalker.CollectTypes(compilation.GlobalNamespace, pattern, seen, results);
+            SymbolWalker.CollectMembers(compilation.GlobalNamespace, pattern, seen, results);
         }
 
         return results;

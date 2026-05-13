@@ -1,19 +1,12 @@
 using System.ComponentModel;
-using AmazingMCP.Configuration;
-using AmazingMCP.Services;
 using AmazingMCP.Services.FileAnalysis;
-using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 
 namespace AmazingMCP.Tools;
 
 [McpServerToolType]
-public class ReadLargeCsFileTool(
-    IFilteredSourceService filteredSource,
-    IOptions<ReadCsOptions> options)
+public class ReadLargeCsFileTool(IReadLargeCsFileService readService)
 {
-    readonly ReadCsOptions _options = options.Value;
-
     [McpServerTool(Name = "read_large_cs_file", ReadOnly = true), Description(
         "IMPORTANT: USE THIS to read source code from large .cs files instead of loading the full file. " +
         "Returns only the members matching the given wildcard filters. " +
@@ -25,22 +18,5 @@ public class ReadLargeCsFileTool(
 #pragma warning disable CS8625
         string[] filters = null)
 #pragma warning restore CS8625
-    {
-        var result = filteredSource.GetFilteredSource(filePath, filters);
-
-        if (result.Contains("No matches found"))
-            return result + "\n\n" +
-                   "> No members matched. Use `read_cs_file_digest` to see the compact outline and find correct member names/signatures.";
-
-        var truncationMarker =
-            "\n\n<< ... output truncated ... >>\n\n" +
-            $"> Output exceeded {_options.ReadOutputMaxLength:N0} characters and was cut off.\n" +
-            "> Use narrower filter patterns to target specific members (e.g. [\"*MethodName*\"]).\n" +
-            "> To get a structural overview of the file, use `read_cs_file_digest`.";
-
-        if (result.Length > _options.ReadOutputMaxLength)
-            return result[.._options.ReadOutputMaxLength] + truncationMarker;
-
-        return result;
-    }
+        => readService.Read(filePath, filters);
 }

@@ -11,16 +11,16 @@ using NUnit.Framework;
 
 namespace AmazingMCP.Tests;
 
-public class QueryUsagesServiceTests
+public class UsageProviderTests
 {
     CachedSolution _cachedSolution = null!;
-    IUsageQueryService _sut = null!;
+    IUsageProvider _sut = null!;
 
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
         _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
-        _sut = new UsageQueryService(
+        _sut = new UsageProvider(
             CreateWorkspaceProvider(_cachedSolution),
             new WildcardPatternFactory(),
             Microsoft.Extensions.Options.Options.Create(new AmazingMCP.Configuration.QueryUsagesOptions()));
@@ -674,7 +674,7 @@ public class QueryUsagesServiceTests
             predicate: "x.Kind == UsageKind.MethodCall",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
-        var output = UsageResultFormatter.Format(matches);
+        var output = new UsageResultFormatter().Format(matches);
 
         // assert — one csharp block per type+file
         output.Should().Contain("UsageQueryTestFixture");
@@ -688,7 +688,7 @@ public class QueryUsagesServiceTests
         var emptyMatches = Array.Empty<UsageMatch>();
 
         // act
-        var output = UsageResultFormatter.Format(emptyMatches);
+        var output = new UsageResultFormatter().Format(emptyMatches);
 
         // assert
         output.Should().Contain("No usages found");
@@ -707,7 +707,7 @@ public class QueryUsagesServiceTests
             predicate: "x.Kind == UsageKind.TypeAsParameter || x.Kind == UsageKind.PropertyWrite",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
-        var output = UsageResultFormatter.Format(matches);
+        var output = new UsageResultFormatter().Format(matches);
 
         // assert — "RenameAnimal" appears exactly once
         var occurrences = System.Text.RegularExpressions.Regex
@@ -730,7 +730,7 @@ public class QueryUsagesServiceTests
             "IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
-        var output = UsageResultFormatter.Format(matches);
+        var output = new UsageResultFormatter().Format(matches);
 
         // assert — "MultiUsageMethod" appears exactly once in the output
         var occurrences = System.Text.RegularExpressions.Regex
@@ -754,7 +754,7 @@ public class QueryUsagesServiceTests
             "IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
-        var output = UsageResultFormatter.Format(matches);
+        var output = new UsageResultFormatter().Format(matches);
 
         // assert — no duplicate line headers for the same range
         var lineHeaders = System.Text.RegularExpressions.Regex
@@ -777,7 +777,7 @@ public class QueryUsagesServiceTests
             "IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
-        var output = UsageResultFormatter.Format(matches);
+        var output = new UsageResultFormatter().Format(matches);
 
         // assert — count occurrences of "SaveIfNotFull" in the output
         // It should appear exactly once (as the method definition header), not multiple times
@@ -796,7 +796,7 @@ public class QueryUsagesServiceTests
             "IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
-        var output = UsageResultFormatter.Format(matches);
+        var output = new UsageResultFormatter().Format(matches);
 
         // assert — output should not contain the same line comment twice
         // (duplicate ranges would produce identical /* lines N +K */ headers)
@@ -817,7 +817,7 @@ public class QueryUsagesServiceTests
             predicate: "x.Kind == UsageKind.MethodCall",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
-        var output = UsageResultFormatter.Format(matches);
+        var output = new UsageResultFormatter().Format(matches);
 
         // assert — line comments use /* line N +K */ format inside the csharp block
         output.Should().MatchRegex(@"// lines? \d+ \+\d+");
@@ -834,7 +834,7 @@ public class QueryUsagesServiceTests
             predicate: "x.Kind == UsageKind.MethodCall",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
-        var output = UsageResultFormatter.Format(matches);
+        var output = new UsageResultFormatter().Format(matches);
 
         // assert
         output.Should().Contain("// ...");

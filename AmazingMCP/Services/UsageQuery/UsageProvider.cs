@@ -16,10 +16,10 @@ namespace AmazingMCP.Services.UsageQuery;
 /// and collects <see cref="UsageMatch"/> entries that satisfy the compiled predicate.
 /// A single linear pass is performed per document; scope is maintained via a stack.
 /// </summary>
-public sealed class UsageQueryService(
+public sealed class UsageProvider(
     IWorkspaceProvider workspaceProvider,
     IWildcardPatternFactory wildcardFactory,
-    IOptions<QueryUsagesOptions> options) : IUsageQueryService
+    IOptions<QueryUsagesOptions> options) : IUsageProvider
 {
     readonly QueryUsagesOptions _options = options.Value;
 

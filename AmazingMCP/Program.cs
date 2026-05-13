@@ -41,11 +41,14 @@ builder.Services.AddSingleton<IWorkspaceProvider>(sp => sp.GetRequiredService<Wo
 builder.Services.AddSingleton<SolutionResolver>();
 builder.Services.AddSingleton<IXmlDocExtractor, XmlDocExtractor>();
 builder.Services.AddSingleton<RoslynSymbolService>();
+builder.Services.AddSingleton<ISymbolQueryService, SymbolQueryService>();
 builder.Services.AddSingleton<SymbolInfoService>();
 builder.Services.AddSingleton<IFileReader, FileSystemFileReader>();
 builder.Services.AddSingleton<IFileStructureService, FileStructureService>();
 builder.Services.AddSingleton<IFileDigestService, FileDigestService>();
 builder.Services.AddSingleton<IFilteredSourceService, FilteredSourceService>();
+builder.Services.AddSingleton<IReadLargeCsFileService, ReadLargeCsFileService>();
+builder.Services.AddSingleton<IReadCsFileDigestService, ReadCsFileDigestService>();
 
 // Scanning
 builder.Services.AddSingleton<ITypeFilter, TypeFilter>();
@@ -54,7 +57,9 @@ builder.Services.AddSingleton<IMemberAccessAnalyzer, MemberAccessAnalyzer>();
 builder.Services.AddSingleton<IMemberUsageAnalyzer, MemberUsageAnalyzer>();
 
 // Usage query
-builder.Services.AddSingleton<IUsageQueryService, UsageQueryService>();
+builder.Services.AddSingleton<IUsageProvider, UsageProvider>();
+builder.Services.AddSingleton<IUsageResultFormatter, UsageResultFormatter>();
+builder.Services.AddSingleton<IQueryUsagesService, QueryUsagesService>();
 
 // Core services
 builder.Services.AddSingleton<ITypeCollector, TypeCollector>();

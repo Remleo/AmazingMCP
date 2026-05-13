@@ -3,7 +3,7 @@ using AmazingMCP.Models.UsageQuery;
 
 namespace AmazingMCP.Services.UsageQuery;
 
-public interface IUsageQueryService
+public interface IUsageProvider
 {
     /// <summary>
     /// Traverses the solution and returns all usage matches where the type pattern matches
