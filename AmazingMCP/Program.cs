@@ -89,6 +89,6 @@ builder.Services.AddToolParameterValidation();
 
 var app = builder.Build();
 
-app.MapMcp("/sse");
+app.MapMcp();
 
 app.Run();
