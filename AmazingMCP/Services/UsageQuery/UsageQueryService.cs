@@ -1,4 +1,5 @@
-﻿using AmazingMCP.Models;
+﻿using AmazingMCP.Configuration;
+using AmazingMCP.Models;
 using AmazingMCP.Models.FileAnalysis;
 using AmazingMCP.Models.UsageQuery;
 using AmazingMCP.Services.Wildcard;
@@ -6,6 +7,7 @@ using AmazingMCP.Services.Workspace;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.Options;
 
 namespace AmazingMCP.Services.UsageQuery;
 
@@ -16,9 +18,10 @@ namespace AmazingMCP.Services.UsageQuery;
 /// </summary>
 public sealed class UsageQueryService(
     IWorkspaceProvider workspaceProvider,
-    IWildcardPatternFactory wildcardFactory) : IUsageQueryService
+    IWildcardPatternFactory wildcardFactory,
+    IOptions<QueryUsagesOptions> options) : IUsageQueryService
 {
-    const int MatchLimit = 200;
+    readonly QueryUsagesOptions _options = options.Value;
 
     public async Task<(IReadOnlyList<UsageMatch> Matches, string? Error, bool Truncated)> QueryAsync(
         string solutionPath,
@@ -71,11 +74,11 @@ public sealed class UsageQueryService(
                     includePatterns,
                     excludePatterns,
                     matches,
-                    MatchLimit);
+                    _options.QueryMatchLimit);
 
                 walker.Visit(root);
 
-                if (matches.Count >= MatchLimit)
+                if (matches.Count >= _options.QueryMatchLimit)
                     truncated = true;
             }
         }

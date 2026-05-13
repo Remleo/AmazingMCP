@@ -6,7 +6,6 @@ using AmazingMCP.Services.Design;
 using AmazingMCP.Services.Scanning;
 using AmazingMCP.Tests.Helpers;
 using static AmazingMCP.Tests.Helpers.CompilationHelper;
-using AmazingMCP.Tools;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using NSubstitute;
@@ -52,7 +51,7 @@ public class ProjectDesignServiceTests
     }
 
     ProjectDesignResult Act() =>
-        new ProjectDesignService(_dependencyMapService, _aggregator).BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath);
+        new ProjectDesignProvider(_dependencyMapService, _aggregator).BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath);
 
     #region Flat groups — no project split
 
@@ -225,7 +224,7 @@ public class ProjectDesignServiceTests
         var sorted = new List<string> { "MyApp.Core", "MyApp" };
 
         // act
-        var (project, root) = ProjectDesignService.ResolveOwningProject("MyApp.Core", rootNs, sorted);
+        var (project, root) = ProjectDesignProvider.ResolveOwningProject("MyApp.Core", rootNs, sorted);
 
         // assert
         project.Should().Be("MyApp.Core");
@@ -244,7 +243,7 @@ public class ProjectDesignServiceTests
         var sorted = new List<string> { "MyApp.Core", "MyApp" };
 
         // act
-        var (project, root) = ProjectDesignService.ResolveOwningProject(
+        var (project, root) = ProjectDesignProvider.ResolveOwningProject(
             "MyApp.Core.Messaging", rootNs, sorted);
 
         // assert
@@ -260,7 +259,7 @@ public class ProjectDesignServiceTests
         var sorted = new List<string> { "MyApp" };
 
         // act
-        var (project, root) = ProjectDesignService.ResolveOwningProject(
+        var (project, root) = ProjectDesignProvider.ResolveOwningProject(
             "External.Lib", rootNs, sorted);
 
         // assert
@@ -276,7 +275,7 @@ public class ProjectDesignServiceTests
     public void GetRelativeNamespace_SameAsRoot_ReturnsEmpty()
     {
         // act
-        var result = ProjectDesignService.GetRelativeNamespace("MyApp", "MyApp");
+        var result = ProjectDesignProvider.GetRelativeNamespace("MyApp", "MyApp");
 
         // assert
         result.Should().BeEmpty();
@@ -286,7 +285,7 @@ public class ProjectDesignServiceTests
     public void GetRelativeNamespace_ChildOfRoot_ReturnsRelativePart()
     {
         // act
-        var result = ProjectDesignService.GetRelativeNamespace("MyApp.Services.Handlers", "MyApp");
+        var result = ProjectDesignProvider.GetRelativeNamespace("MyApp.Services.Handlers", "MyApp");
 
         // assert
         result.Should().Be("Services.Handlers");
@@ -296,7 +295,7 @@ public class ProjectDesignServiceTests
     public void GetRelativeNamespace_EmptyRoot_ReturnsFullNamespace()
     {
         // act
-        var result = ProjectDesignService.GetRelativeNamespace("Some.Namespace", "");
+        var result = ProjectDesignProvider.GetRelativeNamespace("Some.Namespace", "");
 
         // assert
         result.Should().Be("Some.Namespace");
@@ -306,7 +305,7 @@ public class ProjectDesignServiceTests
     public void GetRelativeNamespace_DifferentRoot_ReturnsFullNamespace()
     {
         // act
-        var result = ProjectDesignService.GetRelativeNamespace("Other.Namespace", "MyApp");
+        var result = ProjectDesignProvider.GetRelativeNamespace("Other.Namespace", "MyApp");
 
         // assert
         result.Should().Be("Other.Namespace");
@@ -326,7 +325,7 @@ public class ProjectDesignServiceTests
         try
         {
             // act
-            var result = ProjectDesignService.ExtractRootNamespace(csproj);
+            var result = ProjectDesignProvider.ExtractRootNamespace(csproj);
 
             // assert
             result.Should().BeNull();
@@ -348,7 +347,7 @@ public class ProjectDesignServiceTests
         try
         {
             // act
-            var result = ProjectDesignService.ExtractRootNamespace(csproj);
+            var result = ProjectDesignProvider.ExtractRootNamespace(csproj);
 
             // assert
             result.Should().Be("My.Custom.Ns");
@@ -368,7 +367,7 @@ public class ProjectDesignServiceTests
     {
         // act
         var result = Act();
-        var md = GetProjectDesignTool.FormatMarkdown(result);
+        var md = ProjectDesignService.Format(result);
 
         // assert — no standalone project-level headers (groups always have parenthesized full name)
         var lines = md.Split('\n').Select(l => l.Trim()).ToList();
@@ -381,7 +380,7 @@ public class ProjectDesignServiceTests
     {
         // act
         var result = Act();
-        var md = GetProjectDesignTool.FormatMarkdown(result);
+        var md = ProjectDesignService.Format(result);
 
         // assert
         md.Should().Contain("## Services (TestProject.Core.Services)");
@@ -398,7 +397,7 @@ public class ProjectDesignServiceTests
     {
         // act
         var result = Act();
-        var md = GetProjectDesignTool.FormatMarkdown(result);
+        var md = ProjectDesignService.Format(result);
 
         // assert
         md.Should().Contain("(TestProject.Core.Services)");
@@ -412,7 +411,7 @@ public class ProjectDesignServiceTests
     {
         // act
         var result = Act();
-        var md = GetProjectDesignTool.FormatMarkdown(result);
+        var md = ProjectDesignService.Format(result);
 
         // assert
         md.Should().Contain("Entries count:");
@@ -424,7 +423,7 @@ public class ProjectDesignServiceTests
     {
         // act
         var result = Act();
-        var md = GetProjectDesignTool.FormatMarkdown(result);
+        var md = ProjectDesignService.Format(result);
 
         // assert
         md.Should().Contain("- TestProject.Core.Persistence");
@@ -437,7 +436,7 @@ public class ProjectDesignServiceTests
     {
         // act
         var result = Act();
-        var md = GetProjectDesignTool.FormatMarkdown(result);
+        var md = ProjectDesignService.Format(result);
 
         // assert
         md.Should().NotContain("IAnimalService");
@@ -519,7 +518,7 @@ public class ProjectDesignServiceTests
             });
 
         // act
-        var result = new ProjectDesignService(_dependencyMapService, new DependencyAggregator())
+        var result = new ProjectDesignProvider(_dependencyMapService, new DependencyAggregator())
             .BuildFromDependencyMap(depMap, "/fake/solution.slnx");
 
         // assert — NuGet group must not appear in the main list
@@ -589,7 +588,7 @@ public class ProjectDesignServiceTests
             });
 
         // act
-        var result = new ProjectDesignService(_dependencyMapService, new DependencyAggregator())
+        var result = new ProjectDesignProvider(_dependencyMapService, new DependencyAggregator())
             .BuildFromDependencyMap(depMap, "/fake/solution.slnx");
 
         // assert — Application group depends on Acme.Sdk namespace (NuGet), even though it's not in groups

@@ -1,5 +1,6 @@
 using CommandLine;
 using AmazingMCP;
+using AmazingMCP.Configuration;
 using Microsoft.Build.Locator;
 using AmazingMCP.Infrastructure;
 using AmazingMCP.Services;
@@ -11,6 +12,7 @@ using AmazingMCP.Services.SymbolQuery;
 using AmazingMCP.Services.UsageQuery;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Services.Workspace;
+using AmazingMCP.Tools;
 
 if (Parser.Default.ParseArguments<CommandLineOptions>(args).Tag == ParserResultType.NotParsed)
     return;
@@ -21,6 +23,12 @@ MSBuildLocator.RegisterDefaults();
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddMemoryCache();
+
+// Options
+builder.Services.Configure<SymbolOptions>(builder.Configuration.GetSection("Symbol"));
+builder.Services.Configure<ReadCsOptions>(builder.Configuration.GetSection("ReadCs"));
+builder.Services.Configure<ProjectDesignOptions>(builder.Configuration.GetSection("ProjectDesign"));
+builder.Services.Configure<QueryUsagesOptions>(builder.Configuration.GetSection("QueryUsages"));
 
 // Infrastructure
 builder.Services.AddSingleton<IWildcardPatternFactory, WildcardPatternFactory>();
@@ -53,8 +61,16 @@ builder.Services.AddSingleton<ITypeCollector, TypeCollector>();
 builder.Services.AddSingleton<IAbstractionExtractor, AbstractionExtractor>();
 builder.Services.AddSingleton<IDependencyAggregator, DependencyAggregator>();
 builder.Services.AddSingleton<IDependencyMapService, DependencyMapService>();
-builder.Services.AddSingleton<ProjectDesignService>();
+builder.Services.AddSingleton<IProjectDesignProvider, ProjectDesignProvider>();
+builder.Services.AddSingleton<IProjectDesignDetailsService, ProjectDesignDetailsService>();
+builder.Services.AddSingleton<IProjectDesignService, ProjectDesignService>();
 builder.Services.AddSingleton<ICodeLensService, CodeLensService>();
+
+// Tools
+builder.Services.AddSingleton<QuerySymbolTool>();
+builder.Services.AddSingleton<ReadLargeCsFileTool>();
+builder.Services.AddSingleton<GetProjectDesignDetailsTool>();
+builder.Services.AddSingleton<QueryUsagesTool>();
 
 builder.Services
     .AddMcpServer(options =>

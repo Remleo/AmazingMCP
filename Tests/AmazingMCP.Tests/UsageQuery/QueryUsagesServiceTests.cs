@@ -22,7 +22,8 @@ public class QueryUsagesServiceTests
         _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _sut = new UsageQueryService(
             CreateWorkspaceProvider(_cachedSolution),
-            new WildcardPatternFactory());
+            new WildcardPatternFactory(),
+            Microsoft.Extensions.Options.Options.Create(new AmazingMCP.Configuration.QueryUsagesOptions()));
     }
 
     async Task<IReadOnlyList<UsageMatch>> Act(

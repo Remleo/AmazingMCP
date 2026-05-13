@@ -1,6 +1,6 @@
 using AmazingMCP.Models;
 
-namespace AmazingMCP.Tools;
+namespace AmazingMCP.Services.Design;
 
 /// <summary>
 /// Helpers for collapsing closed generic abstractions into their open generic counterparts

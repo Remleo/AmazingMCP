@@ -1,22 +1,25 @@
 using System.ComponentModel;
+using AmazingMCP.Configuration;
 using AmazingMCP.Services;
 using AmazingMCP.Services.FileAnalysis;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 
 namespace AmazingMCP.Tools;
 
 [McpServerToolType]
-public static class ReadLargeCsFileTool
+public class ReadLargeCsFileTool(
+    IFilteredSourceService filteredSource,
+    IOptions<ReadCsOptions> options)
 {
-    const int MaxOutputLength = 20_000;
+    readonly ReadCsOptions _options = options.Value;
 
     [McpServerTool(Name = "read_large_cs_file", ReadOnly = true), Description(
         "IMPORTANT: USE THIS to read source code from large .cs files instead of loading the full file. " +
         "Returns only the members matching the given wildcard filters. " +
         "Filters match against full member signatures (name, return type, parameters). " +
         "If unsure what members exist, call read_cs_file_digest first.")]
-    public static string ReadLargeCsFile(
-        IFilteredSourceService filteredSource,
+    public string ReadLargeCsFile(
         [Description("Absolute path to the .cs file")] string filePath,
         [Description("Wildcard filter patterns, e.g. [\"*Async*\", \"usings\", \"*public*\"]. Pass empty array to return the full file.")]
 #pragma warning disable CS8625
@@ -31,12 +34,12 @@ public static class ReadLargeCsFileTool
 
         var truncationMarker =
             "\n\n<< ... output truncated ... >>\n\n" +
-            $"> Output exceeded {MaxOutputLength:N0} characters and was cut off.\n" +
+            $"> Output exceeded {_options.ReadOutputMaxLength:N0} characters and was cut off.\n" +
             "> Use narrower filter patterns to target specific members (e.g. [\"*MethodName*\"]).\n" +
             "> To get a structural overview of the file, use `read_cs_file_digest`.";
 
-        if (result.Length > MaxOutputLength)
-            return result[..MaxOutputLength] + truncationMarker;
+        if (result.Length > _options.ReadOutputMaxLength)
+            return result[.._options.ReadOutputMaxLength] + truncationMarker;
 
         return result;
     }

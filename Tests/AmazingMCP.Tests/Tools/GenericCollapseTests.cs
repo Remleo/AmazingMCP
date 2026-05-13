@@ -1,3 +1,4 @@
+using AmazingMCP.Configuration;
 using AmazingMCP.Models;
 using AmazingMCP.Models.Design;
 using AmazingMCP.Models.Workspace;
@@ -10,6 +11,8 @@ using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using AmazingMCP.Tools;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
+using NSubstitute;
 using NUnit.Framework;
 
 namespace AmazingMCP.Tests;
@@ -59,9 +62,12 @@ public class GenericCollapseTests
         GetTypeDepsAndUsageTool.FormatMarkdown(_depMap, typeQuery, new WildcardPatternFactory(), new DependencyAggregator());
 
     string ActDetailed(string[] forNamespaces) =>
-        GetProjectDesignDetailsTool.FormatMarkdown(
-            _depMap, forNamespaces, includeDependencyUsage: true,
-            includeImplementations: true, wildcardFactory: new WildcardPatternFactory(), aggregator: new DependencyAggregator());
+        new ProjectDesignDetailsService(
+            Substitute.For<IDependencyMapService>(),
+            new WildcardPatternFactory(),
+            new DependencyAggregator(),
+            Options.Create(new ProjectDesignOptions()))
+        .Format(_depMap, forNamespaces, includeDependencyUsage: true, includeImplementations: true);
 
     // ─── Preconditions ───────────────────────────────────────────────────────
 

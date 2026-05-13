@@ -85,6 +85,15 @@
     <Compile Update="Services\Workspace\ISolutionCache.cs">
       <DependentUpon>SolutionCache.cs</DependentUpon>
     </Compile>
+    <Compile Update="Services\Design\IProjectDesignDetailsService.cs">
+      <DependentUpon>ProjectDesignDetailsService.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\Design\IProjectDesignProvider.cs">
+      <DependentUpon>ProjectDesignProvider.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\Design\IProjectDesignService.cs">
+      <DependentUpon>ProjectDesignService.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

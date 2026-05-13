@@ -1,3 +1,4 @@
+using AmazingMCP.Configuration;
 using AmazingMCP.Models;
 using AmazingMCP.Models.Design;
 using AmazingMCP.Models.Workspace;
@@ -7,18 +8,19 @@ using AmazingMCP.Services.Scanning;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Tests.Helpers;
 using static AmazingMCP.Tests.Helpers.CompilationHelper;
-using AmazingMCP.Tools;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using NUnit.Framework;
 
 namespace AmazingMCP.Tests;
 
-public class GetProjectDesignDetailsToolTests
+public class ProjectDesignDetailsServiceTests
 {
     DependencyMapResult _depMap = null!;
     IDependencyMapService _dependencyMapService = null!;
+    ProjectDesignDetailsService _sut = null!;
     CachedSolution _cachedSolution = null!;
     MemoryCache _cache = null!;
 
@@ -42,6 +44,12 @@ public class GetProjectDesignDetailsToolTests
         _dependencyMapService
             .BuildMapAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(_depMap);
+
+        _sut = new ProjectDesignDetailsService(
+            _dependencyMapService,
+            new WildcardPatternFactory(),
+            new DependencyAggregator(),
+            Options.Create(new ProjectDesignOptions()));
     }
 
     [OneTimeTearDown]
@@ -51,13 +59,12 @@ public class GetProjectDesignDetailsToolTests
     }
 
     string Act(string[] forNamespaces, bool includeDependencyUsage = true, bool includeImplementations = true) =>
-        GetProjectDesignDetailsTool.FormatMarkdown(
-            _depMap, forNamespaces, includeDependencyUsage, includeImplementations, new WildcardPatternFactory(), new DependencyAggregator());
+        _sut.Format(_depMap, forNamespaces, includeDependencyUsage, includeImplementations);
 
     #region Namespace filtering — exact match
 
     [Test]
-    public void FormatMarkdown_ExactMatch_ReturnsOnlyMatchingNamespace()
+    public void Format_ExactMatch_ReturnsOnlyMatchingNamespace()
     {
         var md = Act(["TestProject.App.Mapping"]);
 
@@ -67,14 +74,14 @@ public class GetProjectDesignDetailsToolTests
     }
 
     [Test]
-    public void FormatMarkdown_ExactMatch_CaseInsensitive()
+    public void Format_ExactMatch_CaseInsensitive()
     {
         var md = Act(["testproject.app.mapping"]);
         md.Should().Contain("TestProject.App.Mapping");
     }
 
     [Test]
-    public void FormatMarkdown_NoMatch_ReturnsErrorMessage()
+    public void Format_NoMatch_ReturnsErrorMessage()
     {
         var md = Act(["NonExistent.Namespace"]);
         md.Should().Contain("No abstractions found");
@@ -86,7 +93,7 @@ public class GetProjectDesignDetailsToolTests
     #region Namespace filtering — wildcard
 
     [Test]
-    public void FormatMarkdown_WildcardSuffix_MatchesAllChildNamespaces()
+    public void Format_WildcardSuffix_MatchesAllChildNamespaces()
     {
         var md = Act(["TestProject.App.*"]);
         md.Should().Contain("TestProject.App.Mapping");
@@ -94,7 +101,7 @@ public class GetProjectDesignDetailsToolTests
     }
 
     [Test]
-    public void FormatMarkdown_WildcardSuffix_DoesNotMatchParent()
+    public void Format_WildcardSuffix_DoesNotMatchParent()
     {
         var md = Act(["TestProject.Core.*"]);
         md.Should().Contain("TestProject.Core.Services");
@@ -103,7 +110,7 @@ public class GetProjectDesignDetailsToolTests
     }
 
     [Test]
-    public void FormatMarkdown_WildcardPrefix_MatchesByNamespaceSuffix()
+    public void Format_WildcardPrefix_MatchesByNamespaceSuffix()
     {
         var md = Act(["*.Mapping"]);
         md.Should().Contain("TestProject.App.Mapping");
@@ -111,7 +118,7 @@ public class GetProjectDesignDetailsToolTests
     }
 
     [Test]
-    public void FormatMarkdown_WildcardMiddle_MatchesCorrectly()
+    public void Format_WildcardMiddle_MatchesCorrectly()
     {
         var md = Act(["TestProject.*.Mapping"]);
         md.Should().Contain("TestProject.App.Mapping");
@@ -120,7 +127,7 @@ public class GetProjectDesignDetailsToolTests
     }
 
     [Test]
-    public void FormatMarkdown_MultiplePatterns_UnionOfMatches()
+    public void Format_MultiplePatterns_UnionOfMatches()
     {
         var md = Act(["TestProject.App.Mapping", "TestProject.Core.Services"]);
         md.Should().Contain("TestProject.App.Mapping");
@@ -133,14 +140,14 @@ public class GetProjectDesignDetailsToolTests
     #region Output structure
 
     [Test]
-    public void FormatMarkdown_ContainsHeader()
+    public void Format_ContainsHeader()
     {
         var md = Act(["TestProject.App.Mapping"]);
         md.Should().StartWith("# Project Design Details");
     }
 
     [Test]
-    public void FormatMarkdown_AbstractionsAsH2Headers()
+    public void Format_AbstractionsAsH2Headers()
     {
         var md = Act(["TestProject.App.Mapping"]);
         var lines = md.Split('\n').Select(l => l.Trim()).ToList();
@@ -148,21 +155,21 @@ public class GetProjectDesignDetailsToolTests
     }
 
     [Test]
-    public void FormatMarkdown_ImplementationsListed()
+    public void Format_ImplementationsListed()
     {
         var md = Act(["TestProject.App.Mapping"]);
         md.Should().Contain("### Implementations");
     }
 
     [Test]
-    public void FormatMarkdown_DependenciesListed()
+    public void Format_DependenciesListed()
     {
         var md = Act(["TestProject.App.Messaging"]);
         md.Should().Contain("### Depends on");
     }
 
     [Test]
-    public void FormatMarkdown_NuGetAbstractions_NotIncluded()
+    public void Format_NuGetAbstractions_NotIncluded()
     {
         var md = Act(["AutoMapper"]);
         md.Should().Contain("No abstractions found");
@@ -173,14 +180,14 @@ public class GetProjectDesignDetailsToolTests
     #region includeDependencyUsage
 
     [Test]
-    public void FormatMarkdown_IncludeDependencyUsage_True_ShowsUsages()
+    public void Format_IncludeDependencyUsage_True_ShowsUsages()
     {
         var md = Act(["TestProject.App.Messaging"], includeDependencyUsage: true);
         md.Should().MatchRegex(@"\w+\(\)|\w+ \{get\}|\w+ \{set\}");
     }
 
     [Test]
-    public void FormatMarkdown_IncludeDependencyUsage_False_HidesUsages()
+    public void Format_IncludeDependencyUsage_False_HidesUsages()
     {
         var md = Act(["TestProject.App.Messaging"], includeDependencyUsage: false);
         md.Should().NotMatchRegex(@"  - \w+\(\)");
@@ -192,14 +199,14 @@ public class GetProjectDesignDetailsToolTests
     #region includeImplementations
 
     [Test]
-    public void FormatMarkdown_IncludeImplementations_True_ShowsImplementationsSection()
+    public void Format_IncludeImplementations_True_ShowsImplementationsSection()
     {
         var md = Act(["TestProject.App.Mapping"], includeImplementations: true);
         md.Should().Contain("### Implementations");
     }
 
     [Test]
-    public void FormatMarkdown_IncludeImplementations_False_HidesImplementationsSection()
+    public void Format_IncludeImplementations_False_HidesImplementationsSection()
     {
         var md = Act(["TestProject.App.Mapping"], includeImplementations: false);
         md.Should().NotContain("### Implementations");
@@ -207,7 +214,7 @@ public class GetProjectDesignDetailsToolTests
     }
 
     [Test]
-    public void FormatMarkdown_IncludeImplementations_False_StillShowsDependencies()
+    public void Format_IncludeImplementations_False_StillShowsDependencies()
     {
         var md = Act(["TestProject.App.Messaging"], includeImplementations: false, includeDependencyUsage: true);
         md.Should().Contain("### Depends on");
@@ -219,7 +226,7 @@ public class GetProjectDesignDetailsToolTests
     #region Truncation
 
     [Test]
-    public void FormatMarkdown_LargeOutput_IsTruncated()
+    public void Format_LargeOutput_IsTruncated()
     {
         var md = Act(["TestProject.*"], includeDependencyUsage: true);
         if (md.Length >= 30000)
@@ -230,7 +237,7 @@ public class GetProjectDesignDetailsToolTests
     }
 
     [Test]
-    public void FormatMarkdown_SmallOutput_NotTruncated()
+    public void Format_SmallOutput_NotTruncated()
     {
         var md = Act(["TestProject.Core.Configuration"]);
         md.Should().NotContain("<<... truncated output ...>>");
@@ -289,22 +296,20 @@ public class GetProjectDesignDetailsToolTests
 
     #endregion
 
-    #region FormatMarkdown with synthetic data
+    #region Format with synthetic data
 
     [Test]
-    public void FormatMarkdown_EmptyNamespaces_ReturnsError()
+    public void Format_EmptyNamespaces_ReturnsError()
     {
-        var md = GetProjectDesignDetailsTool.FormatMarkdown(_depMap, [], true);
+        var md = _sut.Format(_depMap, [], false);
         md.Should().Contain("No abstractions found");
     }
 
     [Test]
-    public void FormatMarkdown_AbstractionWithNoImplementations_ShowsNoImplNote()
+    public void Format_AbstractionWithNoImplementations_ShowsNoImplNote()
     {
-        // IGenericTracer<TService> is an open generic with no source implementations
         var md = Act(["TestProject.Core.Logging"]);
         md.Should().Contain("## TestProject.Core.Logging.IGenericTracer<TService>");
-        // The IGenericTracer<TService> entry specifically has no implementations
         var lines = md.Split('\n').ToList();
         var tracerIdx = lines.FindIndex(l => l.Contains("## TestProject.Core.Logging.IGenericTracer<TService>"));
         var nextH2Idx = lines.FindIndex(tracerIdx + 1, l => l.TrimStart().StartsWith("## "));
@@ -314,15 +319,14 @@ public class GetProjectDesignDetailsToolTests
     }
 
     [Test]
-    public void FormatMarkdown_DepLabel_ShowsTypeFullName()
+    public void Format_DepLabel_ShowsTypeFullName()
     {
-        // AnimalService depends on IAnimalRepository — full name must appear in Depends on
         var md = Act(["TestProject.App.Services"]);
         md.Should().Contain("TestProject.Core.Persistence.IAnimalRepository");
     }
 
     [Test]
-    public void FormatMarkdown_Truncation_AppliedAtCorrectLength()
+    public void Format_Truncation_AppliedAtCorrectLength()
     {
         var md = Act(["TestProject.*"], includeDependencyUsage: true);
         if (md.Length >= 30000)
@@ -337,11 +341,10 @@ public class GetProjectDesignDetailsToolTests
     #region XmlDoc summary
 
     [Test]
-    public void FormatMarkdown_AbstractionWithXmlDocSummary_ShowsSummaryUnderHeader()
+    public void Format_AbstractionWithXmlDocSummary_ShowsSummaryUnderHeader()
     {
         var md = Act(["TestProject.Core.Services"]);
 
-        // IAnimalService has a summary — it should appear right after the ## header
         var lines = md.Split('\n').Select(l => l.Trim()).ToList();
         var headerIdx = lines.FindIndex(l => l == "## TestProject.Core.Services.IAnimalService");
         headerIdx.Should().BeGreaterThan(-1, "IAnimalService header must be present");
@@ -352,33 +355,28 @@ public class GetProjectDesignDetailsToolTests
     }
 
     [Test]
-    public void FormatMarkdown_AbstractionWithXmlDocSummary_SummaryAppearsInOutput()
+    public void Format_AbstractionWithXmlDocSummary_SummaryAppearsInOutput()
     {
         var md = Act(["TestProject.Core.Persistence"]);
-
-        // IAnimalRepository has a summary
         md.Should().Contain("Repository for animal entities");
     }
 
     [Test]
-    public void FormatMarkdown_AbstractionWithoutXmlDocSummary_NoSummaryLine()
+    public void Format_AbstractionWithoutXmlDocSummary_NoSummaryLine()
     {
         var md = Act(["TestProject.Core.Persistence"]);
 
-        // IRepository<T> has no summary — no blockquote line should follow its header
         var lines = md.Split('\n').Select(l => l.Trim()).ToList();
         var headerIdx = lines.FindIndex(l => l.StartsWith("## TestProject.Core.Persistence.IRepository<"));
         headerIdx.Should().BeGreaterThan(-1, "IRepository<T> header must be present");
 
-        // The line immediately after the header should NOT be a blockquote summary
         if (headerIdx + 1 < lines.Count)
             lines[headerIdx + 1].Should().NotStartWith("> ");
     }
 
     [Test]
-    public void FormatMarkdown_TruncatedSummary_EndsWithTruncatedMarker()
+    public void Format_TruncatedSummary_EndsWithTruncatedMarker()
     {
-        // ExtractXmlDocSummary stores the full text; FormatMarkdown truncates at 2000 chars
         var longText = new string('x', 2001);
         var abstraction = new AbstractionInfo
         {
@@ -398,7 +396,13 @@ public class GetProjectDesignDetailsToolTests
             new Dictionary<string, ImplementationInfo>(),
             null);
 
-        var md = GetProjectDesignDetailsTool.FormatMarkdown(depMap, ["My.Ns"], false, true, null);
+        var sut = new ProjectDesignDetailsService(
+            Substitute.For<IDependencyMapService>(),
+            new WildcardPatternFactory(),
+            new DependencyAggregator(),
+            Options.Create(new ProjectDesignOptions()));
+
+        var md = sut.Format(depMap, ["My.Ns"], false, true);
 
         md.Should().Contain("<<truncated>>");
         var lines = md.Split('\n').Select(l => l.Trim()).ToList();
@@ -412,7 +416,6 @@ public class GetProjectDesignDetailsToolTests
     [Test]
     public void ExtractXmlDocSummary_LongSummary_StoredInFull()
     {
-        // The extractor must NOT truncate — full text is preserved in the data structure
         var longText = new string('x', 2001);
         var xml = $"<member><summary>{longText}</summary></member>";
         var result = AbstractionExtractor.ExtractXmlDocSummary(xml);
@@ -439,9 +442,9 @@ public class GetProjectDesignDetailsToolTests
     [Test]
     public void GetProjectDesignTool_FormatMarkdown_ContainsIntroBlock()
     {
-        var result = new ProjectDesignService(_dependencyMapService, new DependencyAggregator())
+        var result = new ProjectDesignProvider(_dependencyMapService, new DependencyAggregator())
             .BuildFromDependencyMap(_depMap, CompilationHelper.SolutionPath);
-        var md = GetProjectDesignTool.FormatMarkdown(result);
+        var md = ProjectDesignService.Format(result);
 
         md.Should().Contain("get_project_design_details");
         md.Should().Contain("forNamespaces");

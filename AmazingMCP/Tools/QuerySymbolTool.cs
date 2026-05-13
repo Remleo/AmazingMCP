@@ -1,17 +1,22 @@
 using System.ComponentModel;
 using System.Text;
+using AmazingMCP.Configuration;
 using AmazingMCP.Models;
 using AmazingMCP.Services;
 using AmazingMCP.Services.SymbolQuery;
 using AmazingMCP.Services.Workspace;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
 
 namespace AmazingMCP.Tools;
 
 [McpServerToolType]
-public static class QuerySymbolTool
+public class QuerySymbolTool(
+    RoslynSymbolService roslyn,
+    SolutionResolver solutionResolver,
+    IOptions<SymbolOptions> options)
 {
-    const int OutputLineLimit = 100;
+    readonly SymbolOptions _options = options.Value;
 
     [McpServerTool(Name = "query_symbol"), Description(
         "IMPORTANT: THIS TOOL CAN SEARCH TYPES AND MEMBERS FROM THIRD-PARTY NUGET PACKAGES. " +
@@ -23,9 +28,7 @@ public static class QuerySymbolTool
         "   You MUST prefer this over any file or text search: it is orders of magnitude faster, works across the entire solution and all NuGet packages at once, and for third-party NuGet packages it is the ONLY way to discover relevant symbols — source files simply do not exist. " +
         "3. Browse a namespace — use \"SomeLibrary.SubNamespace.*\" to list everything declared in that namespace: all types, members, and extensions. " +
         "   Useful for exploring an unfamiliar library or confirming what a namespace exposes.")]
-    public static async Task<string> QuerySymbol(
-        RoslynSymbolService roslyn,
-        SolutionResolver solutionResolver,
+    public async Task<string> QuerySymbol(
         [Description("Absolute path to the directory where the .sln/.slnx file is located")] string solutionWorkspacePath,
         [Description(
             "Name or wildcard pattern. Examples: " +
@@ -48,8 +51,6 @@ public static class QuerySymbolTool
         if (results.Count == 0)
             return $"No types or members matching '{query}' found.";
 
-        // If query has wildcards — show all results flat.
-        // If no wildcards — split into exact vs partial.
         var hasWildcard = query.Contains('*');
 
         if (hasWildcard)
@@ -65,8 +66,6 @@ public static class QuerySymbolTool
 
     static bool IsExactMatch(SymbolResult result, string query)
     {
-        // For members: match against the simple Name (no return type, no params)
-        // For types: match against Name (no generic args) or tail of FullName
         if (query.Contains('.'))
             return result.FullName.EndsWith(query, StringComparison.OrdinalIgnoreCase);
 
@@ -75,14 +74,14 @@ public static class QuerySymbolTool
 
     // ── Formatting ────────────────────────────────────────────────────────────
 
-    static string FormatAndTruncate(IReadOnlyList<SymbolResult> all, string query)
+    string FormatAndTruncate(IReadOnlyList<SymbolResult> all, string query)
     {
         var sb = new StringBuilder();
         AppendGroup(sb, all);
         return Truncate(sb, query);
     }
 
-    static string FormatAndTruncate(
+    string FormatAndTruncate(
         IReadOnlyList<SymbolResult> exact,
         IReadOnlyList<SymbolResult> partial,
         string query)
@@ -107,17 +106,12 @@ public static class QuerySymbolTool
     /// </summary>
     static void AppendGroup(StringBuilder sb, IReadOnlyList<SymbolResult> results)
     {
-        // Separate type-level results from member results
         var typeResults = results.Where(r => r.DeclaringType is null).ToList();
         var memberResults = results.Where(r => r.DeclaringType is not null).ToList();
 
-        // Output standalone types
         foreach (var r in typeResults)
-        {
             sb.AppendLine(FormatTypeResult(r));
-        }
 
-        // Output members grouped by declaring type
         var byType = memberResults
             .GroupBy(r => r.DeclaringType!.FullName)
             .OrderBy(g => g.Key);
@@ -128,13 +122,12 @@ public static class QuerySymbolTool
             sb.AppendLine(FormatTypeResult(declaringType));
 
             var byKind = group.GroupBy(r => r.Kind).OrderBy(g => g.Key);
+
             foreach (var kindGroup in byKind)
             {
                 sb.AppendLine($"  [{PluralKind(kindGroup.Key)}]");
                 foreach (var member in kindGroup)
-                {
                     sb.AppendLine(FormatMemberResult(member));
-                }
             }
         }
     }
@@ -155,15 +148,15 @@ public static class QuerySymbolTool
             ? $"    {r.FullName}  (line {r.DefinitionLine})"
             : $"    {r.FullName}";
 
-    static string Truncate(StringBuilder sb, string query)
+    string Truncate(StringBuilder sb, string query)
     {
         var text = sb.ToString();
         var lines = text.Split('\n');
 
-        if (lines.Length <= OutputLineLimit)
+        if (lines.Length <= _options.QueryOutputLineLimit)
             return text.TrimEnd();
 
-        var truncated = string.Join('\n', lines.Take(OutputLineLimit));
+        var truncated = string.Join('\n', lines.Take(_options.QueryOutputLineLimit));
         return truncated.TrimEnd() +
                $"\n\n<<... Output truncated (total {lines.Length} lines). " +
                $"Please narrow your query — e.g. '*.Namespace.*Foo*Bar*'>>";

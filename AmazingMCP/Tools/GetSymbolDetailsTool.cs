@@ -24,7 +24,7 @@ public static class GetSymbolDetailsTool
         [Description("Absolute path to the directory where the .sln/.slnx file is located")] string solutionWorkspacePath,
         [Description("Fully qualified type name. Supports C# generic syntax (e.g. 'System.Collections.Generic.List<T>') and CLR metadata notation (e.g. 'System.Collections.Generic.List`1')")] string fullTypeName,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")] string? solutionPath = null,
-        [Description("Optional wildcard filters to show only matching members (e.g. [\"*Get*\", \"Create*\", \"MemberFullName\"]).")] string[]? memberFilters = null,
+        [Description("Optional wildcard filters to show only matching members (e.g. [\"*Get*\", \"Create*\", \"MemberFullName\"]).")] string[] memberFilters = null!,
         CancellationToken ct = default)
     {
         var (resolved, error) = solutionResolver.Resolve(solutionWorkspacePath, solutionPath);

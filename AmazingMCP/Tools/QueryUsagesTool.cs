@@ -7,15 +7,15 @@ using ModelContextProtocol.Server;
 namespace AmazingMCP.Tools;
 
 [McpServerToolType]
-public static class QueryUsagesTool
+public class QueryUsagesTool(
+    IUsageQueryService usageQueryService,
+    SolutionResolver solutionResolver)
 {
     [McpServerTool(Name = "query_usages"), Description(
         "Finds all usages of a given type across the solution. " +
         "Use typeName as the primary filter to specify which type to search for. " +
         "Optionally narrow results with a predicate expression.")]
-    public static async Task<string> QueryUsages(
-        IUsageQueryService usageQueryService,
-        SolutionResolver solutionResolver,
+    public async Task<string> QueryUsages(
         [Description("Absolute path to the directory where the .sln/.slnx file is located")]
         string solutionWorkspacePath,
         [Description(
@@ -45,16 +45,14 @@ public static class QueryUsagesTool
             "Only types matching at least one pattern are traversed. " +
             "Leave null to scan the entire solution. " +
             "Examples: [\"MyApp.Services.*\", \"*.Persistence.*\"]")]
-#pragma warning disable CS8625
-        string[] scanInclude = null,
+        string[] scanInclude = null!,
         [Description(
             "Optional. Excludes specific containing types from scanning. " +
             "Wildcard patterns matched against the full name of the containing type. " +
             "Types matching any pattern are skipped even if they match scanInclude. " +
             "Leave null to exclude nothing. " +
             "Examples: [\"*.Tests.*\", \"MyApp.Generated.*\"]")]
-        string[] scanExclude = null,
-#pragma warning restore CS8625
+        string[] scanExclude = null!,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")]
         string? solutionPath = null,
         CancellationToken ct = default)
