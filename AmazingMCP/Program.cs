@@ -1,3 +1,5 @@
+using CommandLine;
+using AmazingMCP;
 using Microsoft.Build.Locator;
 using AmazingMCP.Infrastructure;
 using AmazingMCP.Services;
@@ -9,6 +11,9 @@ using AmazingMCP.Services.SymbolQuery;
 using AmazingMCP.Services.UsageQuery;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Services.Workspace;
+
+if (Parser.Default.ParseArguments<CommandLineOptions>(args).Tag == ParserResultType.NotParsed)
+    return;
 
 // MSBuild Locator MUST be registered before any Roslyn Workspace types are loaded
 MSBuildLocator.RegisterDefaults();
