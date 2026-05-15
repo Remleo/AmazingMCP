@@ -12,4 +12,5 @@ public enum UsageKind
     TypeAsGenericConstraint,
     TypeAsReturnType,
     TypeAsParameter,
+    TypeAsInheritance,
 }

@@ -45,7 +45,7 @@ public class WorkspaceProviderTests
             var compilation = solution.Compilations.First(c => c.ProjectName == projectName).Compilation;
             return compilation.GlobalNamespace
                 .GetNamespaceMembers()
-                .SelectMany(RoslynTypeEnumerator.EnumerateAll)
+                .SelectMany(RoslynTypeEnumerator.EnumerateAllInCompilation)
                 .Any(t => t.Name == "TemporaryNested");
         }
 

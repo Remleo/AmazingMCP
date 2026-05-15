@@ -27,7 +27,7 @@ public class QueryUsagesTool(
             "Optional C# boolean expression to further filter results. Variable 'x' is of type QueryEntry. " +
             "QueryEntry fields: " +
             "TypeName (string), " +
-            "Kind (UsageKind: MethodCall, ConstructorCall, PropertyRead, PropertyWrite, FieldRead, FieldWrite, TypeAsGenericArgument, TypeAsGenericConstraint, TypeAsReturnType, TypeAsParameter), " +
+            "Kind (UsageKind: MethodCall, ConstructorCall, PropertyRead, PropertyWrite, FieldRead, FieldWrite, TypeAsGenericArgument, TypeAsGenericConstraint, TypeAsReturnType, TypeAsParameter, TypeAsInheritance), " +
             "MethodName (string?), ArgumentTypes (IReadOnlyList<string>?), PropertyName (string?), FieldName (string?). " +
             "Supports && / || / () and instance method calls on any type including collection methods: " +
             "Any(), Contains(), FirstOrDefault(). " +
@@ -35,6 +35,7 @@ public class QueryUsagesTool(
             "\"x.Kind == UsageKind.MethodCall && x.MethodName == \\\"Save\\\"\" — only calls to Save; " +
             "\"x.Kind == UsageKind.TypeAsParameter\" — only parameter usages; " +
             "\"x.Kind == UsageKind.ConstructorCall\" — only instantiations; " +
+            "\"x.Kind == UsageKind.TypeAsInheritance\" — only types that inherit or implement the target; " +
             "\"x.Kind == UsageKind.MethodCall && x.ArgumentTypes != null && x.ArgumentTypes.Any()\" — calls with arguments.")]
         string? predicate = null,
         [Description(

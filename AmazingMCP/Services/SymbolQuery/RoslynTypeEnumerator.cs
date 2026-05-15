@@ -1,3 +1,4 @@
+using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.Wildcard;
 using Microsoft.CodeAnalysis;
 
@@ -46,10 +47,28 @@ public static class RoslynTypeEnumerator
     }
 
     /// <summary>
-    /// Enumerates all named types in a namespace tree, including nested types at any depth.
-    /// No filtering is applied.
+    /// Enumerates all named types across all compilations in the solution,
+    /// deduplicating by fully-qualified display name.
     /// </summary>
-    public static IEnumerable<INamedTypeSymbol> EnumerateAll(INamespaceSymbol ns)
+    public static IEnumerable<INamedTypeSymbol> EnumerateAll(ICachedSolution cachedSolution)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var (_, compilation) in cachedSolution.Compilations)
+        {
+            foreach (var type in EnumerateAllInCompilation(compilation.GlobalNamespace))
+            {
+                if (seen.Add(type.ToDisplayString()))
+                    yield return type;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enumerates all named types in a single namespace tree, including nested types at any depth.
+    /// No filtering or deduplication is applied.
+    /// </summary>
+    public static IEnumerable<INamedTypeSymbol> EnumerateAllInCompilation(INamespaceSymbol ns)
     {
         foreach (var member in ns.GetMembers())
         {
@@ -62,7 +81,7 @@ public static class RoslynTypeEnumerator
                     break;
 
                 case INamespaceSymbol childNs:
-                    foreach (var t in EnumerateAll(childNs))
+                    foreach (var t in EnumerateAllInCompilation(childNs))
                         yield return t;
                     break;
             }

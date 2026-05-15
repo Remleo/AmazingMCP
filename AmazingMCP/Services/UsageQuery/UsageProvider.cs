@@ -2,6 +2,7 @@
 using AmazingMCP.Models;
 using AmazingMCP.Models.FileAnalysis;
 using AmazingMCP.Models.UsageQuery;
+using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Services.Workspace;
 using Microsoft.CodeAnalysis;
@@ -25,14 +26,12 @@ public sealed class UsageProvider(
 
     public async Task<(IReadOnlyList<UsageMatch> Matches, string? Error, bool Truncated)> QueryAsync(
         string solutionPath,
-        string typePattern,
+        string typeName,
         string? predicate,
         IReadOnlyList<string>? scanInclude,
         IReadOnlyList<string>? scanExclude,
         CancellationToken ct = default)
     {
-        var typeFilter = wildcardFactory.CreateForTypeNames(NormalizeTypePattern(typePattern));
-
         Func<QueryEntry, bool>? compiledPredicate = null;
         if (predicate is not null)
         {
@@ -69,7 +68,7 @@ public sealed class UsageProvider(
                 var walker = new UsageSyntaxWalker(
                     semanticModel,
                     filePath,
-                    typeFilter,
+                    typeName,
                     compiledPredicate,
                     includePatterns,
                     excludePatterns,
@@ -83,13 +82,19 @@ public sealed class UsageProvider(
             }
         }
 
+        var inheritanceMatches = FindInheritanceMatches(cachedSolution, typeName, compiledPredicate, includePatterns, excludePatterns);
+        matches.AddRange(inheritanceMatches);
+
         return (matches, null, truncated);
     }
 
-    static string NormalizeTypePattern(string pattern) =>
-        !pattern.Contains('*') && !pattern.Contains('.')
-            ? $"*{pattern}*"
-            : pattern;
+    IReadOnlyList<UsageMatch> FindInheritanceMatches(
+        ICachedSolution cachedSolution,
+        string typeName,
+        Func<QueryEntry, bool>? predicate,
+        List<IWildcardPattern>? includePatterns,
+        List<IWildcardPattern>? excludePatterns) =>
+        InheritanceUsageProvider.FindMatches(cachedSolution, typeName, predicate, includePatterns, excludePatterns);
 
     List<IWildcardPattern>? BuildScopePatterns(IReadOnlyList<string>? patterns)
     {
@@ -104,7 +109,7 @@ public sealed class UsageProvider(
     sealed class UsageSyntaxWalker(
         SemanticModel model,
         string filePath,
-        IWildcardPattern typeFilter,
+        string typeName,
         Func<QueryEntry, bool>? predicate,
         List<IWildcardPattern>? includePatterns,
         List<IWildcardPattern>? excludePatterns,
@@ -320,7 +325,7 @@ public sealed class UsageProvider(
             {
                 foreach (var entry in QueryEntryFactory.TryCreate(node, model))
                 {
-                    if (!typeFilter.IsMatch(entry.TypeName)) continue;
+                    if (!string.Equals(entry.TypeName, typeName, StringComparison.Ordinal)) continue;
                     if (predicate is not null && !predicate(entry)) continue;
 
                     var section = SectionResolver.Resolve(node);

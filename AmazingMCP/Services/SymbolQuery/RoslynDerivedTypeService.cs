@@ -29,42 +29,34 @@ public static class RoslynDerivedTypeService
         var targetIsFromSource = targetType.DeclaringSyntaxReferences.Length > 0;
         var isInterface = targetType.TypeKind == TypeKind.Interface;
 
-        var seen = new HashSet<string>(StringComparer.Ordinal);
         var results = new List<INamedTypeSymbol>();
 
-        foreach (var (_, compilation) in cachedSolution.Compilations)
+        foreach (var candidate in RoslynTypeEnumerator.EnumerateAll(cachedSolution))
         {
-            foreach (var candidate in RoslynTypeEnumerator.EnumerateAll(compilation.GlobalNamespace))
+            var candidateFullName = candidate.ToDisplayString();
+
+            if (candidateFullName == targetFullName)
+                continue;
+
+            var candidateIsFromSource = candidate.DeclaringSyntaxReferences.Length > 0;
+
+            if (targetIsFromSource)
             {
-                var candidateFullName = candidate.ToDisplayString();
-
-                // Skip the target type itself
-                if (candidateFullName == targetFullName)
+                if (!candidateIsFromSource)
                     continue;
-
-                var candidateIsFromSource = candidate.DeclaringSyntaxReferences.Length > 0;
-
-                // Scope filtering:
-                // - target from source → only source candidates
-                // - target from NuGet → source candidates + NuGet candidates (non-framework)
-                if (targetIsFromSource)
-                {
-                    if (!candidateIsFromSource)
-                        continue;
-                }
-                else
-                {
-                    if (!candidateIsFromSource && WellKnownFrameworkTypes.IsWellKnown(candidate))
-                        continue;
-                }
-
-                var matches = isInterface
-                    ? InheritsInterface(candidate, targetFullName)
-                    : InheritsClass(candidate, targetFullName);
-
-                if (matches && seen.Add(candidateFullName))
-                    results.Add(candidate);
             }
+            else
+            {
+                if (!candidateIsFromSource && WellKnownFrameworkTypes.IsWellKnown(candidate))
+                    continue;
+            }
+
+            var matches = isInterface
+                ? InheritsInterface(candidate, targetFullName)
+                : InheritsClass(candidate, targetFullName);
+
+            if (matches)
+                results.Add(candidate);
         }
 
         return results;

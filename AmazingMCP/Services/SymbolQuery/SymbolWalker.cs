@@ -29,7 +29,7 @@ internal static class SymbolWalker
         HashSet<SeenSymbolKey> seen,
         List<SymbolResult> results)
     {
-        foreach (var typeSymbol in RoslynTypeEnumerator.EnumerateAll(ns))
+        foreach (var typeSymbol in RoslynTypeEnumerator.EnumerateAllInCompilation(ns))
         {
             if (WellKnownFrameworkTypes.IsWellKnown(typeSymbol))
                 continue;

@@ -236,40 +236,11 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         Accessibility.ProtectedAndInternal;
 
     // Returns the visibility prefix string for all visible members.
-    static string FormatVisibility(Accessibility a) => a switch
-    {
-        Accessibility.Public => "public ",
-        Accessibility.Internal => "internal ",
-        Accessibility.Protected => "protected ",
-        Accessibility.ProtectedOrInternal => "protected internal ",
-        Accessibility.ProtectedAndInternal => "private protected ",
-        Accessibility.Private => "private ",
-        _ => ""
-    };
+
 
     // Returns the full type declaration header: visibility + modifiers + kind keyword + name.
     // Example: "public abstract class AnimalBase", "internal sealed class Utils", "public interface IAnimal"
-    static string FormatTypeHeader(INamedTypeSymbol type)
-    {
-        var sb = new StringBuilder();
-        sb.Append(FormatVisibility(type.DeclaredAccessibility));
-
-        if (type.IsStatic) sb.Append("static ");
-        else if (type.IsAbstract && type.TypeKind == TypeKind.Class) sb.Append("abstract ");
-        else if (type.IsSealed && type.TypeKind == TypeKind.Class) sb.Append("sealed ");
-
-        sb.Append(type.TypeKind switch
-        {
-            TypeKind.Interface => "interface ",
-            TypeKind.Enum => "enum ",
-            TypeKind.Struct => "struct ",
-            TypeKind.Delegate => "delegate ",
-            _ => "class "
-        });
-
-        sb.Append(type.ToDisplayString());
-        return sb.ToString();
-    }
+    static string FormatTypeHeader(INamedTypeSymbol type) => TypeDeclarationFormatter.FormatHeader(type);
 
     static string FormatTypeLocation(INamedTypeSymbol type)
     {

@@ -38,14 +38,30 @@ public class UsageResultFormatter : IUsageResultFormatter
             var (typeName, filePath) = typeFileGroup.Key;
             sb.AppendLine($"## {typeName}");
             sb.AppendLine();
+
+            // Synthetic matches (third-party types with no source file)
+            var syntheticMatches = typeFileGroup
+                .Where(m => m.Scope.Section is null && m.Scope.SyntheticDeclaration is not null)
+                .ToList();
+
+            if (syntheticMatches.Count > 0)
+            {
+                sb.AppendLine("```csharp");
+                sb.AppendLine(syntheticMatches[0].Scope.SyntheticDeclaration);
+                sb.AppendLine("```");
+                sb.AppendLine();
+                continue;
+            }
+
             sb.AppendLine($"file: {filePath}");
             sb.AppendLine();
 
             var sourceLines = TryReadLines(filePath);
 
             var items = typeFileGroup
+                .Where(m => m.Scope.Section is not null)
                 .Select(m => new MatchItem(
-                    new LineRange(m.Scope.Section.StartLine, m.Scope.Section.EndLine),
+                    new LineRange(m.Scope.Section!.StartLine, m.Scope.Section.EndLine),
                     m.Scope.MethodDefinitionRange))
                 .ToList();
 

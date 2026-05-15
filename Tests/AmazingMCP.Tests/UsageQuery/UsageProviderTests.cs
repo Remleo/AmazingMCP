@@ -27,14 +27,14 @@ public class UsageProviderTests
     }
 
     async Task<IReadOnlyList<UsageMatch>> Act(
-        string typePattern,
+        string typeName,
         string? predicate = null,
         string[]? scanInclude = null,
         string[]? scanExclude = null)
     {
         var (matches, error, _) = await _sut.QueryAsync(
             CompilationHelper.SolutionPath,
-            typePattern,
+            typeName,
             predicate,
             scanInclude,
             scanExclude);
@@ -75,7 +75,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"Save\"",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -98,7 +98,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"Save\"",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -109,25 +109,25 @@ public class UsageProviderTests
             "Save() inside large lambda should also be found");
     }
 
-    // ── TypeName filter (typePattern) ─────────────────────────────────────────
+    // ── TypeName filter (typeName) ─────────────────────────────────────────
 
     [Test]
     public async Task QueryAsync_TypePattern_FiltersToMatchingType()
     {
         // act — only usages of IAnimalRepository
-        var matches = await Act("*IAnimalRepository*");
+        var matches = await Act("TestProject.Core.Persistence.IAnimalRepository");
 
         // assert
         matches.Should().NotBeEmpty();
         matches.Should().AllSatisfy(m =>
-            m.Entry.TypeName.Should().Contain("IAnimalRepository"));
+            m.Entry.TypeName.Should().Be("TestProject.Core.Persistence.IAnimalRepository"));
     }
 
     [Test]
     public async Task QueryAsync_TypePattern_NoMatch_ReturnsEmpty()
     {
         // act
-        var matches = await Act("*NonExistentType99*");
+        var matches = await Act("TestProject.Core.Persistence.NonExistentType99");
 
         // assert
         matches.Should().BeEmpty();
@@ -140,7 +140,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"FindById\"");
 
         // assert
@@ -158,7 +158,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"FindById\"");
 
         // assert — at least one match is inside UsageQueryTestFixture.FindAnimalById
@@ -174,7 +174,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.PropertyRead && x.PropertyName == \"Count\"");
 
         // assert
@@ -190,7 +190,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             predicate: "x.Kind == UsageKind.PropertyWrite && x.PropertyName == \"Name\"");
 
         // assert
@@ -207,7 +207,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             predicate: "x.Kind == UsageKind.ConstructorCall && x.MethodName == \"Animal\"");
 
         // assert
@@ -221,7 +221,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             predicate: "x.Kind == UsageKind.ConstructorCall && x.MethodName == \"Animal\"");
 
         // assert
@@ -258,7 +258,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.TypeAsParameter",
             scanInclude: ["TestProject.App.Services.MultiParamPrimaryCtorFixture"]);
 
@@ -276,7 +276,7 @@ public class UsageProviderTests
     {
         // act — UsageQueryTestFixture has IAnimalRepository as primary constructor parameter
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.TypeAsParameter",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -290,9 +290,9 @@ public class UsageProviderTests
     [Test]
     public async Task QueryAsync_TypeAsGenericArgument_FindsAnimalAsTypeArgument()
     {
-        // act — typePattern matches Animal, predicate filters to generic argument usages
+        // act — typeName matches Animal, predicate filters to generic argument usages
         var matches = await Act(
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             predicate: "x.Kind == UsageKind.TypeAsGenericArgument");
 
         // assert
@@ -311,7 +311,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             predicate: "x.Kind == UsageKind.TypeAsGenericConstraint");
 
         // assert
@@ -328,7 +328,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             predicate: "x.Kind == UsageKind.TypeAsReturnType");
 
         // assert
@@ -342,7 +342,7 @@ public class UsageProviderTests
     public async Task QueryAsync_AllMatches_HaveNonEmptyTypeName()
     {
         // act
-        var matches = await Act("*Animal*");
+        var matches = await Act("TestProject.Core.Models.Animal");
 
         // assert
         matches.Should().NotBeEmpty();
@@ -357,7 +357,7 @@ public class UsageProviderTests
     {
         // act — restrict scan to UsageQueryTestFixture only
         var matches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         // assert — all matches are found inside the filtered containing type
@@ -371,7 +371,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             scanInclude: ["TestProject.App.Services.*"]);
 
         // assert — all matches found inside App.Services types
@@ -385,7 +385,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             scanInclude: ["NonExistent.Namespace.*"]);
 
         // assert
@@ -397,12 +397,12 @@ public class UsageProviderTests
     {
         // arrange — scan all App.Services types but exclude UsageQueryTestFixture specifically
         var allMatches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanInclude: ["TestProject.App.Services.*"]);
 
         // act
         var filteredMatches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanInclude: ["TestProject.App.Services.*"],
             scanExclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -420,7 +420,7 @@ public class UsageProviderTests
     {
         // act — exclude all App.Services types via wildcard
         var matches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanExclude: ["TestProject.App.Services.*"]);
 
         // assert — no matches from App.Services namespace
@@ -433,12 +433,12 @@ public class UsageProviderTests
     {
         // arrange — baseline without exclusion
         var allMatches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         // act — exclude a pattern that matches nothing
         var matches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"],
             scanExclude: ["NonExistent.Namespace.*"]);
 
@@ -451,7 +451,7 @@ public class UsageProviderTests
     {
         // act — include and exclude the same type simultaneously
         var matches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"],
             scanExclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -470,7 +470,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "*IGenericTracer*",
+            "TestProject.Core.Logging.IGenericTracer<TestProject.App.Services.UsageQueryTestFixture>",
             predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"Trace\"",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -489,7 +489,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "*IGenericTracer*",
+            "TestProject.Core.Logging.IGenericTracer<TestProject.App.Services.UsageQueryTestFixture>",
             predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"Trace\"",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -508,7 +508,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "*IGenericTracer*",
+            "TestProject.Core.Logging.IGenericTracer<TestProject.App.Services.UsageQueryTestFixture>",
             predicate: "x.Kind == UsageKind.PropertyWrite",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -529,7 +529,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "*IGenericTracer*",
+            "TestProject.Core.Logging.IGenericTracer<TestProject.App.Services.UsageQueryTestFixture>",
             predicate: "x.Kind == UsageKind.PropertyWrite",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -551,7 +551,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall && x.MethodName == \"FindById\"",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -580,7 +580,7 @@ public class UsageProviderTests
         // act
         var (_, error, _) = await _sut.QueryAsync(
             CompilationHelper.SolutionPath,
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             "x.Kind == UsageKind.MethodCall && new System.Exception() != null",
             null, null);
 
@@ -595,7 +595,7 @@ public class UsageProviderTests
         // act
         var (_, error, _) = await _sut.QueryAsync(
             CompilationHelper.SolutionPath,
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             "System.IO.File.Exists(x.MethodName ?? \"\")",
             null, null);
 
@@ -610,7 +610,7 @@ public class UsageProviderTests
         // act
         var (matches, error, _) = await _sut.QueryAsync(
             CompilationHelper.SolutionPath,
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             "x.Kind == UsageKind.MethodCall && !String.IsNullOrEmpty(x.MethodName)",
             null, null);
 
@@ -625,7 +625,7 @@ public class UsageProviderTests
         // act
         var (matches, error, _) = await _sut.QueryAsync(
             CompilationHelper.SolutionPath,
-            "*IAnimalRepository*",
+            "TestProject.Core.Persistence.IAnimalRepository",
             "x.Kind == UsageKind.MethodCall && (x.ArgumentTypes == null || !x.ArgumentTypes.Any())",
             null, null);
 
@@ -639,7 +639,7 @@ public class UsageProviderTests
     public async Task QueryAsync_Match_SectionStartLineIsPositive()
     {
         // act
-        var matches = await Act("*IAnimalRepository*", predicate: "x.Kind == UsageKind.MethodCall");
+        var matches = await Act("TestProject.Core.Persistence.IAnimalRepository", predicate: "x.Kind == UsageKind.MethodCall");
 
         // assert
         matches.Should().AllSatisfy(m =>
@@ -653,7 +653,7 @@ public class UsageProviderTests
     public async Task QueryAsync_Match_MatchLineIsWithinSectionRange()
     {
         // act
-        var matches = await Act("IAnimalRepository", predicate: "x.Kind == UsageKind.MethodCall");
+        var matches = await Act("TestProject.Core.Persistence.IAnimalRepository", predicate: "x.Kind == UsageKind.MethodCall");
 
         // assert — MatchLine should be at or near the section (within 1 line tolerance for edge cases)
         matches.Should().AllSatisfy(m =>
@@ -670,7 +670,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -727,7 +727,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = new UsageResultFormatter().Format(matches);
@@ -751,7 +751,7 @@ public class UsageProviderTests
         // act — IAnimalRepository appears in primary ctor parameter list of UsageQueryTestFixture
         // and potentially as generic argument; both on the same lines
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = new UsageResultFormatter().Format(matches);
@@ -774,7 +774,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = new UsageResultFormatter().Format(matches);
@@ -793,7 +793,7 @@ public class UsageProviderTests
     {
         // act — multiple matches may share overlapping line ranges and should be merged
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = new UsageResultFormatter().Format(matches);
@@ -813,7 +813,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -830,7 +830,7 @@ public class UsageProviderTests
     {
         // act — method calls are inside method bodies, so definition is shown + cut + usage
         var matches = await Act(
-            "IAnimalRepository",
+            "TestProject.Core.Persistence.IAnimalRepository",
             predicate: "x.Kind == UsageKind.MethodCall",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -847,7 +847,7 @@ public class UsageProviderTests
     {
         // act
         var matches = await Act(
-            "*Animal*",
+            "TestProject.Core.Models.Animal",
             predicate: "(x.Kind == UsageKind.PropertyRead || x.Kind == UsageKind.PropertyWrite) && x.PropertyName == \"Name\"",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
@@ -966,7 +966,7 @@ public class UsageProviderTests
 
         // act
         var matches = await Act(
-            "*AnimalSnapshot*",
+            "TestProject.App.Services.AnimalSnapshot",
             predicate: "x.Kind == UsageKind.PropertyWrite && x.PropertyName == \"Name\"",
             scanInclude: ["TestProject.App.Services.UsageQueryObjectInitFixture"]);
 
@@ -975,5 +975,129 @@ public class UsageProviderTests
         matches.Should().Contain(m =>
             m.Entry.PropertyName == "Name" &&
             m.Scope.MethodName == "BuildSnapshot");
+    }
+
+    // ── TypeAsInheritance ─────────────────────────────────────────────────────
+
+    [Test]
+    public async Task QueryAsync_TypeAsInheritance_Interface_FindsAllImplementors()
+    {
+        // act
+        var matches = await Act(
+            "TestProject.Core.Services.IAnimalService",
+            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+
+        // assert
+        var typeNames = matches.Select(m => m.Scope.TypeName).ToList();
+        typeNames.Should().Contain("TestProject.App.Services.AnimalService");
+        typeNames.Should().Contain("TestProject.App.Services.AdvancedAnimalService");
+        typeNames.Should().Contain("TestProject.App.Services.TracedAnimalService");
+        typeNames.Should().Contain("TestProject.App.Services.TracedServiceA");
+    }
+
+    [Test]
+    public async Task QueryAsync_TypeAsInheritance_Interface_AllMatchesHaveCorrectKindAndTypeName()
+    {
+        // act
+        var matches = await Act(
+            "TestProject.Core.Services.IAnimalService",
+            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+
+        // assert
+        matches.Should().NotBeEmpty();
+        matches.Should().AllSatisfy(m =>
+        {
+            m.Entry.Kind.Should().Be(UsageKind.TypeAsInheritance);
+            m.Entry.TypeName.Should().Be("TestProject.Core.Services.IAnimalService");
+        });
+    }
+
+    [Test]
+    public async Task QueryAsync_TypeAsInheritance_AbstractClass_FindsSubclasses()
+    {
+        // act
+        var matches = await Act(
+            "TestProject.App.Services.AnimalServiceBase",
+            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+
+        // assert
+        matches.Select(m => m.Scope.TypeName)
+            .Should().Contain("TestProject.App.Services.AdvancedAnimalService");
+    }
+
+    [Test]
+    public async Task QueryAsync_TypeAsInheritance_SourceType_HasFilePath()
+    {
+        // act
+        var matches = await Act(
+            "TestProject.Core.Services.IAnimalService",
+            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+
+        // assert — source types must have a non-empty file path and a non-null Section
+        matches.Should().NotBeEmpty();
+        matches.Should().AllSatisfy(m =>
+        {
+            m.Scope.FilePath.Should().NotBeNullOrEmpty();
+            m.Scope.Section.Should().NotBeNull();
+        });
+    }
+
+    [Test]
+    public async Task QueryAsync_TypeAsInheritance_ScanInclude_FiltersResults()
+    {
+        // act
+        var matches = await Act(
+            "TestProject.Core.Services.IAnimalService",
+            predicate: "x.Kind == UsageKind.TypeAsInheritance",
+            scanInclude: ["TestProject.App.Services.AnimalService"]);
+
+        // assert — only AnimalService passes the scanInclude filter
+        matches.Should().BeEquivalentTo(
+            [new { Scope = new { TypeName = "TestProject.App.Services.AnimalService" } }],
+            o => o.Including(m => m.Scope.TypeName));
+    }
+
+    [Test]
+    public async Task QueryAsync_TypeAsInheritance_Formatter_OutputContainsImplementorHeader()
+    {
+        // arrange
+        var (matches, _, _) = await _sut.QueryAsync(
+            CompilationHelper.SolutionPath,
+            "TestProject.Core.Services.IAnimalService",
+            predicate: "x.Kind == UsageKind.TypeAsInheritance",
+            scanInclude: null,
+            scanExclude: null);
+
+        // act
+        var output = new UsageResultFormatter().Format(matches);
+
+        // assert
+        output.Should().Contain("TestProject.App.Services.AnimalService");
+    }
+
+    [Test]
+    public async Task QueryAsync_TypeAsInheritance_OpenGenericInterface_FindsImplementors()
+    {
+        // act — open generic: IRepository<T>
+        var matches = await Act(
+            "TestProject.Core.Persistence.IRepository<T>",
+            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+
+        // assert — GenericRepository<T> directly implements IRepository<T>
+        matches.Select(m => m.Scope.TypeName)
+            .Should().Contain("TestProject.App.Persistence.GenericRepository<T>");
+    }
+
+    [Test]
+    public async Task QueryAsync_TypeAsInheritance_OpenGenericInterface_AllMatchesHaveCorrectKind()
+    {
+        // act
+        var matches = await Act(
+            "TestProject.Core.Persistence.IRepository<T>",
+            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+
+        // assert
+        matches.Should().NotBeEmpty();
+        matches.Should().AllSatisfy(m => m.Entry.Kind.Should().Be(UsageKind.TypeAsInheritance));
     }
 }

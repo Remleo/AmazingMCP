@@ -36,8 +36,7 @@ The server opens `.sln`/`.slnx` files, compiles projects in memory, and enables 
 
 | Project | Purpose |
 |---|---|
-| `AmazingMCP` | Main HTTP MCP server |
-| `AmazingMCP.Launcher` | Stdio wrapper: launches the main server as a child process, communicates via stdio |
+| `AmazingMCP` | MCP server |
 | `AmazingMCP.Tests` | Tests (NUnit + FluentAssertions + NSubstitute) |
 
 ## Key Features
