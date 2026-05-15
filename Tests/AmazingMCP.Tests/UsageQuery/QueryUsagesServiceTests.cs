@@ -9,7 +9,7 @@ using NUnit.Framework;
 
 namespace AmazingMCP.Tests.UsageQuery;
 
-public class QueryUsagesFacadeServiceTests
+public class QueryUsagesServiceTests
 {
     IQueryUsagesService _sut = null!;
 

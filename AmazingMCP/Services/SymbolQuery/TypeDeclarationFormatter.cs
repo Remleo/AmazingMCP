@@ -10,7 +10,7 @@ public static class TypeDeclarationFormatter
     /// <summary>
     /// Returns a C# declaration header for the type, e.g. "public abstract class MyApp.Core.Animal".
     /// </summary>
-    public static string FormatHeader(INamedTypeSymbol type)
+    public static string FormatHeader(INamedTypeSymbol type, bool includeInheritance = false)
     {
         var sb = new System.Text.StringBuilder();
         sb.Append(FormatVisibility(type.DeclaredAccessibility));
@@ -29,6 +29,20 @@ public static class TypeDeclarationFormatter
         });
 
         sb.Append(type.ToDisplayString());
+
+        if (includeInheritance)
+        {
+            var bases = new List<string>();
+            if (type.BaseType is { SpecialType: SpecialType.None } baseType)
+                bases.Add(baseType.ToDisplayString());
+
+            foreach (var iface in type.Interfaces)
+                bases.Add(iface.ToDisplayString());
+
+            if (bases.Count > 0)
+                sb.Append(" : ").Append(string.Join(", ", bases));
+        }
+
         return sb.ToString();
     }
 

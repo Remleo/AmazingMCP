@@ -7,60 +7,57 @@ namespace AmazingMCP.Services.SymbolQuery;
 /// <summary>Walks Roslyn namespace trees and collects matching types and members.</summary>
 internal static class SymbolWalker
 {
-    public static void CollectTypes(
-        INamespaceSymbol ns,
+    public static void CollectType(
+        INamedTypeSymbol typeSymbol,
         IWildcardPattern pattern,
         HashSet<SeenSymbolKey> seen,
         List<SymbolResult> results)
     {
-        foreach (var typeSymbol in RoslynTypeEnumerator.FindNamedTypes(ns, pattern))
-        {
-            var key = SeenSymbolKey.ForType(
-                typeDisplayName: typeSymbol.ToDisplayString(),
-                assembly: typeSymbol.ContainingAssembly?.Name ?? "unknown");
-            if (seen.Add(key))
-                results.Add(SymbolResultFactory.ForType(typeSymbol));
-        }
+        if (!pattern.IsMatch(typeSymbol.ToDisplayString()) && !pattern.IsMatch(typeSymbol.Name))
+            return;
+
+        var key = SeenSymbolKey.ForType(
+            typeDisplayName: typeSymbol.ToDisplayString(),
+            assembly: typeSymbol.ContainingAssembly?.Name ?? "unknown");
+        if (seen.Add(key))
+            results.Add(SymbolResultFactory.ForType(typeSymbol));
     }
 
     public static void CollectMembers(
-        INamespaceSymbol ns,
+        INamedTypeSymbol typeSymbol,
         IWildcardPattern pattern,
         HashSet<SeenSymbolKey> seen,
         List<SymbolResult> results)
     {
-        foreach (var typeSymbol in RoslynTypeEnumerator.EnumerateAllInCompilation(ns))
+        if (WellKnownFrameworkTypes.IsWellKnown(typeSymbol))
+            return;
+
+        var declaringType = SymbolResultFactory.ForType(typeSymbol);
+        var assembly = typeSymbol.ContainingAssembly?.Name ?? "unknown";
+
+        if (typeSymbol.TypeKind == TypeKind.Enum)
         {
-            if (WellKnownFrameworkTypes.IsWellKnown(typeSymbol))
+            foreach (var member in typeSymbol.GetMembers().OfType<IFieldSymbol>())
+                TryAddEnumValue(member, declaringType, assembly, pattern, seen, results);
+            return;
+        }
+
+        if (!IsClassOrInterface(typeSymbol))
+            return;
+
+        foreach (var member in typeSymbol.GetMembers())
+        {
+            if (!IsVisibleMember(member))
                 continue;
 
-            var declaringType = SymbolResultFactory.ForType(typeSymbol);
-            var assembly = typeSymbol.ContainingAssembly?.Name ?? "unknown";
-
-            if (typeSymbol.TypeKind == TypeKind.Enum)
-            {
-                foreach (var member in typeSymbol.GetMembers().OfType<IFieldSymbol>())
-                    TryAddEnumValue(member, declaringType, assembly, pattern, seen, results);
-                continue;
-            }
-
-            if (!IsClassOrInterface(typeSymbol))
-                continue;
-
-            foreach (var member in typeSymbol.GetMembers())
-            {
-                if (!IsVisibleMember(member))
-                    continue;
-
-                if (member is IMethodSymbol method)
-                    TryAddMethod(method, declaringType, assembly, pattern, seen, results);
-                else if (member is IPropertySymbol property)
-                    TryAddProperty(property, declaringType, assembly, pattern, seen, results);
-                else if (member is IFieldSymbol field)
-                    TryAddField(field, declaringType, assembly, pattern, seen, results);
-                else if (member is IEventSymbol evt)
-                    TryAddEvent(evt, declaringType, assembly, pattern, seen, results);
-            }
+            if (member is IMethodSymbol method)
+                TryAddMethod(method, declaringType, assembly, pattern, seen, results);
+            else if (member is IPropertySymbol property)
+                TryAddProperty(property, declaringType, assembly, pattern, seen, results);
+            else if (member is IFieldSymbol field)
+                TryAddField(field, declaringType, assembly, pattern, seen, results);
+            else if (member is IEventSymbol evt)
+                TryAddEvent(evt, declaringType, assembly, pattern, seen, results);
         }
     }
 

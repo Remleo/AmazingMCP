@@ -22,10 +22,10 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
         var seen = new HashSet<SeenSymbolKey>();
         var results = new List<SymbolResult>();
 
-        foreach (var (_, compilation) in solution.Compilations)
+        foreach (var type in RoslynTypeEnumerator.EnumerateAll(solution))
         {
-            SymbolWalker.CollectTypes(compilation.GlobalNamespace, pattern, seen, results);
-            SymbolWalker.CollectMembers(compilation.GlobalNamespace, pattern, seen, results);
+            SymbolWalker.CollectType(type, pattern, seen, results);
+            SymbolWalker.CollectMembers(type, pattern, seen, results);
         }
 
         return results;

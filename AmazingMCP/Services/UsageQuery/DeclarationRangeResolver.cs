@@ -1,5 +1,6 @@
 using AmazingMCP.Models;
 using AmazingMCP.Models.FileAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace AmazingMCP.Services.UsageQuery;
@@ -9,7 +10,7 @@ namespace AmazingMCP.Services.UsageQuery;
 /// spanning from the first line of the declaration to the opening brace (or arrow for expression bodies).
 /// Also provides the full range including the body via <see cref="ResolveFullRange"/>.
 /// </summary>
-public static class MethodDefinitionRangeResolver
+public static class DeclarationRangeResolver
 {
     public static LineRange Resolve(MethodDeclarationSyntax node)
     {
@@ -79,14 +80,39 @@ public static class MethodDefinitionRangeResolver
     public static LineRange ResolveFullRange(ConversionOperatorDeclarationSyntax node) =>
         new(StartLine(node), EndLine(node));
 
+    public static LineRange Resolve(TypeDeclarationSyntax node)
+    {
+        var start = StartLine(node);
+        // Records without a body (e.g. "record Point(int X, int Y);") have no OpenBraceToken
+        if (node.OpenBraceToken.RawKind == 0)
+            return new LineRange(start, EndLine(node));
+        var tokenBeforeBrace = node.OpenBraceToken.GetPreviousToken();
+        var end = tokenBeforeBrace.RawKind == 0 ? start : BraceLine(tokenBeforeBrace);
+        return new LineRange(start, end);
+    }
+
+    public static LineRange Resolve(EnumDeclarationSyntax node)
+    {
+        var start = StartLine(node);
+        var tokenBeforeBrace = node.OpenBraceToken.GetPreviousToken();
+        var end = tokenBeforeBrace.RawKind == 0 ? start : BraceLine(tokenBeforeBrace);
+        return new LineRange(start, end);
+    }
+
+    public static LineRange ResolveFallback(SyntaxNode node)
+    {
+        var start = StartLine(node);
+        return new LineRange(start, start);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    static int StartLine(Microsoft.CodeAnalysis.SyntaxNode node) =>
+    static int StartLine(SyntaxNode node) =>
         node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
 
-    static int EndLine(Microsoft.CodeAnalysis.SyntaxNode node) =>
+    static int EndLine(SyntaxNode node) =>
         node.GetLocation().GetLineSpan().EndLinePosition.Line + 1;
 
-    static int BraceLine(Microsoft.CodeAnalysis.SyntaxToken token) =>
+    static int BraceLine(SyntaxToken token) =>
         token.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
 }

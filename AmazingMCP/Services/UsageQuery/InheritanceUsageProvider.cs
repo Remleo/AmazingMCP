@@ -1,8 +1,11 @@
+using AmazingMCP.Models;
+using AmazingMCP.Models.FileAnalysis;
 using AmazingMCP.Models.UsageQuery;
 using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.SymbolQuery;
 using AmazingMCP.Services.Wildcard;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace AmazingMCP.Services.UsageQuery;
 
@@ -81,10 +84,13 @@ static class InheritanceUsageProvider
 
         if (syntaxRef is not null)
         {
-            var span = syntaxRef.SyntaxTree.GetLineSpan(syntaxRef.Span);
-            var startLine = span.StartLinePosition.Line + 1;
-            var endLine = span.EndLinePosition.Line + 1;
             var node = syntaxRef.GetSyntax();
+            var declarationRange = node switch
+            {
+                TypeDeclarationSyntax typeDecl => DeclarationRangeResolver.Resolve(typeDecl),
+                EnumDeclarationSyntax enumDecl => DeclarationRangeResolver.Resolve(enumDecl),
+                _                              => DeclarationRangeResolver.ResolveFallback(node),
+            };
 
             var scope = new UsageScope(
                 TypeName: typeName,
@@ -92,8 +98,8 @@ static class InheritanceUsageProvider
                 MethodName: null,
                 MethodDefinitionRange: null,
                 MethodFullRange: null,
-                Section: new ScopeSection(node, startLine, endLine),
-                MatchLine: startLine);
+                Section: new ScopeSection(node, declarationRange.Start, declarationRange.End),
+                MatchLine: declarationRange.Start);
 
             return new UsageMatch(entry, scope);
         }
@@ -117,6 +123,6 @@ static class InheritanceUsageProvider
     static string BuildSyntheticDeclaration(INamedTypeSymbol type)
     {
         var assemblyName = type.ContainingAssembly?.Name ?? "unknown";
-        return $"// assembly: {assemblyName}\n{TypeDeclarationFormatter.FormatHeader(type)}";
+        return $"// assembly: {assemblyName}\n{TypeDeclarationFormatter.FormatHeader(type, includeInheritance: true)}";
     }
 }

@@ -1,4 +1,4 @@
-﻿using AmazingMCP.Configuration;
+using AmazingMCP.Configuration;
 using AmazingMCP.Models;
 using AmazingMCP.Models.FileAnalysis;
 using AmazingMCP.Models.UsageQuery;
@@ -231,8 +231,8 @@ public sealed class UsageProvider(
         public override void VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
             EnterMethod(node.Identifier.Text,
-                MethodDefinitionRangeResolver.Resolve(node),
-                MethodDefinitionRangeResolver.ResolveFullRange(node));
+                DeclarationRangeResolver.Resolve(node),
+                DeclarationRangeResolver.ResolveFullRange(node));
 
             Visit(node.ReturnType);
             if (node.TypeParameterList is not null)
@@ -251,8 +251,8 @@ public sealed class UsageProvider(
         public override void VisitConstructorDeclaration(ConstructorDeclarationSyntax node)
         {
             EnterMethod(".ctor",
-                MethodDefinitionRangeResolver.Resolve(node),
-                MethodDefinitionRangeResolver.ResolveFullRange(node));
+                DeclarationRangeResolver.Resolve(node),
+                DeclarationRangeResolver.ResolveFullRange(node));
             Visit(node.ParameterList);
             if (node.Body is not null)
                 Visit(node.Body);
@@ -264,8 +264,8 @@ public sealed class UsageProvider(
         public override void VisitPropertyDeclaration(PropertyDeclarationSyntax node)
         {
             EnterMethod(node.Identifier.Text,
-                MethodDefinitionRangeResolver.Resolve(node),
-                MethodDefinitionRangeResolver.ResolveFullRange(node));
+                DeclarationRangeResolver.Resolve(node),
+                DeclarationRangeResolver.ResolveFullRange(node));
             Visit(node.Type);
             if (node.AccessorList is not null)
                 Visit(node.AccessorList);
@@ -279,8 +279,8 @@ public sealed class UsageProvider(
         public override void VisitOperatorDeclaration(OperatorDeclarationSyntax node)
         {
             EnterMethod("operator " + node.OperatorToken.Text,
-                MethodDefinitionRangeResolver.Resolve(node),
-                MethodDefinitionRangeResolver.ResolveFullRange(node));
+                DeclarationRangeResolver.Resolve(node),
+                DeclarationRangeResolver.ResolveFullRange(node));
             Visit(node.ReturnType);
             if (node.Body is not null) Visit(node.Body);
             if (node.ExpressionBody is not null) Visit(node.ExpressionBody);
@@ -290,8 +290,8 @@ public sealed class UsageProvider(
         public override void VisitConversionOperatorDeclaration(ConversionOperatorDeclarationSyntax node)
         {
             EnterMethod("operator " + node.Type,
-                MethodDefinitionRangeResolver.Resolve(node),
-                MethodDefinitionRangeResolver.ResolveFullRange(node));
+                DeclarationRangeResolver.Resolve(node),
+                DeclarationRangeResolver.ResolveFullRange(node));
             if (node.Body is not null) Visit(node.Body);
             if (node.ExpressionBody is not null) Visit(node.ExpressionBody);
             ExitMethod();
