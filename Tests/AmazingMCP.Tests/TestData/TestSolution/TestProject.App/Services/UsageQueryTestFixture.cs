@@ -246,6 +246,86 @@ public class UsageQueryTestFixture
             }
         });
     }
+
+    // ── typeof ────────────────────────────────────────────────────────────────
+
+    public Type GetAnimalType()
+    {
+        // TypeOf: Animal
+        return typeof(Animal);
+    }
+
+    public Type GetRepositoryType()
+    {
+        // TypeOf: IAnimalRepository
+        return typeof(IAnimalRepository);
+    }
+
+    // ── nameof — type only ────────────────────────────────────────────────────
+
+    public string GetAnimalTypeName()
+    {
+        // NameOf: Animal (type only)
+        return nameof(Animal);
+    }
+
+    // ── nameof — member of current class ─────────────────────────────────────
+
+    public string GetThisMethodName()
+    {
+        // NameOf: UsageQueryTestFixture, MethodName = GetThisMethodName
+        return nameof(GetThisMethodName);
+    }
+
+    public string GetThisTypeName()
+    {
+        // NameOf: UsageQueryTestFixture (type, implicit this context)
+        return nameof(UsageQueryTestFixture);
+    }
+
+    // ── nameof — member ───────────────────────────────────────────────────────
+
+    public string GetAnimalNamePropertyName()
+    {
+        // NameOf: Animal, PropertyName = Name
+        return nameof(Animal.Name);
+    }
+
+    public string GetInstanceMemberName(Animal animal)
+    {
+        // NameOf via instance: Animal, PropertyName = Name (instance access, not type access)
+        return nameof(animal.Name);
+    }
+
+    public string GetKindPropertyName()
+    {
+        // NameOf: Animal, PropertyName = Kind
+        return nameof(Animal.Kind);
+    }
+
+    public Type GetOpenGenericListType()
+    {
+        // TypeOf: open generic — System.Collections.Generic.List<T>
+        return typeof(List<>);
+    }
+}
+
+/// <summary>Fixture: nameof used inside an attribute argument.</summary>
+[System.ComponentModel.DisplayName(nameof(Animal))]
+public class NameOfInAttributeFixture;
+
+/// <summary>Fixture: nameof used inside an attribute on a primary constructor parameter.</summary>
+public class NameOfInPrimaryCtorParamAttributeFixture(
+    [System.ComponentModel.DefaultValue(nameof(Animal))] IAnimalRepository repository);
+
+/// <summary>Fixture: nameof used inside an attribute on a method.</summary>
+public class NameOfInMethodAttributeFixture
+{
+    [System.ComponentModel.DisplayName(nameof(Animal))]
+    public void Process(IAnimalRepository repository) { }
+
+    public void ProcessWithAttributedParam(
+        [System.ComponentModel.DefaultValue(nameof(Animal))] IAnimalRepository repository) { }
 }
 
 /// <summary>Helper type for object-initializer usage test.</summary>

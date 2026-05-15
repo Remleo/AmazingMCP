@@ -26,6 +26,11 @@ public static class SectionResolver
 
     public static ScopeSection Resolve(SyntaxNode usageNode)
     {
+        // Special case: usage inside an attribute on a parameter — show the containing declaration
+        var containingDeclaration = TryGetDeclarationForAttributedParameter(usageNode);
+        if (containingDeclaration is not null)
+            return ToSection(containingDeclaration);
+
         var current = usageNode.Parent;
         while (current is not null)
         {
@@ -75,6 +80,8 @@ public static class SectionResolver
         SwitchSectionSyntax                    => true,
         AttributeSyntax                        => true,
         ParameterSyntax                        => true,
+        MethodDeclarationSyntax                => true,
+        ConstructorDeclarationSyntax           => true,
         PropertyDeclarationSyntax              => true,
         ForStatementSyntax s                   => !s.Statement.Contains(usageNode),
         ForEachStatementSyntax                 => true,
@@ -104,17 +111,72 @@ public static class SectionResolver
     {
         SyntaxNode spanNode = node switch
         {
-            IfStatementSyntax ifStmt       => ifStmt.Condition,
-            WhileStatementSyntax whileStmt => whileStmt.Condition,
-            PropertyDeclarationSyntax prop => prop.Type,
+            IfStatementSyntax ifStmt                 => ifStmt.Condition,
+            WhileStatementSyntax whileStmt           => whileStmt.Condition,
+            PropertyDeclarationSyntax prop           => prop.Type,
             ParameterSyntax param when IsInPrimaryConstructor(param) => param.Parent!,
             _ => node
         };
 
-        var span = spanNode.GetLocation().GetLineSpan();
-        var start = span.StartLinePosition.Line + 1;
-        var end   = span.EndLinePosition.Line + 1;
-        return new ScopeSection(node, start, end);
+        // For method/constructor declarations, span from the first attribute (or keyword) to the opening brace
+        int start, end;
+        if (node is MethodDeclarationSyntax method)
+        {
+            var range = DeclarationRangeResolver.Resolve(method);
+            // Include attribute lines above the method
+            start = method.AttributeLists.Count > 0
+                ? method.AttributeLists[0].GetLocation().GetLineSpan().StartLinePosition.Line + 1
+                : range.Start;
+            end = range.End;
+            return new ScopeSection(node, start, end);
+        }
+
+        if (node is ConstructorDeclarationSyntax ctor)
+        {
+            var range = DeclarationRangeResolver.Resolve(ctor);
+            start = ctor.AttributeLists.Count > 0
+                ? ctor.AttributeLists[0].GetLocation().GetLineSpan().StartLinePosition.Line + 1
+                : range.Start;
+            end = range.End;
+            return new ScopeSection(node, start, end);
+        }
+
+        var lineSpan = spanNode.GetLocation().GetLineSpan();
+        return new ScopeSection(node,
+            lineSpan.StartLinePosition.Line + 1,
+            lineSpan.EndLinePosition.Line + 1);
+    }
+
+    /// <summary>
+    /// If the usage is inside an attribute on a parameter, returns the containing method/constructor/type declaration.
+    /// Returns null otherwise.
+    /// </summary>
+    static SyntaxNode? TryGetDeclarationForAttributedParameter(SyntaxNode usageNode)
+    {
+        var attr = usageNode.Ancestors().OfType<AttributeSyntax>().FirstOrDefault();
+        if (attr is null) return null;
+
+        var target = attr.Parent?.Parent;
+        return target switch
+        {
+            ParameterSyntax param => param.Parent?.Parent switch
+            {
+                MethodDeclarationSyntax or ConstructorDeclarationSyntax or LocalFunctionStatementSyntax => param.Parent!.Parent,
+                TypeDeclarationSyntax => param.Parent!, // primary constructor — show parameter list
+                _ => null,
+            },
+            MethodDeclarationSyntax or ConstructorDeclarationSyntax or LocalFunctionStatementSyntax => target,
+            _ => null,
+        };
+    }
+
+    static bool IsAttributeOnDeclarationContext(AttributeSyntax attr)
+    {
+        var target = attr.Parent?.Parent;
+        return target is ParameterSyntax
+                      or MethodDeclarationSyntax
+                      or ConstructorDeclarationSyntax
+                      or LocalFunctionStatementSyntax;
     }
 
     static bool IsInPrimaryConstructor(ParameterSyntax param) =>

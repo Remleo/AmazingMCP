@@ -1,4 +1,4 @@
-﻿namespace AmazingMCP.Models.UsageQuery;
+namespace AmazingMCP.Models.UsageQuery;
 
 public enum UsageKind
 {
@@ -13,4 +13,6 @@ public enum UsageKind
     TypeAsReturnType,
     TypeAsParameter,
     TypeAsInheritance,
+    NameOf,
+    TypeOf,
 }

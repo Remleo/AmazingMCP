@@ -1,8 +1,9 @@
-﻿using AmazingMCP.Models;
+using AmazingMCP.Models;
 using AmazingMCP.Models.UsageQuery;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace AmazingMCP.Services.UsageQuery;
 
@@ -24,6 +25,7 @@ public static class QueryEntryFactory
             GenericNameSyntax generic                       => FromGenericName(generic, model),
             TypeConstraintSyntax constraint                 => FromTypeConstraint(constraint, model),
             ParameterSyntax parameter                       => FromParameter(parameter, model),
+            TypeOfExpressionSyntax typeOf                   => FromTypeOf(typeOf, model),
             _ => null,
         };
 
@@ -54,6 +56,9 @@ public static class QueryEntryFactory
 
     static QueryEntry? FromInvocation(InvocationExpressionSyntax node, SemanticModel model)
     {
+        if (model.GetOperation(node) is INameOfOperation)
+            return FromNameOf(node, model);
+
         var symbol = model.GetSymbolInfo(node).Symbol as IMethodSymbol;
         if (symbol is null) return null;
 
@@ -302,6 +307,66 @@ public static class QueryEntryFactory
             Kind = UsageKind.TypeAsReturnType,
             TypeName = typeSymbol.ToDisplayString(),
         };
+    }
+
+    // ── typeof ────────────────────────────────────────────────────────────────
+
+    static QueryEntry? FromTypeOf(TypeOfExpressionSyntax node, SemanticModel model)
+    {
+        var typeSymbol = model.GetTypeInfo(node.Type).Type;
+        if (typeSymbol is null) return null;
+
+        return new QueryEntry
+        {
+            Kind = UsageKind.TypeOf,
+            TypeName = typeSymbol.ToDisplayString(),
+        };
+    }
+
+    // ── nameof ────────────────────────────────────────────────────────────────
+
+    static QueryEntry? FromNameOf(InvocationExpressionSyntax node, SemanticModel model)
+    {
+        var arg = node.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+        if (arg is null) return null;
+
+        // nameof(Animal.Name) or nameof(Animal)
+        if (arg is MemberAccessExpressionSyntax memberAccess)
+        {
+            var containingType = model.GetTypeInfo(memberAccess.Expression).Type;
+            if (containingType is null) return null;
+
+            var memberSymbol = model.GetSymbolInfo(memberAccess).Symbol;
+            return new QueryEntry
+            {
+                Kind = UsageKind.NameOf,
+                TypeName = containingType.ToDisplayString(),
+                MethodName   = memberSymbol is IMethodSymbol   m ? m.Name : null,
+                PropertyName = memberSymbol is IPropertySymbol p ? p.Name : null,
+                FieldName    = memberSymbol is IFieldSymbol    f ? f.Name : null,
+            };
+        }
+
+        // nameof(Animal) — type only, or nameof(GetThisMethodName) — member of current class
+        // Note: for method groups, GetSymbolInfo returns no Symbol but CandidateSymbols has the method
+        var symbolInfo = model.GetSymbolInfo(arg);
+        var symbol = symbolInfo.Symbol
+                  ?? symbolInfo.CandidateSymbols.FirstOrDefault();
+
+        if (symbol is ITypeSymbol typeSymbol)
+            return new QueryEntry { Kind = UsageKind.NameOf, TypeName = typeSymbol.ToDisplayString() };
+
+        if (symbol is not null && symbol.ContainingType is not null)
+            return new QueryEntry
+            {
+                Kind = UsageKind.NameOf,
+                TypeName = symbol.ContainingType.ToDisplayString(),
+                MethodName   = symbol is IMethodSymbol   m ? m.Name : null,
+                PropertyName = symbol is IPropertySymbol p ? p.Name : null,
+                FieldName    = symbol is IFieldSymbol    f ? f.Name : null,
+            };
+
+        return null;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
