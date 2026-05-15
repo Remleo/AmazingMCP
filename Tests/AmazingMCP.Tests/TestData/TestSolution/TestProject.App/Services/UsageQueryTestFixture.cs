@@ -310,6 +310,13 @@ public class UsageQueryTestFixture
     }
 }
 
+/// <summary>Fixture: class constant used inside an attribute on a method parameter.</summary>
+public class ConstantInParamAttributeFixture
+{
+    public void Process(
+        [System.ComponentModel.DefaultValue(AnimalDefaults.MaxNameLength)] IAnimalRepository repository) { }
+}
+
 /// <summary>Fixture: nameof used inside an attribute argument.</summary>
 [System.ComponentModel.DisplayName(nameof(Animal))]
 public class NameOfInAttributeFixture;

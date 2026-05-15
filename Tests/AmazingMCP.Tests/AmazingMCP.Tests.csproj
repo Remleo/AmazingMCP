@@ -70,6 +70,30 @@
     <Compile Update="CodeLens\CodeLensServiceTests.Variables.cs">
       <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
     </Compile>
+    <Compile Update="UsageQuery\UsageProviderTests.ClosedGeneric.cs">
+      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="UsageQuery\UsageProviderTests.Formatter.cs">
+      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="UsageQuery\UsageProviderTests.Inheritance.cs">
+      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="UsageQuery\UsageProviderTests.NameOfTypeOf.cs">
+      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="UsageQuery\UsageProviderTests.Predicate.cs">
+      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="UsageQuery\UsageProviderTests.ScanFilters.cs">
+      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="UsageQuery\UsageProviderTests.TypeAs.cs">
+      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+    </Compile>
+    <Compile Update="UsageQuery\UsageProviderTests.Usages.cs">
+      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>
