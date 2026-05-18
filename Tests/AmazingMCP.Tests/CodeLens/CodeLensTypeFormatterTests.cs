@@ -2,7 +2,7 @@ using AmazingMCP.Services.CodeLens;
 using FluentAssertions;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.CodeLens;
 
 [TestFixture]
 public class CodeLensTypeFormatterTests

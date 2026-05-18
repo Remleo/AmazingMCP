@@ -242,20 +242,8 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
     // Example: "public abstract class AnimalBase", "internal sealed class Utils", "public interface IAnimal"
     static string FormatTypeHeader(INamedTypeSymbol type) => TypeDeclarationFormatter.FormatHeader(type);
 
-    static string FormatTypeLocation(INamedTypeSymbol type)
-    {
-        var syntaxRef = type.DeclaringSyntaxReferences.FirstOrDefault();
-        if (syntaxRef is not null)
-        {
-
-            var line = syntaxRef.SyntaxTree
-                .GetLineSpan(syntaxRef.Span)
-                .StartLinePosition.Line + 1;
-
-            return $"// source: {syntaxRef.SyntaxTree.FilePath}, line {line}";
-        }
-        return $"// assembly: {type.ContainingAssembly?.Name}";
-    }
+    static string FormatTypeLocation(INamedTypeSymbol type) =>
+        SourceLocationFormatter.FormatTypeLocation(type);
 
     static bool IsWellKnownFrameworkType(INamedTypeSymbol type) =>
         WellKnownFrameworkTypes.IsWellKnown(type);

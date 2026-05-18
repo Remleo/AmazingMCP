@@ -1,11 +1,10 @@
-using AmazingMCP.Models;
+using System.Runtime.CompilerServices;
+using AmazingMCP.Models.Workspace;
 using AmazingMCP.Tests.Helpers;
 using FluentAssertions;
 using NUnit.Framework;
-using System.Runtime.CompilerServices;
-using AmazingMCP.Models.Workspace;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.Workspace;
 
 public class CachedSolutionTests
 {
@@ -14,7 +13,13 @@ public class CachedSolutionTests
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _sut = await CompilationHelper.GetSharedSolutionAsync();
+        _sut = await CompilationHelper.LoadTestSolutionAsync();
+    }
+
+    [OneTimeTearDown]
+    public void OneTimeTearDown()
+    {
+        _sut.Dispose();
     }
 
     [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_dirtyFiles")]

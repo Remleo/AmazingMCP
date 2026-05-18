@@ -1,17 +1,15 @@
-using AmazingMCP.Models;
 using AmazingMCP.Models.Design;
 using AmazingMCP.Models.Workspace;
-using AmazingMCP.Services;
 using AmazingMCP.Services.Design;
 using AmazingMCP.Services.Scanning;
 using AmazingMCP.Tests.Helpers;
-using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using NSubstitute;
 using NUnit.Framework;
+using static AmazingMCP.Tests.Helpers.CompilationHelper;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.Design;
 
 public class ProjectDesignServiceTests
 {

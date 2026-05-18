@@ -1,7 +1,5 @@
-using AmazingMCP.Models;
 using AmazingMCP.Models.Design;
 using AmazingMCP.Models.Workspace;
-using AmazingMCP.Services;
 using AmazingMCP.Services.Design;
 using AmazingMCP.Services.Scanning;
 using AmazingMCP.Services.Workspace;
@@ -10,7 +8,7 @@ using Microsoft.Extensions.Caching.Memory;
 using NSubstitute;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.Design;
 
 public partial class DependencyMapServiceTests
 {

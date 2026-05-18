@@ -1,8 +1,7 @@
-using AmazingMCP.Tests.Helpers;
 using FluentAssertions;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.CodeLens;
 
 public partial class CodeLensServiceTests
 {

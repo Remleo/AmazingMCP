@@ -1,17 +1,9 @@
-using AmazingMCP.Models;
-using AmazingMCP.Models.UsageQuery;
-using AmazingMCP.Models.Workspace;
-using AmazingMCP.Services;
-using AmazingMCP.Services.UsageQuery;
-using AmazingMCP.Services.Wildcard;
-using AmazingMCP.Tests.Helpers;
-using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using FluentAssertions;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.UsageQuery;
 
-public partial class UsageProviderTests
+public class UsageProviderTestsPatterns : UsageProviderTestsBase
 {
     // ── using static ──────────────────────────────────────────────────────────
 

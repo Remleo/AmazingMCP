@@ -5,7 +5,7 @@ using AmazingMCP.Tests.Helpers;
 using FluentAssertions;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.SymbolQuery;
 
 public class SymbolInfoServiceCompactModeTests
 {

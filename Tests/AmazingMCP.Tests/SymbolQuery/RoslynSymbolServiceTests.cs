@@ -1,14 +1,12 @@
-using AmazingMCP.Models;
 using AmazingMCP.Models.Workspace;
-using AmazingMCP.Services;
 using AmazingMCP.Services.SymbolQuery;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Tests.Helpers;
-using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using FluentAssertions;
 using NUnit.Framework;
+using static AmazingMCP.Tests.Helpers.CompilationHelper;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.SymbolQuery;
 
 public class RoslynSymbolServiceTests
 {

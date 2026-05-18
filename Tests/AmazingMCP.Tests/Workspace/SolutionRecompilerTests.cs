@@ -1,4 +1,3 @@
-using AmazingMCP.Models;
 using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.Workspace;
 using AmazingMCP.Tests.Helpers;
@@ -6,7 +5,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.Workspace;
 
 public class SolutionRecompilerTests
 {

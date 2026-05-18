@@ -1,8 +1,7 @@
-using AmazingMCP.Models;
 using FluentAssertions;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.Design;
 
 /// <summary>
 /// Tests for standalone classes (no interface) that have dependencies.

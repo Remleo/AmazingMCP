@@ -1,12 +1,10 @@
-using AmazingMCP.Services;
 using AmazingMCP.Services.CodeLens;
 using AmazingMCP.Services.Workspace;
 using AmazingMCP.Tests.Helpers;
-using FluentAssertions;
 using NSubstitute;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.CodeLens;
 
 /// <summary>
 /// Integration tests for <see cref="CodeLensService"/> against the real TestSolution.

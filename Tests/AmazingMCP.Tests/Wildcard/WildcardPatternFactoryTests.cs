@@ -1,9 +1,8 @@
-using AmazingMCP.Services;
 using AmazingMCP.Services.Wildcard;
 using FluentAssertions;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.Wildcard;
 
 /// <summary>
 /// Tests for WildcardPatternFactory.CreateForTypeNames and CreateGlob / WildcardPattern.IsMatch.

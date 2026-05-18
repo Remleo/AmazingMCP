@@ -1,32 +1,31 @@
-using AmazingMCP.Models;
+using AmazingMCP.Configuration;
 using AmazingMCP.Models.UsageQuery;
-using AmazingMCP.Models.Workspace;
-using AmazingMCP.Services;
 using AmazingMCP.Services.UsageQuery;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Tests.Helpers;
-using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using NUnit.Framework;
+using static AmazingMCP.Tests.Helpers.CompilationHelper;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.UsageQuery;
 
-public partial class UsageProviderTests
+[Parallelizable(ParallelScope.Self)]
+public abstract class UsageProviderTestsBase
 {
-    CachedSolution _cachedSolution = null!;
-    IUsageProvider _sut = null!;
+    protected IUsageProvider _sut = null!;
 
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
     {
-        _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
+        var cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _sut = new UsageProvider(
-            CreateWorkspaceProvider(_cachedSolution),
+            CreateWorkspaceProvider(cachedSolution),
             new WildcardPatternFactory(),
-            Microsoft.Extensions.Options.Options.Create(new AmazingMCP.Configuration.QueryUsagesOptions()));
+            Options.Create(new QueryUsagesOptions()));
     }
 
-    async Task<IReadOnlyList<UsageMatch>> Act(
+    protected async Task<IReadOnlyList<UsageMatch>> Act(
         string typeName,
         string? predicate = null,
         string[]? scanInclude = null,
@@ -42,5 +41,4 @@ public partial class UsageProviderTests
         error.Should().BeNull();
         return matches;
     }
-
 }

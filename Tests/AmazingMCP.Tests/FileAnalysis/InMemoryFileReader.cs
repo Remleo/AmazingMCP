@@ -1,7 +1,6 @@
-using AmazingMCP.Services;
 using AmazingMCP.Services.FileAnalysis;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.FileAnalysis;
 
 class InMemoryFileReader : IFileReader
 {

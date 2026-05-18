@@ -21,6 +21,9 @@ public record SymbolResult
     public required string? SourceFilePath { get; init; }
     public required int? DefinitionLine { get; init; }
 
+    /// <summary>All source file paths for this type (multiple entries for partial types). Empty for assembly-only types.</summary>
+    public IReadOnlyList<string> SourceFilePaths { get; init; } = [];
+
     /// <summary>Set for member results; null for type results.</summary>
     public SymbolResult? DeclaringType { get; init; }
 }

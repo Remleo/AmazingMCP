@@ -1,10 +1,9 @@
-using AmazingMCP.Services;
 using AmazingMCP.Services.FileAnalysis;
 using AmazingMCP.Services.Wildcard;
 using FluentAssertions;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.FileAnalysis;
 
 public class FilteredSourceServiceTests
 {

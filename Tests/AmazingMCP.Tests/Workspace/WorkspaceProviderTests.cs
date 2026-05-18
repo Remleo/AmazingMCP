@@ -1,4 +1,3 @@
-using AmazingMCP.Services;
 using AmazingMCP.Services.SymbolQuery;
 using AmazingMCP.Services.Workspace;
 using AmazingMCP.Tests.Helpers;
@@ -7,8 +6,9 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.Workspace;
 
+[NonParallelizable]
 public class WorkspaceProviderTests
 {
     [OneTimeSetUp]

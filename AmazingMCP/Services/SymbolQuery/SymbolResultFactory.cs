@@ -17,6 +17,7 @@ internal static class SymbolResultFactory
             ContainingAssembly = symbol.ContainingAssembly?.Name,
             SourceFilePath = path,
             DefinitionLine = line,
+            SourceFilePaths = SourceLocationFormatter.GetSourcePaths(symbol),
         };
     }
 

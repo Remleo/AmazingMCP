@@ -71,29 +71,66 @@
       <DependentUpon>CodeLensServiceTests.cs</DependentUpon>
     </Compile>
     <Compile Update="UsageQuery\UsageProviderTests.ClosedGeneric.cs">
-      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+      <DependentUpon>UsageProviderTestsBase.cs</DependentUpon>
     </Compile>
     <Compile Update="UsageQuery\UsageProviderTests.Formatter.cs">
-      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+      <DependentUpon>UsageProviderTestsBase.cs</DependentUpon>
     </Compile>
     <Compile Update="UsageQuery\UsageProviderTests.Inheritance.cs">
-      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+      <DependentUpon>UsageProviderTestsBase.cs</DependentUpon>
     </Compile>
     <Compile Update="UsageQuery\UsageProviderTests.NameOfTypeOf.cs">
-      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+      <DependentUpon>UsageProviderTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="UsageQuery\UsageProviderTests.Patterns.cs">
+      <DependentUpon>UsageProviderTestsBase.cs</DependentUpon>
     </Compile>
     <Compile Update="UsageQuery\UsageProviderTests.Predicate.cs">
-      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+      <DependentUpon>UsageProviderTestsBase.cs</DependentUpon>
     </Compile>
     <Compile Update="UsageQuery\UsageProviderTests.ScanFilters.cs">
-      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+      <DependentUpon>UsageProviderTestsBase.cs</DependentUpon>
     </Compile>
     <Compile Update="UsageQuery\UsageProviderTests.TypeAs.cs">
-      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+      <DependentUpon>UsageProviderTestsBase.cs</DependentUpon>
     </Compile>
     <Compile Update="UsageQuery\UsageProviderTests.Usages.cs">
-      <DependentUpon>UsageProviderTests.cs</DependentUpon>
+      <DependentUpon>UsageProviderTestsBase.cs</DependentUpon>
     </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.Enum.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.Fields.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.Members.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.Misc.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.NestedTypes.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.PartialType.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.ProtectedMembers.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.TypeHeaderModifiers.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.VirtualAndAbstract.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.Operators.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+    <Compile Update="SymbolQuery\SymbolInfoServiceTests.XmlDoc.cs">
+      <DependentUpon>SymbolInfoServiceTestsBase.cs</DependentUpon>
+    </Compile>
+
   </ItemGroup>
 
   <ItemGroup>

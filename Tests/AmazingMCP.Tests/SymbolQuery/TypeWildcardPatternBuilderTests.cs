@@ -1,10 +1,9 @@
-using AmazingMCP.Services;
 using AmazingMCP.Services.SymbolQuery;
 using AmazingMCP.Services.Wildcard;
 using FluentAssertions;
 using NUnit.Framework;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.SymbolQuery;
 
 /// <summary>
 /// Tests for TypeWildcardPatternBuilder.Build.

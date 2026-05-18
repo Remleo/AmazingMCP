@@ -1,18 +1,16 @@
-using AmazingMCP.Models;
 using AmazingMCP.Models.Design;
 using AmazingMCP.Models.Workspace;
-using AmazingMCP.Services;
 using AmazingMCP.Services.Design;
 using AmazingMCP.Services.Scanning;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Tests.Helpers;
-using static AmazingMCP.Tests.Helpers.CompilationHelper;
 using AmazingMCP.Tools;
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using NUnit.Framework;
+using static AmazingMCP.Tests.Helpers.CompilationHelper;
 
-namespace AmazingMCP.Tests;
+namespace AmazingMCP.Tests.Design;
 
 public class GetTypeDepsAndUsageToolTests
 {

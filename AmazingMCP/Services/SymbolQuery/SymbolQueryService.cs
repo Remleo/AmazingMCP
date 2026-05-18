@@ -104,10 +104,15 @@ public class SymbolQueryService(
         _ => kind + "s",
     };
 
-    static string FormatTypeResult(SymbolResult r) =>
-        r.SourceFilePath is not null
-            ? $"[{r.Kind}] {r.FullName}  (source: {r.SourceFilePath}, line {r.DefinitionLine})"
-            : $"[{r.Kind}] {r.FullName}  (assembly: {r.ContainingAssembly})";
+    static string FormatTypeResult(SymbolResult r)
+    {
+        var location = SourceLocationFormatter.FormatLocation(
+            r.SourceFilePaths,
+            r.ContainingAssembly,
+            r.SourceFilePaths.Count == 1 ? r.DefinitionLine : null);
+
+        return $"[{r.Kind}] {r.FullName}  ({location[3..]})";
+    }
 
     static string FormatMemberResult(SymbolResult r) =>
         r.SourceFilePath is not null
