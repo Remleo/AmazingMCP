@@ -5,7 +5,7 @@ namespace TestProject.App.Services;
 
 /// <summary>
 /// Fixture with a multi-line primary constructor for testing that
-/// TypeAsParameter usages span the entire parameter list section.
+/// Parameter usages span the entire parameter list section.
 /// </summary>
 public sealed class MultiParamPrimaryCtorFixture(
     IAnimalRepository repository,

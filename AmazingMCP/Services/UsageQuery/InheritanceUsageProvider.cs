@@ -11,7 +11,7 @@ namespace AmazingMCP.Services.UsageQuery;
 
 /// <summary>
 /// Finds all types that inherit from or implement the target type,
-/// producing a <see cref="UsageMatch"/> per derived type with <see cref="UsageKind.TypeAsInheritance"/>.
+/// producing a <see cref="UsageMatch"/> per derived type with <see cref="UsageKind.Inheritance"/>.
 /// </summary>
 static class InheritanceUsageProvider
 {
@@ -63,7 +63,7 @@ static class InheritanceUsageProvider
 
             var entry = new QueryEntry
             {
-                Kind = UsageKind.TypeAsInheritance,
+                Kind = UsageKind.Inheritance,
                 TypeName = targetType.ToDisplayString(),
             };
 

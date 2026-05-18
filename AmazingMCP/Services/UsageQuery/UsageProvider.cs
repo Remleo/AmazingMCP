@@ -183,7 +183,7 @@ public sealed class UsageProvider(
             _currentMethodDefinitionRange = null;
             _currentMethodFullRange = null;
 
-            // Visit primary constructor parameters for TypeAsParameter entries.
+            // Visit primary constructor parameters for Parameter entries.
             // We do NOT set MethodDefinitionRange here — the class declaration itself
             // is the definition context and will appear as a section if matched.
             if (node.ParameterList is not null)

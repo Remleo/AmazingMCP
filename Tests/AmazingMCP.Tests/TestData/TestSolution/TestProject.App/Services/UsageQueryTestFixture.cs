@@ -72,11 +72,11 @@ public class UsageQueryTestFixture
         return new Animal { Name = name, Kind = kind };
     }
 
-    // ── TypeAsReturnType ──────────────────────────────────────────────────────
+    // ── ReturnType ──────────────────────────────────────────────────────
 
     public Animal GetOrCreate(int id)
     {
-        // TypeAsReturnType: Animal (return type of this method)
+        // ReturnType: Animal (return type of this method)
         return _repository.FindById(id) ?? new Animal { Name = "New", Kind = AnimalKind.Unknown };
     }
 
@@ -219,7 +219,7 @@ public class UsageQueryTestFixture
 
     public void ProcessAnimals(IReadOnlyList<Animal> animals)
     {
-        // TypeAsParameter (animals) + MethodCall (FindById) — both reference Animal
+        // Parameter (animals) + MethodCall (FindById) — both reference Animal
         foreach (var a in animals)
             _repository.Save(a);
     }
@@ -357,4 +357,35 @@ public class UsageQueryObjectInitFixture
         Name = "literal",
         Kind = AnimalKind.Unknown,
     };
+}
+
+/// <summary>Fixture: using static — calls static members of Animal-related types without qualifier.</summary>
+public class UsingStaticFixture
+{
+    // MethodCall via using static: AnimalDefaults.BuildDefaultName called without qualifier
+    public string GetDefaultName(int id) => AnimalDefaults.BuildDefaultName(id);
+
+    // FieldRead via using static: AnimalDefaults.MaxNameLength read without qualifier
+    public int GetMaxLength() => AnimalDefaults.MaxNameLength;
+
+    // PropertyRead via using static: AnimalDefaults.MaxAllowed read without qualifier
+    public int GetMaxAllowed() => AnimalDefaults.MaxAllowed;
+}
+
+/// <summary>Fixture: is/as pattern matching against Animal.</summary>
+public class IsAsPatternFixture
+{
+    // AsIsPattern: obj is Animal
+    public bool IsAnimal(object obj) => obj is Animal;
+
+    // IsPattern: obj is Animal a (declaration pattern)
+    public string? GetAnimalName(object obj)
+    {
+        if (obj is Animal a)
+            return a.Name;
+        return null;
+    }
+
+    // AsPattern: obj as Animal
+    public Animal? AsAnimal(object obj) => obj as Animal;
 }

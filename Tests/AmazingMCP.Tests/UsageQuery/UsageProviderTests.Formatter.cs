@@ -77,14 +77,14 @@ public partial class UsageProviderTests
     [Test]
     public async Task QueryAsync_Formatter_MethodDefinition_NotDuplicated_WhenUsageInParameterAndBody()
     {
-        // arrange — RenameAnimal(Animal animal, ...) has Animal as TypeAsParameter (line with signature)
+        // arrange — RenameAnimal(Animal animal, ...) has Animal as Parameter (line with signature)
         // AND PropertyWrite animal.Name in the body (different section, non-adjacent).
         // The method signature line must appear exactly once in the output.
 
         // act
         var matches = await Act(
             "TestProject.Core.Models.Animal",
-            predicate: "x.Kind == UsageKind.TypeAsParameter || x.Kind == UsageKind.PropertyWrite",
+            predicate: "x.Kind == UsageKind.Parameter || x.Kind == UsageKind.PropertyWrite",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         var output = new UsageResultFormatter().Format(matches);
@@ -124,8 +124,8 @@ public partial class UsageProviderTests
     [Test]
     public async Task QueryAsync_Formatter_OverlappingGroupsFromDifferentMethods_MergedIntoOneBlock()
     {
-        // arrange — searching for a type that appears both as TypeAsParameter (.ctor group)
-        // and as TypeAsGenericArgument (null-method group) on the same lines.
+        // arrange — searching for a type that appears both as Parameter (.ctor group)
+        // and as GenericArgument (null-method group) on the same lines.
         // Both matches share the same section range and must produce exactly one code block.
 
         // act — IAnimalRepository appears in primary ctor parameter list of UsageQueryTestFixture
@@ -329,9 +329,9 @@ public partial class UsageProviderTests
             "TestProject.Core.Models.ExtensionProbe",
             scanInclude: ["TestProject.App.Helpers.ExtensionProbeExtensions"]);
 
-        // assert — the extension(ExtensionProbe probe) parameter must be detected as TypeAsParameter
+        // assert — the extension(ExtensionProbe probe) parameter must be detected as Parameter
         matches.Should().BeEquivalentTo(
-            [new { Entry = new { Kind = UsageKind.TypeAsParameter, TypeName = "TestProject.Core.Models.ExtensionProbe" } }],
+            [new { Entry = new { Kind = UsageKind.Parameter, TypeName = "TestProject.Core.Models.ExtensionProbe" } }],
             options => options.Including(m => m.Entry.Kind).Including(m => m.Entry.TypeName));
     }
 

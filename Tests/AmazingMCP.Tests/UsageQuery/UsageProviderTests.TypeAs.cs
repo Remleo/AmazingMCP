@@ -13,27 +13,27 @@ namespace AmazingMCP.Tests;
 
 public partial class UsageProviderTests
 {
-    // ── TypeAsParameter ───────────────────────────────────────────────────────
+    // ── Parameter ───────────────────────────────────────────────────────
 
     [Test]
-    public async Task QueryAsync_TypeAsParameter_FindsAnimalInMethodParameter()
+    public async Task QueryAsync_Parameter_FindsAnimalInMethodParameter()
     {
         // act
         var matches = await Act(
             "TestProject.Core.Models.Animal",
-            predicate: "x.Kind == UsageKind.TypeAsParameter");
+            predicate: "x.Kind == UsageKind.Parameter");
 
         // assert
         matches.Should().NotBeEmpty();
         matches.Should().AllSatisfy(m =>
         {
-            m.Entry.Kind.Should().Be(UsageKind.TypeAsParameter);
+            m.Entry.Kind.Should().Be(UsageKind.Parameter);
             m.Entry.TypeName.Should().Contain("Animal");
         });
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsParameter_PrimaryConstructor_MultiLine_SpansEntireParameterList()
+    public async Task QueryAsync_Parameter_PrimaryConstructor_MultiLine_SpansEntireParameterList()
     {
         // arrange — MultiParamPrimaryCtorFixture has a multi-line primary constructor
         // with IAnimalRepository, IAnimalService, INotificationService as parameters.
@@ -42,7 +42,7 @@ public partial class UsageProviderTests
         // act
         var matches = await Act(
             "TestProject.Core.Persistence.IAnimalRepository",
-            predicate: "x.Kind == UsageKind.TypeAsParameter",
+            predicate: "x.Kind == UsageKind.Parameter",
             scanInclude: ["TestProject.App.Services.MultiParamPrimaryCtorFixture"]);
 
         // assert
@@ -55,12 +55,12 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsParameter_PrimaryConstructor_IsFound()
+    public async Task QueryAsync_Parameter_PrimaryConstructor_IsFound()
     {
         // act — UsageQueryTestFixture has IAnimalRepository as primary constructor parameter
         var matches = await Act(
             "TestProject.Core.Persistence.IAnimalRepository",
-            predicate: "x.Kind == UsageKind.TypeAsParameter",
+            predicate: "x.Kind == UsageKind.Parameter",
             scanInclude: ["TestProject.App.Services.UsageQueryTestFixture"]);
 
         // assert
@@ -68,34 +68,34 @@ public partial class UsageProviderTests
         matches.Should().Contain(m => m.Scope.MethodName == ".ctor");
     }
 
-    // ── TypeAsGenericArgument ─────────────────────────────────────────────────
+    // ── GenericArgument ─────────────────────────────────────────────────
 
     [Test]
-    public async Task QueryAsync_TypeAsGenericArgument_FindsAnimalAsTypeArgument()
+    public async Task QueryAsync_GenericArgument_FindsAnimalAsTypeArgument()
     {
         // act — typeName matches Animal, predicate filters to generic argument usages
         var matches = await Act(
             "TestProject.Core.Models.Animal",
-            predicate: "x.Kind == UsageKind.TypeAsGenericArgument");
+            predicate: "x.Kind == UsageKind.GenericArgument");
 
         // assert
         matches.Should().NotBeEmpty();
         matches.Should().AllSatisfy(m =>
         {
-            m.Entry.Kind.Should().Be(UsageKind.TypeAsGenericArgument);
+            m.Entry.Kind.Should().Be(UsageKind.GenericArgument);
             m.Entry.TypeName.Should().Contain("Animal");
         });
     }
 
-    // ── TypeAsGenericConstraint ───────────────────────────────────────────────
+    // ── GenericConstraint ───────────────────────────────────────────────
 
     [Test]
-    public async Task QueryAsync_TypeAsGenericConstraint_FindsWhereConstraint()
+    public async Task QueryAsync_GenericConstraint_FindsWhereConstraint()
     {
         // act
         var matches = await Act(
             "TestProject.Core.Models.Animal",
-            predicate: "x.Kind == UsageKind.TypeAsGenericConstraint");
+            predicate: "x.Kind == UsageKind.GenericConstraint");
 
         // assert
         matches.Should().NotBeEmpty();
@@ -104,15 +104,15 @@ public partial class UsageProviderTests
             m.Scope.MethodName == "ProcessAnimal");
     }
 
-    // ── TypeAsReturnType ──────────────────────────────────────────────────────
+    // ── ReturnType ──────────────────────────────────────────────────────
 
     [Test]
-    public async Task QueryAsync_TypeAsReturnType_FindsMethodsReturningAnimal()
+    public async Task QueryAsync_ReturnType_FindsMethodsReturningAnimal()
     {
         // act
         var matches = await Act(
             "TestProject.Core.Models.Animal",
-            predicate: "x.Kind == UsageKind.TypeAsReturnType");
+            predicate: "x.Kind == UsageKind.ReturnType");
 
         // assert
         matches.Should().NotBeEmpty();

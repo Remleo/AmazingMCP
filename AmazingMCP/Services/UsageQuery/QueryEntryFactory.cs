@@ -26,6 +26,7 @@ public static class QueryEntryFactory
             TypeConstraintSyntax constraint                 => FromTypeConstraint(constraint, model),
             ParameterSyntax parameter                       => FromParameter(parameter, model),
             TypeOfExpressionSyntax typeOf                   => FromTypeOf(typeOf, model),
+            BinaryExpressionSyntax binary                   => FromBinaryExpression(binary, model),
             _ => null,
         };
 
@@ -173,7 +174,7 @@ public static class QueryEntryFactory
         if (node.Parent is not TypeArgumentListSyntax) return null;
         var typeSymbol = model.GetTypeInfo(node).Type;
         if (typeSymbol is null) return null;
-        return new QueryEntry { Kind = UsageKind.TypeAsGenericArgument, TypeName = typeSymbol.ToDisplayString() };
+        return new QueryEntry { Kind = UsageKind.GenericArgument, TypeName = typeSymbol.ToDisplayString() };
     }
 
     static QueryEntry? TryFromObjectInitializerLeft(IdentifierNameSyntax node, SemanticModel model)
@@ -241,7 +242,7 @@ public static class QueryEntryFactory
             if (typeSymbol is null) return null;
             return new QueryEntry
             {
-                Kind = UsageKind.TypeAsGenericArgument,
+                Kind = UsageKind.GenericArgument,
                 TypeName = typeSymbol.ToDisplayString(),
             };
         }
@@ -258,7 +259,7 @@ public static class QueryEntryFactory
 
         return new QueryEntry
         {
-            Kind = UsageKind.TypeAsGenericConstraint,
+            Kind = UsageKind.GenericConstraint,
             TypeName = typeSymbol.ToDisplayString(),
         };
     }
@@ -278,7 +279,7 @@ public static class QueryEntryFactory
 
         return new QueryEntry
         {
-            Kind = UsageKind.TypeAsParameter,
+            Kind = UsageKind.Parameter,
             TypeName = namedType.ToDisplayString(),
         };
     }
@@ -304,7 +305,7 @@ public static class QueryEntryFactory
         if (typeSymbol is null) return null;
         return new QueryEntry
         {
-            Kind = UsageKind.TypeAsReturnType,
+            Kind = UsageKind.ReturnType,
             TypeName = typeSymbol.ToDisplayString(),
         };
     }
@@ -367,6 +368,23 @@ public static class QueryEntryFactory
             };
 
         return null;
+    }
+
+    // ── is / as ───────────────────────────────────────────────────────────────
+
+    static QueryEntry? FromBinaryExpression(BinaryExpressionSyntax node, SemanticModel model)
+    {
+        if (!node.IsKind(SyntaxKind.IsExpression) && !node.IsKind(SyntaxKind.AsExpression))
+            return null;
+
+        var typeSymbol = model.GetTypeInfo(node.Right).Type;
+        if (typeSymbol is null) return null;
+
+        return new QueryEntry
+        {
+            Kind = UsageKind.IsOrAs,
+            TypeName = typeSymbol.ToDisplayString(),
+        };
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

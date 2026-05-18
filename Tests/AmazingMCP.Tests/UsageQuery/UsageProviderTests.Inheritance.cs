@@ -13,15 +13,15 @@ namespace AmazingMCP.Tests;
 
 public partial class UsageProviderTests
 {
-    // ── TypeAsInheritance ─────────────────────────────────────────────────────
+    // ── Inheritance ─────────────────────────────────────────────────────
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_Interface_FindsAllImplementors()
+    public async Task QueryAsync_Inheritance_Interface_FindsAllImplementors()
     {
         // act
         var matches = await Act(
             "TestProject.Core.Services.IAnimalService",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+            predicate: "x.Kind == UsageKind.Inheritance");
 
         // assert
         var typeNames = matches.Select(m => m.Scope.TypeName).ToList();
@@ -32,29 +32,29 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_Interface_AllMatchesHaveCorrectKindAndTypeName()
+    public async Task QueryAsync_Inheritance_Interface_AllMatchesHaveCorrectKindAndTypeName()
     {
         // act
         var matches = await Act(
             "TestProject.Core.Services.IAnimalService",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+            predicate: "x.Kind == UsageKind.Inheritance");
 
         // assert
         matches.Should().NotBeEmpty();
         matches.Should().AllSatisfy(m =>
         {
-            m.Entry.Kind.Should().Be(UsageKind.TypeAsInheritance);
+            m.Entry.Kind.Should().Be(UsageKind.Inheritance);
             m.Entry.TypeName.Should().Be("TestProject.Core.Services.IAnimalService");
         });
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_AbstractClass_FindsSubclasses()
+    public async Task QueryAsync_Inheritance_AbstractClass_FindsSubclasses()
     {
         // act
         var matches = await Act(
             "TestProject.App.Services.AnimalServiceBase",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+            predicate: "x.Kind == UsageKind.Inheritance");
 
         // assert
         matches.Select(m => m.Scope.TypeName)
@@ -62,12 +62,12 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_SourceType_HasFilePath()
+    public async Task QueryAsync_Inheritance_SourceType_HasFilePath()
     {
         // act
         var matches = await Act(
             "TestProject.Core.Services.IAnimalService",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+            predicate: "x.Kind == UsageKind.Inheritance");
 
         // assert — source types must have a non-empty file path and a non-null Section
         matches.Should().NotBeEmpty();
@@ -79,12 +79,12 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_SourceType_SectionIsDeclarationLineOnly()
+    public async Task QueryAsync_Inheritance_SourceType_SectionIsDeclarationLineOnly()
     {
         // act — AnimalService : IAnimalService, body spans ~40 lines
         var matches = await Act(
             "TestProject.Core.Services.IAnimalService",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance",
+            predicate: "x.Kind == UsageKind.Inheritance",
             scanInclude: ["TestProject.App.Services.AnimalService"]);
 
         // assert — section must be just the declaration (up to opening brace), not the full class body
@@ -95,12 +95,12 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_ScanInclude_FiltersResults()
+    public async Task QueryAsync_Inheritance_ScanInclude_FiltersResults()
     {
         // act
         var matches = await Act(
             "TestProject.Core.Services.IAnimalService",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance",
+            predicate: "x.Kind == UsageKind.Inheritance",
             scanInclude: ["TestProject.App.Services.AnimalService"]);
 
         // assert — only AnimalService passes the scanInclude filter
@@ -110,13 +110,13 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_Formatter_OutputContainsImplementorHeader()
+    public async Task QueryAsync_Inheritance_Formatter_OutputContainsImplementorHeader()
     {
         // arrange
         var (matches, _, _) = await _sut.QueryAsync(
             CompilationHelper.SolutionPath,
             "TestProject.Core.Services.IAnimalService",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance",
+            predicate: "x.Kind == UsageKind.Inheritance",
             scanInclude: null,
             scanExclude: null);
 
@@ -128,12 +128,12 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_NuGetBaseClass_FindsSourceImplementors()
+    public async Task QueryAsync_Inheritance_NuGetBaseClass_FindsSourceImplementors()
     {
         // act — AutoMapper.Profile is a NuGet class; AnimalMappingProfile extends it
         var matches = await Act(
             "AutoMapper.Profile",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+            predicate: "x.Kind == UsageKind.Inheritance");
 
         // assert — source implementor is found
         matches.Select(m => m.Scope.TypeName)
@@ -141,14 +141,14 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_Formatter_SyntheticDeclaration_ContainsInheritance()
+    public async Task QueryAsync_Inheritance_Formatter_SyntheticDeclaration_ContainsInheritance()
     {
         // arrange — search for implementors of a NuGet interface so we get a synthetic match
         // IHealthCheck is not in TestSolution, but we can verify via FormatHeader directly
         // Instead: verify that source match section declaration contains the base class name
         var matches = await Act(
             "AutoMapper.Profile",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance",
+            predicate: "x.Kind == UsageKind.Inheritance",
             scanInclude: ["TestProject.App.Mapping.AnimalMappingProfile"]);
 
         // act
@@ -159,12 +159,12 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_BodylessType_SectionIsDeclarationLine()
+    public async Task QueryAsync_Inheritance_BodylessType_SectionIsDeclarationLine()
     {
         // act — BodylessTypeFixture : IInheritanceTestMarker; — C# 12 class without braces
         var matches = await Act(
             "TestProject.Core.Models.IInheritanceTestMarker",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance",
+            predicate: "x.Kind == UsageKind.Inheritance",
             scanInclude: ["TestProject.Core.Models.BodylessTypeFixture"]);
 
         // assert — section must be the single declaration line (no body, no braces)
@@ -175,12 +175,12 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_OpenGenericInterface_FindsImplementors()
+    public async Task QueryAsync_Inheritance_OpenGenericInterface_FindsImplementors()
     {
         // act — open generic: IRepository<T>
         var matches = await Act(
             "TestProject.Core.Persistence.IRepository<T>",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+            predicate: "x.Kind == UsageKind.Inheritance");
 
         // assert — GenericRepository<T> directly implements IRepository<T>
         matches.Select(m => m.Scope.TypeName)
@@ -188,15 +188,15 @@ public partial class UsageProviderTests
     }
 
     [Test]
-    public async Task QueryAsync_TypeAsInheritance_OpenGenericInterface_AllMatchesHaveCorrectKind()
+    public async Task QueryAsync_Inheritance_OpenGenericInterface_AllMatchesHaveCorrectKind()
     {
         // act
         var matches = await Act(
             "TestProject.Core.Persistence.IRepository<T>",
-            predicate: "x.Kind == UsageKind.TypeAsInheritance");
+            predicate: "x.Kind == UsageKind.Inheritance");
 
         // assert
         matches.Should().NotBeEmpty();
-        matches.Should().AllSatisfy(m => m.Entry.Kind.Should().Be(UsageKind.TypeAsInheritance));
+        matches.Should().AllSatisfy(m => m.Entry.Kind.Should().Be(UsageKind.Inheritance));
     }
 }
