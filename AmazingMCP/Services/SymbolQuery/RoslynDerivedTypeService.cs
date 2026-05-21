@@ -28,6 +28,8 @@ public static class RoslynDerivedTypeService
         var targetFullName = targetType.ToDisplayString();
         var targetIsFromSource = targetType.DeclaringSyntaxReferences.Length > 0;
         var isInterface = targetType.TypeKind == TypeKind.Interface;
+        var targetIsOpenGeneric = targetType.IsGenericType
+            && SymbolEqualityComparer.Default.Equals(targetType, targetType.OriginalDefinition);
 
         var results = new List<INamedTypeSymbol>();
 
@@ -52,8 +54,8 @@ public static class RoslynDerivedTypeService
             }
 
             var matches = isInterface
-                ? InheritsInterface(candidate, targetFullName)
-                : InheritsClass(candidate, targetFullName);
+                ? InheritsInterface(candidate, targetFullName, targetIsOpenGeneric)
+                : InheritsClass(candidate, targetFullName, targetIsOpenGeneric);
 
             if (matches)
                 results.Add(candidate);
@@ -62,23 +64,32 @@ public static class RoslynDerivedTypeService
         return results;
     }
 
-    static bool InheritsInterface(INamedTypeSymbol candidate, string targetFullName)
+    static bool InheritsInterface(INamedTypeSymbol candidate, string targetFullName, bool targetIsOpenGeneric)
     {
         foreach (var iface in candidate.AllInterfaces)
         {
-            if (iface.ToDisplayString() == targetFullName)
+            var name = targetIsOpenGeneric
+                ? iface.OriginalDefinition.ToDisplayString()
+                : iface.ToDisplayString();
+
+            if (name == targetFullName)
                 return true;
         }
         return false;
     }
 
-    static bool InheritsClass(INamedTypeSymbol candidate, string targetFullName)
+    static bool InheritsClass(INamedTypeSymbol candidate, string targetFullName, bool targetIsOpenGeneric)
     {
         var current = candidate.BaseType;
         while (current is not null && current.SpecialType == SpecialType.None)
         {
-            if (current.ToDisplayString() == targetFullName)
+            var name = targetIsOpenGeneric
+                ? current.OriginalDefinition.ToDisplayString()
+                : current.ToDisplayString();
+
+            if (name == targetFullName)
                 return true;
+
             current = current.BaseType;
         }
         return false;

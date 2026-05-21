@@ -3,6 +3,7 @@ using AmazingMCP.Services.SymbolQuery;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Tests.Helpers;
 using FluentAssertions;
+using Microsoft.CodeAnalysis;
 using NUnit.Framework;
 using static AmazingMCP.Tests.Helpers.CompilationHelper;
 
@@ -147,6 +148,74 @@ public class RoslynDerivedTypeServiceTests
 
         // assert
         result.Should().BeEmpty();
+    }
+
+    // ── Generic interface: open generic finds closed implementations ─────────
+
+    [Test]
+    public async Task FindDerivedTypes_OpenGenericInterface_FindsClosedImplementors()
+    {
+        // act — IRepository<T> should find AnimalRepository : IRepository<Animal>
+        var result = await Act("TestProject.Core.Persistence.IRepository<T>");
+
+        // assert
+        result.Should().Contain("TestProject.App.Persistence.AnimalRepository");
+    }
+
+    [Test]
+    public async Task FindDerivedTypes_OpenGenericInterface_FindsGenericImplementors()
+    {
+        // act — IRepository<T> should find GenericRepository<T> : IRepository<T>
+        var result = await Act("TestProject.Core.Persistence.IRepository<T>");
+
+        // assert
+        result.Should().Contain("TestProject.App.Persistence.GenericRepository<T>");
+    }
+
+    [Test]
+    public async Task FindDerivedTypes_OpenGenericInterface_MultipleTypeParams_FindsImplementors()
+    {
+        // act — IEntityMapper<TSource, TDestination> should find concrete implementors
+        var result = await Act("TestProject.App.Mapping.IEntityMapper<TSource, TDestination>");
+
+        // assert
+        result.Should().Contain("TestProject.App.Mapping.AppAnimalMapper");
+        result.Should().Contain("TestProject.App.Mapping.AutoMapperAnimalMapper");
+        result.Should().Contain("TestProject.App.Mapping.AnimalCreatedEventMapper");
+    }
+
+    [Test]
+    public async Task FindDerivedTypes_ClosedGenericInterface_FindsExactMatch()
+    {
+        // arrange — construct closed generic IRepository<Animal> from open generic + Animal type
+        var (openSymbol, _) = await _symbolService.FindExactTypeAsync(_cachedSolution, "TestProject.Core.Persistence.IRepository<T>");
+        var (animalSymbol, _) = await _symbolService.FindExactTypeAsync(_cachedSolution, "TestProject.Core.Models.Animal");
+        Assert.That(openSymbol, Is.Not.Null);
+        Assert.That(animalSymbol, Is.Not.Null);
+
+        var closedSymbol = openSymbol!.Construct(animalSymbol!);
+
+        // act
+        var result = RoslynDerivedTypeService.FindDerivedTypes(_cachedSolution, closedSymbol)
+            .Select(t => t.ToDisplayString())
+            .ToList();
+
+        // assert — should find types implementing exactly IRepository<Animal>
+        result.Should().Contain("TestProject.App.Persistence.AnimalRepository");
+        // GenericRepository<T> implements IRepository<T>, not IRepository<Animal> specifically
+        result.Should().NotContain("TestProject.App.Persistence.GenericRepository<T>");
+    }
+
+    // ── Generic class: open generic finds closed subclasses ───────────────────
+
+    [Test]
+    public async Task FindDerivedTypes_OpenGenericClass_FindsClosedSubclasses()
+    {
+        // act — RepositoryBase<T> should find AnimalRepositoryV2 : RepositoryBase<Animal>
+        var result = await Act("TestProject.Core.Persistence.RepositoryBase<T>");
+
+        // assert
+        result.Should().Contain("TestProject.App.Persistence.AnimalRepositoryV2");
     }
 
     // ── Deduplication ─────────────────────────────────────────────────────────
