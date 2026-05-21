@@ -21,4 +21,7 @@ class CommandLineOptions
 
     [Option("QueryUsages:QueryMatchLimit", Default = 200, HelpText = "Max usage matches for query_usages")]
     public int? QueryUsagesQueryMatchLimit { get; set; }
+
+    [Option("Diagnostics:IncludeExceptionDetails", Default = false, HelpText = "Include full exception details in tool error responses")]
+    public bool? DiagnosticsIncludeExceptionDetails { get; set; }
 }

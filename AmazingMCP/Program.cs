@@ -30,6 +30,7 @@ builder.Services.Configure<SymbolOptions>(builder.Configuration.GetSection("Symb
 builder.Services.Configure<ReadCsOptions>(builder.Configuration.GetSection("ReadCs"));
 builder.Services.Configure<ProjectDesignOptions>(builder.Configuration.GetSection("ProjectDesign"));
 builder.Services.Configure<QueryUsagesOptions>(builder.Configuration.GetSection("QueryUsages"));
+builder.Services.Configure<DiagnosticsOptions>(builder.Configuration.GetSection("Diagnostics"));
 
 // Infrastructure
 builder.Services.AddSingleton<IWildcardPatternFactory, WildcardPatternFactory>();
@@ -91,6 +92,7 @@ builder.Services
     .WithToolsFromAssembly();
 
 builder.Services.AddToolParameterValidation();
+builder.Services.AddExceptionHandling();
 
 var app = builder.Build();
 
