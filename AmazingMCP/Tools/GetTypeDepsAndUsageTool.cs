@@ -23,7 +23,7 @@ public static class GetTypeDepsAndUsageTool
     public static async Task<string> GetTypeDepsAndUsage(
         IDependencyMapService dependencyMapService,
         IDependencyAggregator dependencyAggregator,
-        SolutionResolver solutionResolver,
+        ISolutionResolver solutionResolver,
         IWildcardPatternFactory wildcardFactory,
         [Description("Absolute path to the directory where the .sln/.slnx file is located")] string solutionWorkspacePath,
         [Description("Type query: full name, partial name, or '*' wildcard patterns.")] string typeQuery,

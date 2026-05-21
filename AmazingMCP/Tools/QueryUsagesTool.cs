@@ -8,7 +8,7 @@ namespace AmazingMCP.Tools;
 [McpServerToolType]
 public class QueryUsagesTool(
     IQueryUsagesService queryUsagesService,
-    SolutionResolver solutionResolver)
+    ISolutionResolver solutionResolver)
 {
     [McpServerTool(Name = "query_usages"), Description(
         "Finds all usages of a given type across the solution. " +

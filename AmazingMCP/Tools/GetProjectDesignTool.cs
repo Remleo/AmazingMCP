@@ -8,7 +8,7 @@ namespace AmazingMCP.Tools;
 [McpServerToolType]
 public class GetProjectDesignTool(
     IProjectDesignService projectDesignService,
-    SolutionResolver solutionResolver)
+    ISolutionResolver solutionResolver)
 {
     [McpServerTool(Name = "get_project_design", ReadOnly = true), Description(
         "The best starting point for understanding how a project is designed. " +

@@ -2,10 +2,23 @@ namespace AmazingMCP.Models.FileAnalysis;
 
 public sealed class FileStructureItem
 {
+    public const string UsingsAlias = "usings";
+    public const string ConstructorAlias = ".ctor";
+
     /// <summary>
     /// The display/signature string used for wildcard matching.
     /// </summary>
-    public required string SymbolString { get; init; }
+    //public required string SymbolString { get; init; }
+
+    /// <summary>
+    /// Pure member name used for filter matching (e.g. "SendAsync", "MapperConfiguration", "usings").
+    /// </summary>
+    public required string Name { get; init; }
+
+    /// <summary>
+    /// Additional names that can match this item (e.g. ".ctor" for constructors).
+    /// </summary>
+    public string[]? NameAliases { get; init; }
 
     public required FileStructureItemKind Kind { get; init; }
 

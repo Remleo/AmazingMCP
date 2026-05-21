@@ -5,7 +5,7 @@ namespace AmazingMCP.Services.Workspace;
 /// If exactly one solution is found, returns it automatically.
 /// If multiple are found and no explicit path is given, returns an error listing them.
 /// </summary>
-public class SolutionResolver
+public class SolutionResolver : ISolutionResolver
 {
     static readonly string[] SolutionPatterns = ["*.sln", "*.slnx"];
 

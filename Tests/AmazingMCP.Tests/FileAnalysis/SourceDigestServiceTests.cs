@@ -4,39 +4,38 @@ using NUnit.Framework;
 
 namespace AmazingMCP.Tests.FileAnalysis;
 
-public class FileDigestServiceTests
+public class SourceDigestServiceTests
 {
-    IFileDigestService _sut = null!;
+    ISourceDigestService _sut = null!;
 
     static string TestProjectAppPath => Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory,
             "..", "..", "..", "TestData", "TestSolution", "TestProject.App"));
 
-    static string FilePath(params string[] parts) =>
-        Path.Combine([TestProjectAppPath, ..parts]);
+    static string Source(params string[] parts) =>
+        File.ReadAllText(Path.Combine([TestProjectAppPath, ..parts]));
+
+    static string SourceAt(string relativePath) =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(TestProjectAppPath, relativePath)));
 
     [SetUp]
-    public void SetUp() => _sut = new FileDigestService(new FileSystemFileReader(), new XmlDocExtractor());
+    public void SetUp() => _sut = new SourceDigestService(new XmlDocExtractor());
 
     // ── file-scoped namespace ──────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_FileScopedNamespace_HasSingleLinePosition()
+    public void GetDigest_FileScopedNamespace_HasSingleLinePosition()
     {
-        // arrange — StandaloneHelper.cs uses file-scoped namespace
-        var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "StandaloneHelper.cs"), includeLineNumbers: true);
 
-        // assert — must be [line:N], not [lines:N +M] spanning the whole file
         result.Should().MatchRegex(@"/\*\[line:\d+\]\*/ namespace TestProject\.App\.Helpers");
     }
 
     [Test]
-    public void GetStructure_FileScopedNamespace_MembersNotIndented()
+    public void GetDigest_FileScopedNamespace_MembersNotIndented()
     {
-        // arrange
-        var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "StandaloneHelper.cs"), includeLineNumbers: true);
 
-        // assert — class must appear at indent level 0 (no leading spaces before /*[)
         var lines = result.Split('\n');
         var classLine = lines.FirstOrDefault(l => l.Contains("class StandaloneHelper"));
 
@@ -44,39 +43,20 @@ public class FileDigestServiceTests
         classLine!.Should().NotStartWith("    ");
     }
 
-    // ── file not found ─────────────────────────────────────────────────────────
-
-    [Test]
-    public void GetStructure_FileNotFound_ReturnsError()
-    {
-        var result = _sut.GetStructure("C:\\nonexistent\\file.cs");
-
-        result.Should().Contain("File not found");
-    }
-
-    [Test]
-    public void GetStructure_RelativePath_ResolvesCorrectly()
-    {
-        var absPath = FilePath("Helpers", "StandaloneHelper.cs");
-        var result = _sut.GetStructure(absPath);
-
-        result.Should().NotContain("File not found");
-    }
-
     // ── namespace ──────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_FileScopedNamespace_IsIncluded()
+    public void GetDigest_FileScopedNamespace_IsIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "StandaloneHelper.cs"), includeLineNumbers: true);
 
         result.Should().Contain("namespace TestProject.App.Helpers");
     }
 
     [Test]
-    public void GetStructure_Namespace_HasLineInfo()
+    public void GetDigest_Namespace_HasLineInfo()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "StandaloneHelper.cs"), includeLineNumbers: true);
 
         result.Should().MatchRegex(@"/\*\[lines?:\d+[^\]]*\]\*/ namespace TestProject\.App\.Helpers");
     }
@@ -84,41 +64,41 @@ public class FileDigestServiceTests
     // ── class signature ────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_PublicClass_SignatureIncluded()
+    public void GetDigest_PublicClass_SignatureIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "StandaloneHelper.cs"), includeLineNumbers: true);
 
         result.Should().Contain("public class StandaloneHelper");
     }
 
     [Test]
-    public void GetStructure_AbstractClass_ModifierIncluded()
+    public void GetDigest_AbstractClass_ModifierIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Services", "AnimalServiceBase.cs"));
+        var result = _sut.GetDigest(Source("Services", "AnimalServiceBase.cs"), includeLineNumbers: true);
 
         result.Should().Contain("public abstract class AnimalServiceBase");
     }
 
     [Test]
-    public void GetStructure_ClassWithBaseList_BaseListIncluded()
+    public void GetDigest_ClassWithBaseList_BaseListIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
+        var result = _sut.GetDigest(Source("Services", "AnimalService.cs"), includeLineNumbers: true);
 
         result.Should().Contain(": IAnimalService");
     }
 
     [Test]
-    public void GetStructure_GenericInterface_TypeParamsIncluded()
+    public void GetDigest_GenericInterface_TypeParamsIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Mapping", "IEntityMapper.cs"));
+        var result = _sut.GetDigest(Source("Mapping", "IEntityMapper.cs"), includeLineNumbers: true);
 
         result.Should().Contain("IEntityMapper<TSource, TDestination>");
     }
 
     [Test]
-    public void GetStructure_Class_HasLineRange()
+    public void GetDigest_Class_HasLineRange()
     {
-        var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
+        var result = _sut.GetDigest(Source("Services", "AnimalService.cs"), includeLineNumbers: true);
 
         result.Should().MatchRegex(@"/\*\[lines:\d+ \+\d+\]\*/ .*class AnimalService");
     }
@@ -126,9 +106,9 @@ public class FileDigestServiceTests
     // ── interface ──────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_Interface_KeywordIncluded()
+    public void GetDigest_Interface_KeywordIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Mapping", "IEntityMapper.cs"));
+        var result = _sut.GetDigest(Source("Mapping", "IEntityMapper.cs"), includeLineNumbers: true);
 
         result.Should().Contain("public interface IEntityMapper");
     }
@@ -136,17 +116,17 @@ public class FileDigestServiceTests
     // ── fields ─────────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_PrivateReadonlyField_IsIncluded()
+    public void GetDigest_PrivateReadonlyField_IsIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
+        var result = _sut.GetDigest(Source("Services", "AnimalService.cs"), includeLineNumbers: true);
 
         result.Should().Contain("readonly IAnimalRepository _repository");
     }
 
     [Test]
-    public void GetStructure_Field_HasLineInfo()
+    public void GetDigest_Field_HasLineInfo()
     {
-        var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
+        var result = _sut.GetDigest(Source("Services", "AnimalService.cs"), includeLineNumbers: true);
 
         result.Should().MatchRegex(@"/\*\[line:\d+\]\*/ .*_repository;");
     }
@@ -154,17 +134,17 @@ public class FileDigestServiceTests
     // ── constructors ───────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_Constructor_IsIncluded()
+    public void GetDigest_Constructor_IsIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
+        var result = _sut.GetDigest(Source("Services", "AnimalService.cs"), includeLineNumbers: true);
 
         result.Should().Contain("AnimalService(");
     }
 
     [Test]
-    public void GetStructure_Constructor_ParametersIncluded()
+    public void GetDigest_Constructor_ParametersIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
+        var result = _sut.GetDigest(Source("Services", "AnimalService.cs"), includeLineNumbers: true);
 
         result.Should().Contain("IAnimalRepository repository");
         result.Should().Contain("INotificationService notification");
@@ -173,33 +153,33 @@ public class FileDigestServiceTests
     // ── methods ────────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_Method_IsIncluded()
+    public void GetDigest_Method_IsIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "StandaloneHelper.cs"), includeLineNumbers: true);
 
         result.Should().Contain("string Format(string input)");
     }
 
     [Test]
-    public void GetStructure_Method_HasLineInfo()
+    public void GetDigest_Method_HasLineInfo()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "StandaloneHelper.cs"), includeLineNumbers: true);
 
         result.Should().MatchRegex(@"/\*\[line:\d+\]\*/ .*Format\(string input\);");
     }
 
     [Test]
-    public void GetStructure_AsyncMethod_ReturnTypeIncluded()
+    public void GetDigest_AsyncMethod_ReturnTypeIncluded()
     {
-        var result = _sut.GetStructure(FilePath("MessageHandling", "AnimalCreatedMessageHandler.cs"));
+        var result = _sut.GetDigest(Source("MessageHandling", "AnimalCreatedMessageHandler.cs"), includeLineNumbers: true);
 
         result.Should().Contain("Task HandleAsync(");
     }
 
     [Test]
-    public void GetStructure_InterfaceMethods_AreIncluded()
+    public void GetDigest_InterfaceMethods_AreIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Mapping", "IEntityMapper.cs"));
+        var result = _sut.GetDigest(Source("Mapping", "IEntityMapper.cs"), includeLineNumbers: true);
 
         result.Should().Contain("Map(TSource source)");
         result.Should().Contain("MapBack(TDestination destination)");
@@ -208,9 +188,9 @@ public class FileDigestServiceTests
     // ── properties ─────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_AutoProperty_AccessorsIncluded()
+    public void GetDigest_AutoProperty_AccessorsIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Persistence", "AnimalRepository.cs"));
+        var result = _sut.GetDigest(Source("Persistence", "AnimalRepository.cs"), includeLineNumbers: true);
 
         result.Should().Contain("int Count");
         result.Should().Contain("{ get; }");
@@ -219,19 +199,21 @@ public class FileDigestServiceTests
     // ── enum ───────────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_Enum_KeywordIncluded()
+    public void GetDigest_Enum_KeywordIncluded()
     {
-        var result = _sut.GetStructure(
-            Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalKind.cs"));
+        var result = _sut.GetDigest(
+            File.ReadAllText(Path.GetFullPath(Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalKind.cs"))),
+            includeLineNumbers: true);
 
         result.Should().Contain("public enum AnimalKind");
     }
 
     [Test]
-    public void GetStructure_Enum_ValuesIncluded()
+    public void GetDigest_Enum_ValuesIncluded()
     {
-        var result = _sut.GetStructure(
-            Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalKind.cs"));
+        var result = _sut.GetDigest(
+            File.ReadAllText(Path.GetFullPath(Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalKind.cs"))),
+            includeLineNumbers: true);
 
         result.Should().Contain("Unknown = 0");
         result.Should().Contain("Cat = 1");
@@ -242,29 +224,32 @@ public class FileDigestServiceTests
     // ── constants ──────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_Const_IsIncluded()
+    public void GetDigest_Const_IsIncluded()
     {
-        var result = _sut.GetStructure(
-            Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"));
+        var result = _sut.GetDigest(
+            File.ReadAllText(Path.GetFullPath(Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"))),
+            includeLineNumbers: true);
 
         result.Should().Contain("const int MaxNameLength = 100");
     }
 
     [Test]
-    public void GetStructure_StringConst_ValueIncluded()
+    public void GetDigest_StringConst_ValueIncluded()
     {
-        var result = _sut.GetStructure(
-            Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"));
+        var result = _sut.GetDigest(
+            File.ReadAllText(Path.GetFullPath(Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"))),
+            includeLineNumbers: true);
 
         result.Should().Contain("const string DefaultPrefix");
         result.Should().Contain("\"Animal_\"");
     }
 
     [Test]
-    public void GetStructure_InternalConst_IsIncluded()
+    public void GetDigest_InternalConst_IsIncluded()
     {
-        var result = _sut.GetStructure(
-            Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"));
+        var result = _sut.GetDigest(
+            File.ReadAllText(Path.GetFullPath(Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"))),
+            includeLineNumbers: true);
 
         result.Should().Contain("const int InternalBatchSize = 50");
     }
@@ -272,28 +257,31 @@ public class FileDigestServiceTests
     // ── nested types ───────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_NestedPublicClass_IsIncluded()
+    public void GetDigest_NestedPublicClass_IsIncluded()
     {
-        var result = _sut.GetStructure(
-            Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"));
+        var result = _sut.GetDigest(
+            File.ReadAllText(Path.GetFullPath(Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"))),
+            includeLineNumbers: true);
 
         result.Should().Contain("class ValidationRules");
     }
 
     [Test]
-    public void GetStructure_NestedPrivateClass_IsIncluded()
+    public void GetDigest_NestedPrivateClass_IsIncluded()
     {
-        var result = _sut.GetStructure(
-            Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"));
+        var result = _sut.GetDigest(
+            File.ReadAllText(Path.GetFullPath(Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"))),
+            includeLineNumbers: true);
 
         result.Should().Contain("class PrivateInner");
     }
 
     [Test]
-    public void GetStructure_NestedClass_IsIndented()
+    public void GetDigest_NestedClass_IsIndented()
     {
-        var result = _sut.GetStructure(
-            Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"));
+        var result = _sut.GetDigest(
+            File.ReadAllText(Path.GetFullPath(Path.Combine(TestProjectAppPath, "..", "TestProject.Core", "Models", "AnimalDefaults.cs"))),
+            includeLineNumbers: true);
 
         var lines = result.Split('\n');
         var outerIdx  = Array.FindIndex(lines, l => l.Contains("class AnimalDefaults"));
@@ -306,33 +294,33 @@ public class FileDigestServiceTests
     // ── attributes ─────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_ClassAttribute_IsIncluded()
+    public void GetDigest_ClassAttribute_IsIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "FileStructureTestFixture.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "FileStructureTestFixture.cs"), includeLineNumbers: true);
 
         result.Should().Contain("[Description(");
     }
 
     [Test]
-    public void GetStructure_PropertyAttribute_IsIncluded()
+    public void GetDigest_PropertyAttribute_IsIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "FileStructureTestFixture.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "FileStructureTestFixture.cs"), includeLineNumbers: true);
 
         result.Should().Contain("[Required]");
     }
 
     [Test]
-    public void GetStructure_MethodAttribute_IsIncluded()
+    public void GetDigest_MethodAttribute_IsIncluded()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "FileStructureTestFixture.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "FileStructureTestFixture.cs"), includeLineNumbers: true);
 
         result.Should().Contain("[Obsolete(");
     }
 
     [Test]
-    public void GetStructure_AttributeAppearsBeforeMember()
+    public void GetDigest_AttributeAppearsBeforeMember()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "FileStructureTestFixture.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "FileStructureTestFixture.cs"), includeLineNumbers: true);
 
         var lines = result.Split('\n');
         var attrIdx   = Array.FindIndex(lines, l => l.Contains("[Obsolete("));
@@ -345,9 +333,9 @@ public class FileDigestServiceTests
     // ── ordering ───────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_Members_AppearInSourceOrder()
+    public void GetDigest_Members_AppearInSourceOrder()
     {
-        var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
+        var result = _sut.GetDigest(Source("Services", "AnimalService.cs"), includeLineNumbers: true);
 
         var lines = result.Split('\n');
         var fieldIdx  = Array.FindIndex(lines, l => l.Contains("_repository"));
@@ -361,18 +349,18 @@ public class FileDigestServiceTests
     // ── position format ────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_SingleLineElement_NoLinesCount()
+    public void GetDigest_SingleLineElement_NoLinesCount()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "StandaloneHelper.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "StandaloneHelper.cs"), includeLineNumbers: true);
 
         result.Should().MatchRegex(@"/\*\[line:\d+\]\*/ .*Format\(string input\);");
         result.Should().NotMatchRegex(@"Format\(string input\).*\+\d+");
     }
 
     [Test]
-    public void GetStructure_MultiLineElement_HasLinesCount()
+    public void GetDigest_MultiLineElement_HasLinesCount()
     {
-        var result = _sut.GetStructure(FilePath("Services", "AnimalService.cs"));
+        var result = _sut.GetDigest(Source("Services", "AnimalService.cs"), includeLineNumbers: true);
 
         result.Should().MatchRegex(@"/\*\[lines:\d+ \+\d+\]\*/");
         result.Should().Contain("AnimalService(");
@@ -381,17 +369,17 @@ public class FileDigestServiceTests
     // ── usings ─────────────────────────────────────────────────────────────────
 
     [Test]
-    public void GetStructure_FileWithUsings_UsingsLinePresent()
+    public void GetDigest_FileWithUsings_UsingsLinePresent()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "AnimalFormatter.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "AnimalFormatter.cs"), includeLineNumbers: true);
 
         result.Should().Contain("usings");
     }
 
     [Test]
-    public void GetStructure_FileWithUsings_UsingsAppearsBeforeNamespace()
+    public void GetDigest_FileWithUsings_UsingsAppearsBeforeNamespace()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "AnimalFormatter.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "AnimalFormatter.cs"), includeLineNumbers: true);
 
         var lines     = result.Split('\n');
         var usingsIdx = Array.FindIndex(lines, l => l.TrimStart().StartsWith("/*[") && l.Contains("]*/ usings"));
@@ -402,47 +390,59 @@ public class FileDigestServiceTests
     }
 
     [Test]
-    public void GetStructure_FileWithUsings_HasLineInfo()
+    public void GetDigest_FileWithUsings_HasLineInfo()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "AnimalFormatter.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "AnimalFormatter.cs"), includeLineNumbers: true);
 
         result.Should().MatchRegex(@"/\*\[lines?:\d+[^\]]*\]\*/ usings");
     }
 
     [Test]
-    public void GetStructure_FileWithSingleUsing_NoLinesCount()
+    public void GetDigest_FileWithNoUsings_NoUsingsLine()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "AnimalFormatter.cs"));
-
-        result.Should().MatchRegex(@"/\*\[lines?:\d+[^\]]*\]\*/ usings");
-    }
-
-    [Test]
-    public void GetStructure_FileWithNoUsings_NoUsingsLine()
-    {
-        var result = _sut.GetStructure(FilePath("Mapping", "IEntityMapper.cs"));
+        var result = _sut.GetDigest(Source("Mapping", "IEntityMapper.cs"), includeLineNumbers: true);
 
         var lines = result.Split('\n');
         lines.Should().NotContain(l => System.Text.RegularExpressions.Regex.IsMatch(l.Trim(), @"^/\*\[.*\]\*/ usings"));
     }
 
     [Test]
-    public void GetStructure_UsingsWithCommentsBetween_RangeSpansFirstToLast()
+    public void GetDigest_UsingsWithCommentsBetween_RangeSpansFirstToLast()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "FileStructureUsingsFixture.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "FileStructureUsingsFixture.cs"), includeLineNumbers: true);
 
         result.Should().MatchRegex(@"/\*\[lines:2 \+4\]\*/ usings");
     }
 
     [Test]
-    public void GetStructure_UsingsWithCommentsBetween_CommentLinesNotSeparateEntries()
+    public void GetDigest_UsingsWithCommentsBetween_CommentLinesNotSeparateEntries()
     {
-        var result = _sut.GetStructure(FilePath("Helpers", "FileStructureUsingsFixture.cs"));
+        var result = _sut.GetDigest(Source("Helpers", "FileStructureUsingsFixture.cs"), includeLineNumbers: true);
 
         var lines = result.Split('\n');
         lines.Should().NotContain(l => l.TrimStart().StartsWith("//") && !l.TrimStart().StartsWith("///"));
         lines.Should().NotContain(l =>
             l.TrimStart().StartsWith("/*") &&
             !System.Text.RegularExpressions.Regex.IsMatch(l.TrimStart(), @"^/\*\[lines?:\d+"));
+    }
+
+    // ── includeLineNumbers: false ──────────────────────────────────────────────
+
+    [Test]
+    public void GetDigest_WithoutLineNumbers_NoLineAnnotations()
+    {
+        var result = _sut.GetDigest(Source("Helpers", "StandaloneHelper.cs"), includeLineNumbers: false);
+
+        result.Should().NotMatchRegex(@"/\*\[line");
+        result.Should().Contain("class StandaloneHelper");
+    }
+
+    [Test]
+    public void GetDigest_WithoutLineNumbers_UsingsLinePresent()
+    {
+        var result = _sut.GetDigest(Source("Helpers", "AnimalFormatter.cs"), includeLineNumbers: false);
+
+        result.Should().Contain("usings");
+        result.Should().NotContain("/*[");
     }
 }

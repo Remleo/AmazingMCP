@@ -8,12 +8,9 @@ namespace AmazingMCP.Tests.FileAnalysis;
 public class FilteredSourceServiceTests
 {
     FilteredSourceService _sut = null!;
-    InMemoryFileReader _fileReader = null!;
-    const string FilePath = "C:\\fake\\file.cs";
 
     // ── CS content fixtures ──────────────────────────────────────────────────
 
-    // Small type (< 50 lines): fits entirely when matched
     const string SmallTypeContent = """
         namespace MyApp;
 
@@ -25,7 +22,6 @@ public class FilteredSourceServiceTests
         }
         """;
 
-    // Large type (> 50 lines) with xmldoc + attribute: only declaration when matched
     static readonly string LargeTypeContent = BuildLargeTypeContent();
 
     static string BuildLargeTypeContent()
@@ -47,7 +43,6 @@ public class FilteredSourceServiceTests
         return string.Join("\n", lines);
     }
 
-    // File with namespace, type, member — for context/cut marker tests
     const string MemberContent = """
         using System;
 
@@ -61,7 +56,6 @@ public class FilteredSourceServiceTests
         }
         """;
 
-    // File with nested type inside a large outer type
     static readonly string NestedTypeContent = BuildNestedTypeContent();
 
     static string BuildNestedTypeContent()
@@ -85,34 +79,16 @@ public class FilteredSourceServiceTests
     }
 
     [SetUp]
-    public void SetUp()
-    {
-        _fileReader = new InMemoryFileReader();
-        _sut = new FilteredSourceService(new FileStructureService(_fileReader), new WildcardPatternFactory(), _fileReader);
-    }
-
-    // ── file not found ───────────────────────────────────────────────────────
-
-    [Test]
-    public void GetFilteredSource_FileNotFound_ReturnsError()
-    {
-        // act
-        var result = _sut.GetFilteredSource("C:\\nonexistent\\file.cs", null);
-
-        // assert
-        result.Should().Contain("File not found");
-    }
+    public void SetUp() =>
+        _sut = new FilteredSourceService(new FileStructureService(), new WildcardPatternFactory());
 
     // ── no filters ───────────────────────────────────────────────────────────
 
     [Test]
     public void GetFilteredSource_NoFilters_ReturnsFullContent()
     {
-        // arrange
-        _fileReader.Add(FilePath, SmallTypeContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, null);
+        var result = _sut.GetFilteredSource(SmallTypeContent, null);
 
         // assert
         result.Should().Contain("class SmallService");
@@ -122,11 +98,8 @@ public class FilteredSourceServiceTests
     [Test]
     public void GetFilteredSource_EmptyFilters_ReturnsFullContent()
     {
-        // arrange
-        _fileReader.Add(FilePath, SmallTypeContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, []);
+        var result = _sut.GetFilteredSource(SmallTypeContent, []);
 
         // assert
         result.Should().Contain("class SmallService");
@@ -138,11 +111,8 @@ public class FilteredSourceServiceTests
     [Test]
     public void GetFilteredSource_NoMatchingMembers_ReturnsNoMatchesMessage()
     {
-        // arrange
-        _fileReader.Add(FilePath, MemberContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, ["*NonExistent*"]);
+        var result = _sut.GetFilteredSource(MemberContent, ["*NonExistent*"]);
 
         // assert
         result.Should().Contain("No matches found");
@@ -153,11 +123,8 @@ public class FilteredSourceServiceTests
     [Test]
     public void GetFilteredSource_MatchingMember_IncludesCutMarker()
     {
-        // arrange
-        _fileReader.Add(FilePath, MemberContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, ["*GetById*"]);
+        var result = _sut.GetFilteredSource(MemberContent, ["*GetById*"]);
 
         // assert
         result.Should().Contain("GetById");
@@ -167,11 +134,8 @@ public class FilteredSourceServiceTests
     [Test]
     public void GetFilteredSource_MatchingMember_IncludesNamespaceAndTypeDeclaration()
     {
-        // arrange
-        _fileReader.Add(FilePath, MemberContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, ["*GetById*"]);
+        var result = _sut.GetFilteredSource(MemberContent, ["*GetById*"]);
 
         // assert
         result.Should().Contain("namespace MyApp.Services");
@@ -182,11 +146,8 @@ public class FilteredSourceServiceTests
     [Test]
     public void GetFilteredSource_MultipleMatchingMembers_AllIncluded()
     {
-        // arrange
-        _fileReader.Add(FilePath, MemberContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, ["*GetById*", "*Add*"]);
+        var result = _sut.GetFilteredSource(MemberContent, ["*GetById*", "*Add*"]);
 
         // assert
         result.Should().Contain("GetById");
@@ -198,11 +159,8 @@ public class FilteredSourceServiceTests
     [Test]
     public void GetFilteredSource_UsingsFilter_IncludesUsings()
     {
-        // arrange
-        _fileReader.Add(FilePath, MemberContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, ["usings"]);
+        var result = _sut.GetFilteredSource(MemberContent, ["usings"]);
 
         // assert
         result.Should().Contain("using System");
@@ -211,14 +169,13 @@ public class FilteredSourceServiceTests
     // ── namespace never matched directly ─────────────────────────────────────
 
     [Test]
-    public void GetFilteredSource_NamespaceOnlyFile_ReturnsNoMatches()
+    public void GetFilteredSource_NamespaceOnlySource_ReturnsNoMatches()
     {
-        // arrange — file with only a namespace declaration and no members
+        // arrange
         const string content = "namespace MyApp.Services;\n";
-        _fileReader.Add(FilePath, content);
 
         // act
-        var result = _sut.GetFilteredSource(FilePath, ["*"]);
+        var result = _sut.GetFilteredSource(content, ["*"]);
 
         // assert
         result.Should().Contain("No matches found");
@@ -229,11 +186,8 @@ public class FilteredSourceServiceTests
     [Test]
     public void GetFilteredSource_SmallTypeMatched_IncludesFullBody()
     {
-        // arrange
-        _fileReader.Add(FilePath, SmallTypeContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, ["*SmallService*"]);
+        var result = _sut.GetFilteredSource(SmallTypeContent, ["*SmallService*"]);
 
         // assert
         result.Should().Contain("GetName");
@@ -245,17 +199,13 @@ public class FilteredSourceServiceTests
     [Test]
     public void GetFilteredSource_LargeTypeMatched_IncludesOnlyDeclaration()
     {
-        // arrange
-        _fileReader.Add(FilePath, LargeTypeContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, ["*LargeService*"]);
+        var result = _sut.GetFilteredSource(LargeTypeContent, ["*LargeService*"]);
 
-        // assert — declaration with xmldoc and attribute present
+        // assert
         result.Should().Contain("/// <summary>");
         result.Should().Contain("[Obsolete");
         result.Should().Contain("public class LargeService");
-        // body methods must not appear
         result.Should().NotContain("Method1");
         result.Should().NotContain("Method50");
     }
@@ -265,11 +215,8 @@ public class FilteredSourceServiceTests
     [Test]
     public void GetFilteredSource_NestedTypeNotMatched_NotIncluded()
     {
-        // arrange — filter matches only outer type methods, not nested type
-        _fileReader.Add(FilePath, NestedTypeContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, ["*Method1*"]);
+        var result = _sut.GetFilteredSource(NestedTypeContent, ["*Method1*"]);
 
         // assert
         result.Should().Contain("Method1");
@@ -279,11 +226,8 @@ public class FilteredSourceServiceTests
     [Test]
     public void GetFilteredSource_NestedTypeMatched_IncludesItsDeclaration()
     {
-        // arrange
-        _fileReader.Add(FilePath, NestedTypeContent);
-
         // act
-        var result = _sut.GetFilteredSource(FilePath, ["*NestedConfig*"]);
+        var result = _sut.GetFilteredSource(NestedTypeContent, ["*NestedConfig*"]);
 
         // assert
         result.Should().Contain("NestedConfig");

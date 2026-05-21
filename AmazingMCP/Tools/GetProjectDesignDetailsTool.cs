@@ -8,7 +8,7 @@ namespace AmazingMCP.Tools;
 [McpServerToolType]
 public class GetProjectDesignDetailsTool(
     IProjectDesignDetailsService designDetailsService,
-    SolutionResolver solutionResolver)
+    ISolutionResolver solutionResolver)
 {
     [McpServerTool(Name = "get_project_design_details", ReadOnly = true), Description(
         "Deep-dives into the design of specific namespace groups to help understand how the project is structured. " +

@@ -35,7 +35,8 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         string[]? memberFilters = null,
         CancellationToken ct = default)
     {
-        var (found, error, cachedSolution) = await roslynSymbolService.FindExactTypeAsync(solutionPath, fullTypeName, ct);
+        var cachedSolution = await roslynSymbolService.GetSolutionAsync(solutionPath, ct);
+        var (found, error) = await roslynSymbolService.FindExactTypeAsync(cachedSolution, fullTypeName, ct);
 
         if (found is null)
             return error!;

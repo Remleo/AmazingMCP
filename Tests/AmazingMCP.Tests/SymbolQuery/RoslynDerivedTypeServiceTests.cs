@@ -24,7 +24,7 @@ public class RoslynDerivedTypeServiceTests
 
     async Task<IReadOnlyList<string>> Act(string fullTypeName)
     {
-        var (symbol, _, _) = await _symbolService.FindExactTypeAsync(CompilationHelper.SolutionPath, fullTypeName);
+        var (symbol, _) = await _symbolService.FindExactTypeAsync(_cachedSolution, fullTypeName);
         if (symbol is null) return [];
         return RoslynDerivedTypeService.FindDerivedTypes(_cachedSolution, symbol)
             .Select(t => t.ToDisplayString())

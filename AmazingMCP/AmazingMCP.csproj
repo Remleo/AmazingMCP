@@ -19,6 +19,8 @@
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.2.0" />
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
     <PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
+    <PackageReference Include="ICSharpCode.Decompiler" Version="9.0.0.7889" />
+    <PackageReference Include="Microsoft.NET.StringTools" Version="18.6.3" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -111,6 +113,12 @@
     </Compile>
     <Compile Update="Services\FileAnalysis\IReadLargeCsFileService.cs">
       <DependentUpon>ReadLargeCsFileService.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\FileAnalysis\ISourceDigestService.cs">
+      <DependentUpon>SourceDigestService.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\Decompile\IDecompileTypeService.cs">
+      <DependentUpon>DecompileTypeService.cs</DependentUpon>
     </Compile>
   </ItemGroup>
 

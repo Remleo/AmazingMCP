@@ -17,7 +17,7 @@ public static class CodeLensTool
         "System.* namespaces are trimmed to short names. Primitive types are omitted.")]
     public static async Task<string> CodeLens(
         ICodeLensService codeLensService,
-        SolutionResolver solutionResolver,
+        ISolutionResolver solutionResolver,
         [Description("Absolute path to the directory where the .sln/.slnx file is located")]
         string solutionWorkspacePath,
         [Description("Absolute or relative path to the .cs file to analyze")]

@@ -8,7 +8,7 @@ namespace AmazingMCP.Tools;
 [McpServerToolType]
 public class QuerySymbolTool(
     ISymbolQueryService symbolQueryService,
-    SolutionResolver solutionResolver)
+    ISolutionResolver solutionResolver)
 {
     [McpServerTool(Name = "query_symbol"), Description(
         "IMPORTANT: THIS TOOL CAN SEARCH TYPES AND MEMBERS FROM THIRD-PARTY NUGET PACKAGES. " +

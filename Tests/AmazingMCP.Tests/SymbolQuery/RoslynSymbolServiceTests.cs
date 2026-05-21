@@ -22,7 +22,8 @@ public class RoslynSymbolServiceTests
 
     async Task<(string? FullName, string? Error)> Act(string fullTypeName)
     {
-        var (symbol, error, _) = await _sut.FindExactTypeAsync(CompilationHelper.SolutionPath, fullTypeName);
+        var solution = await _sut.GetSolutionAsync(CompilationHelper.SolutionPath);
+        var (symbol, error) = await _sut.FindExactTypeAsync(solution, fullTypeName);
         return (symbol?.ToDisplayString(), error);
     }
 

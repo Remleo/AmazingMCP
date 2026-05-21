@@ -7,9 +7,8 @@ namespace AmazingMCP.Services.FileAnalysis;
 public interface IFilteredSourceService
 {
     /// <summary>
-    /// Returns the source of <paramref name="filePath"/> filtered to members
-    /// matching <paramref name="filters"/>. When no filters are supplied the
-    /// full file is returned (up to a size limit).
+    /// Returns the source filtered to members matching <paramref name="filters"/>.
+    /// When no filters are supplied the full source is returned.
     /// </summary>
-    string GetFilteredSource(string filePath, string[]? filters);
+    string GetFilteredSource(string source, string[]? filters);
 }

@@ -11,7 +11,7 @@ public interface IFileStructureService
 {
     /// <summary>
     /// Returns a flat list of structural items (usings, namespaces, types, members)
-    /// found in the given C# file.
+    /// found in the given C# source text.
     /// </summary>
-    List<FileStructureItem> GetItems(string filePath);
+    List<FileStructureItem> GetItems(string source);
 }

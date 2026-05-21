@@ -20,7 +20,7 @@ public static class GetSymbolDetailsTool
         "Use query_symbol first to find the full type name.")]
     public static async Task<string> GetSymbolDetails(
         SymbolInfoService symbolInfo,
-        SolutionResolver solutionResolver,
+        ISolutionResolver solutionResolver,
         [Description("Absolute path to the directory where the .sln/.slnx file is located")] string solutionWorkspacePath,
         [Description("Fully qualified type name. Supports C# generic syntax (e.g. 'System.Collections.Generic.List<T>') and CLR metadata notation (e.g. 'System.Collections.Generic.List`1')")] string fullTypeName,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")] string? solutionPath = null,

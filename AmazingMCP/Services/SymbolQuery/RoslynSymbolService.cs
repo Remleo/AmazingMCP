@@ -8,6 +8,9 @@ namespace AmazingMCP.Services.SymbolQuery;
 
 public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcardPatternFactory wildcardFactory)
 {
+    public Task<ICachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default) =>
+        workspaceProvider.GetSolutionAsync(solutionPath, ct);
+
     public async Task<IReadOnlyList<SymbolResult>> QuerySymbolsAsync(
         string solutionPath,
         string query,
@@ -36,12 +39,11 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
     /// Supports CLR metadata notation (Foo`2), C# generic syntax (Foo&lt;T, TVal&gt;),
     /// and wildcard form (Foo&lt;*,*&gt;). Returns null if not found or ambiguous.
     /// </summary>
-    public async Task<(INamedTypeSymbol? Symbol, string? Error, ICachedSolution Solution)> FindExactTypeAsync(
-        string solutionPath,
+    public async Task<(INamedTypeSymbol? Symbol, string? Error)> FindExactTypeAsync(
+        ICachedSolution solution,
         string fullTypeName,
         CancellationToken ct = default)
     {
-        var solution = await workspaceProvider.GetSolutionAsync(solutionPath, ct);
         var pattern = wildcardFactory.CreateForTypeNames(TypeWildcardPatternBuilder.Build(fullTypeName));
 
         var seen = new HashSet<string>();
@@ -58,10 +60,10 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
 
         return matches.Count switch
         {
-            0 => (null, $"Type '{fullTypeName}' not found.", solution),
-            1 => (matches[0], null, solution),
+            0 => (null, $"Type '{fullTypeName}' not found."),
+            1 => (matches[0], null),
             _ => (null, $"Ambiguous: '{fullTypeName}' matched multiple types:\n" +
-                        string.Join("\n", matches.Select(m => $"  {m.ToDisplayString()}")), solution)
+                        string.Join("\n", matches.Select(m => $"  {m.ToDisplayString()}")))
         };
     }
 }
