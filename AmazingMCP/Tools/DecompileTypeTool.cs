@@ -25,7 +25,7 @@ public static class DecompileTypeTool
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")]
         string? solutionPath = null,
         [Description("Optional wildcard filters to show only matching members (e.g. [\"*Get*\", \"Create*\"]).")]
-        string[]? memberFilters = null,
+        string[] memberFilters = null!,
         CancellationToken ct = default)
     {
         var (resolvedPath, resolveError) = solutionResolver.Resolve(solutionWorkspacePath, solutionPath);
