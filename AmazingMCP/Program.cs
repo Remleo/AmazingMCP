@@ -59,6 +59,9 @@ builder.Services.AddSingleton<IMemberAccessAnalyzer, MemberAccessAnalyzer>();
 builder.Services.AddSingleton<IMemberUsageAnalyzer, MemberUsageAnalyzer>();
 
 // Usage query
+builder.Services.AddSingleton<IInheritanceSearchSymbolResolver, InheritanceSearchSymbolResolver>();
+builder.Services.AddSingleton<IDerivedTypeService, RoslynDerivedTypeService>();
+builder.Services.AddSingleton<IInheritanceUsageProvider, InheritanceUsageProvider>();
 builder.Services.AddSingleton<IUsageProvider, UsageProvider>();
 builder.Services.AddSingleton<IUsageResultFormatter, UsageResultFormatter>();
 builder.Services.AddSingleton<IQueryUsagesService, QueryUsagesService>();

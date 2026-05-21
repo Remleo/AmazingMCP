@@ -2,12 +2,13 @@ using System.Text;
 using AmazingMCP.Models;
 using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.FileAnalysis;
+using AmazingMCP.Services.UsageQuery;
 using AmazingMCP.Services.Wildcard;
 using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services.SymbolQuery;
 
-public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocExtractor xmlDoc, IWildcardPatternFactory wildcardFactory)
+public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IDerivedTypeService derivedTypeService, IXmlDocExtractor xmlDoc, IWildcardPatternFactory wildcardFactory)
 {
 
     public int CompactModeThreshold { get; set; } = 25;
@@ -312,12 +313,19 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IXmlDocE
         return string.Join(" ", parts);
     }
 
-    static void DescribeDerivedTypes(INamedTypeSymbol type, ICachedSolution cachedSolution, StringBuilder sb)
+    void DescribeDerivedTypes(INamedTypeSymbol type, ICachedSolution cachedSolution, StringBuilder sb)
     {
         if (type.TypeKind is not (TypeKind.Class or TypeKind.Interface))
             return;
 
-        var derived = RoslynDerivedTypeService.FindDerivedTypes(cachedSolution, type);
+        var target = new InheritanceSearchSymbol(
+            FullName: type.ToDisplayString(),
+            IsFromSource: type.DeclaringSyntaxReferences.Length > 0,
+            IsInterface: type.TypeKind == TypeKind.Interface,
+            IsOpenGeneric: type.IsGenericType
+                && SymbolEqualityComparer.Default.Equals(type, type.OriginalDefinition));
+
+        var derived = derivedTypeService.FindDerivedTypes(cachedSolution, target);
         if (derived.Count == 0)
             return;
 

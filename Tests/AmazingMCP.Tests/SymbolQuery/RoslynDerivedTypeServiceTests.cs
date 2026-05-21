@@ -1,5 +1,6 @@
 using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.SymbolQuery;
+using AmazingMCP.Services.UsageQuery;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Tests.Helpers;
 using FluentAssertions;
@@ -13,6 +14,8 @@ public class RoslynDerivedTypeServiceTests
 {
     CachedSolution _cachedSolution = null!;
     RoslynSymbolService _symbolService = null!;
+    RoslynDerivedTypeService _sut = null!;
+    InheritanceSearchSymbolResolver _resolver = null!;
 
     [OneTimeSetUp]
     public async Task OneTimeSetUp()
@@ -21,13 +24,15 @@ public class RoslynDerivedTypeServiceTests
         _symbolService = new RoslynSymbolService(
             CreateWorkspaceProvider(_cachedSolution),
             new WildcardPatternFactory());
+        _sut = new RoslynDerivedTypeService();
+        _resolver = new InheritanceSearchSymbolResolver();
     }
 
     async Task<IReadOnlyList<string>> Act(string fullTypeName)
     {
-        var (symbol, _) = await _symbolService.FindExactTypeAsync(_cachedSolution, fullTypeName);
-        if (symbol is null) return [];
-        return RoslynDerivedTypeService.FindDerivedTypes(_cachedSolution, symbol)
+        var target = _resolver.Resolve(_cachedSolution, fullTypeName);
+        if (target is null) return [];
+        return _sut.FindDerivedTypes(_cachedSolution, target)
             .Select(t => t.ToDisplayString())
             .ToList();
     }
@@ -187,18 +192,8 @@ public class RoslynDerivedTypeServiceTests
     [Test]
     public async Task FindDerivedTypes_ClosedGenericInterface_FindsExactMatch()
     {
-        // arrange — construct closed generic IRepository<Animal> from open generic + Animal type
-        var (openSymbol, _) = await _symbolService.FindExactTypeAsync(_cachedSolution, "TestProject.Core.Persistence.IRepository<T>");
-        var (animalSymbol, _) = await _symbolService.FindExactTypeAsync(_cachedSolution, "TestProject.Core.Models.Animal");
-        Assert.That(openSymbol, Is.Not.Null);
-        Assert.That(animalSymbol, Is.Not.Null);
-
-        var closedSymbol = openSymbol!.Construct(animalSymbol!);
-
-        // act
-        var result = RoslynDerivedTypeService.FindDerivedTypes(_cachedSolution, closedSymbol)
-            .Select(t => t.ToDisplayString())
-            .ToList();
+        // act — closed generic: IRepository<Animal>
+        var result = await Act("TestProject.Core.Persistence.IRepository<TestProject.Core.Models.Animal>");
 
         // assert — should find types implementing exactly IRepository<Animal>
         result.Should().Contain("TestProject.App.Persistence.AnimalRepository");

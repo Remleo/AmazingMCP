@@ -18,6 +18,7 @@ public abstract class SymbolInfoServiceTestsBase
         var cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _sut = new SymbolInfoService(
             new RoslynSymbolService(CreateWorkspaceProvider(cachedSolution), new WildcardPatternFactory()),
+            new RoslynDerivedTypeService(),
             new XmlDocExtractor(),
             new WildcardPatternFactory())
         {

@@ -1,5 +1,5 @@
-using AmazingMCP.Models;
 using AmazingMCP.Models.Workspace;
+using AmazingMCP.Services.UsageQuery;
 using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services.SymbolQuery;
@@ -7,10 +7,8 @@ namespace AmazingMCP.Services.SymbolQuery;
 /// <summary>
 /// Finds all types that derive from or implement a given target type.
 /// </summary>
-public static class RoslynDerivedTypeService
+public class RoslynDerivedTypeService : IDerivedTypeService
 {
-
-
     /// <summary>
     /// Returns all types that derive from (class target) or implement (interface target) the given type.
     ///
@@ -21,28 +19,22 @@ public static class RoslynDerivedTypeService
     /// For interface targets: checks <see cref="INamedTypeSymbol.AllInterfaces"/> (recursive).
     /// For class targets: walks the <see cref="INamedTypeSymbol.BaseType"/> chain.
     /// </summary>
-    public static IReadOnlyList<INamedTypeSymbol> FindDerivedTypes(
+    public IReadOnlyList<INamedTypeSymbol> FindDerivedTypes(
         ICachedSolution cachedSolution,
-        INamedTypeSymbol targetType)
+        InheritanceSearchSymbol target)
     {
-        var targetFullName = targetType.ToDisplayString();
-        var targetIsFromSource = targetType.DeclaringSyntaxReferences.Length > 0;
-        var isInterface = targetType.TypeKind == TypeKind.Interface;
-        var targetIsOpenGeneric = targetType.IsGenericType
-            && SymbolEqualityComparer.Default.Equals(targetType, targetType.OriginalDefinition);
-
         var results = new List<INamedTypeSymbol>();
 
         foreach (var candidate in RoslynTypeEnumerator.EnumerateAll(cachedSolution))
         {
             var candidateFullName = candidate.ToDisplayString();
 
-            if (candidateFullName == targetFullName)
+            if (candidateFullName == target.FullName)
                 continue;
 
             var candidateIsFromSource = candidate.DeclaringSyntaxReferences.Length > 0;
 
-            if (targetIsFromSource)
+            if (target.IsFromSource)
             {
                 if (!candidateIsFromSource)
                     continue;
@@ -53,9 +45,9 @@ public static class RoslynDerivedTypeService
                     continue;
             }
 
-            var matches = isInterface
-                ? InheritsInterface(candidate, targetFullName, targetIsOpenGeneric)
-                : InheritsClass(candidate, targetFullName, targetIsOpenGeneric);
+            var matches = target.IsInterface
+                ? InheritsInterface(candidate, target.FullName, target.IsOpenGeneric)
+                : InheritsClass(candidate, target.FullName, target.IsOpenGeneric);
 
             if (matches)
                 results.Add(candidate);
@@ -94,5 +86,4 @@ public static class RoslynDerivedTypeService
         }
         return false;
     }
-
 }

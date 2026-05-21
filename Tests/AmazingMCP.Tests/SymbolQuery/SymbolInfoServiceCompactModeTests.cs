@@ -17,6 +17,7 @@ public class SymbolInfoServiceCompactModeTests
         var cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _sut = new SymbolInfoService(
             new RoslynSymbolService(CompilationHelper.CreateWorkspaceProvider(cachedSolution), new WildcardPatternFactory()),
+            new RoslynDerivedTypeService(),
             new XmlDocExtractor(),
             new WildcardPatternFactory())
         {

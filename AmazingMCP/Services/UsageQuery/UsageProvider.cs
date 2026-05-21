@@ -20,6 +20,7 @@ namespace AmazingMCP.Services.UsageQuery;
 public sealed class UsageProvider(
     IWorkspaceProvider workspaceProvider,
     IWildcardPatternFactory wildcardFactory,
+    IInheritanceUsageProvider inheritanceUsageProvider,
     IOptions<QueryUsagesOptions> options) : IUsageProvider
 {
     readonly QueryUsagesOptions _options = options.Value;
@@ -94,7 +95,7 @@ public sealed class UsageProvider(
         Func<QueryEntry, bool>? predicate,
         List<IWildcardPattern>? includePatterns,
         List<IWildcardPattern>? excludePatterns) =>
-        InheritanceUsageProvider.FindMatches(cachedSolution, typeName, predicate, includePatterns, excludePatterns);
+        inheritanceUsageProvider.FindMatches(cachedSolution, typeName, predicate, includePatterns, excludePatterns);
 
     List<IWildcardPattern>? BuildScopePatterns(IReadOnlyList<string>? patterns)
     {

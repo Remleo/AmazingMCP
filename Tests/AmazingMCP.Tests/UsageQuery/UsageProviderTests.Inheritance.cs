@@ -194,4 +194,31 @@ public class UsageProviderTestsInheritance : UsageProviderTestsBase
         matches.Should().NotBeEmpty();
         matches.Should().AllSatisfy(m => m.Entry.Kind.Should().Be(UsageKind.Inheritance));
     }
+
+    [Test]
+    public async Task QueryAsync_Inheritance_ClosedGenericInterface_FindsImplementors()
+    {
+        // act — closed generic: IRepository<Animal>
+        var matches = await Act(
+            "TestProject.Core.Persistence.IRepository<TestProject.Core.Models.Animal>",
+            predicate: "x.Kind == UsageKind.Inheritance");
+
+        // assert — AnimalRepository implements IRepository<Animal>
+        matches.Select(m => m.Scope.TypeName)
+            .Should().Contain("TestProject.App.Persistence.AnimalRepository");
+    }
+
+    [Test]
+    public async Task QueryAsync_Inheritance_ClosedGenericInterface_DoesNotReturnUnrelatedImplementors()
+    {
+        // act — closed generic: IEntityMapper<Animal, AnimalDto>
+        var matches = await Act(
+            "TestProject.App.Mapping.IEntityMapper<TestProject.Core.Models.Animal, TestProject.Core.Dtos.AnimalDto>",
+            predicate: "x.Kind == UsageKind.Inheritance");
+
+        // assert — should find AppAnimalMapper but not AnimalCreatedEventMapper (different type args)
+        var typeNames = matches.Select(m => m.Scope.TypeName).ToList();
+        typeNames.Should().Contain("TestProject.App.Mapping.AppAnimalMapper");
+        typeNames.Should().NotContain("TestProject.App.Mapping.AnimalCreatedEventMapper");
+    }
 }

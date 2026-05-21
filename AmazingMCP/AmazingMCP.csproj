@@ -120,6 +120,12 @@
     <Compile Update="Services\Decompile\IDecompileTypeService.cs">
       <DependentUpon>DecompileTypeService.cs</DependentUpon>
     </Compile>
+    <Compile Update="Services\UsageQuery\IInheritanceUsageProvider.cs">
+      <DependentUpon>InheritanceUsageProvider.cs</DependentUpon>
+    </Compile>
+    <Compile Update="Services\UsageQuery\IInheritanceSearchSymbolResolver.cs">
+      <DependentUpon>InheritanceSearchSymbolResolver.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

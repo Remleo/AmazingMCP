@@ -1,4 +1,5 @@
 using AmazingMCP.Configuration;
+using AmazingMCP.Services.SymbolQuery;
 using AmazingMCP.Services.UsageQuery;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Tests.Helpers;
@@ -20,6 +21,9 @@ public class QueryUsagesServiceTests
         var usageProvider = new UsageProvider(
             CreateWorkspaceProvider(cachedSolution),
             new WildcardPatternFactory(),
+            new InheritanceUsageProvider(
+                new InheritanceSearchSymbolResolver(),
+                new RoslynDerivedTypeService()),
             Options.Create(new QueryUsagesOptions()));
 
         _sut = new QueryUsagesService(usageProvider, new UsageResultFormatter());

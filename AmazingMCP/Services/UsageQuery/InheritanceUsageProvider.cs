@@ -1,5 +1,3 @@
-using AmazingMCP.Models;
-using AmazingMCP.Models.FileAnalysis;
 using AmazingMCP.Models.UsageQuery;
 using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.SymbolQuery;
@@ -13,65 +11,43 @@ namespace AmazingMCP.Services.UsageQuery;
 /// Finds all types that inherit from or implement the target type,
 /// producing a <see cref="UsageMatch"/> per derived type with <see cref="UsageKind.Inheritance"/>.
 /// </summary>
-static class InheritanceUsageProvider
+public class InheritanceUsageProvider(
+    IInheritanceSearchSymbolResolver symbolResolver,
+    IDerivedTypeService derivedTypeService) : IInheritanceUsageProvider
 {
-    /// <summary>
-    /// Finds the target type by its fully-qualified display name, then returns all inheritance matches.
-    /// Returns empty if the type is not found.
-    /// </summary>
-    public static IReadOnlyList<UsageMatch> FindMatches(
+    public IReadOnlyList<UsageMatch> FindMatches(
         ICachedSolution cachedSolution,
         string typeName,
         Func<QueryEntry, bool>? predicate,
         List<IWildcardPattern>? includePatterns,
         List<IWildcardPattern>? excludePatterns)
     {
-        var targetType = FindType(cachedSolution, typeName);
-        if (targetType is null)
+        var target = symbolResolver.Resolve(cachedSolution, typeName);
+        if (target is null)
             return [];
 
-        return FindMatches(cachedSolution, targetType, predicate, includePatterns, excludePatterns);
-    }
-
-    static INamedTypeSymbol? FindType(ICachedSolution cachedSolution, string typeName) =>
-        RoslynTypeEnumerator.EnumerateAll(cachedSolution)
-            .FirstOrDefault(t => t.ToDisplayString() == typeName);
-
-    /// <summary>
-    /// Returns inheritance matches for all types that derive from or implement <paramref name="targetType"/>.
-    /// Source types produce a match pointing to their declaration file.
-    /// Third-party types produce a match with a synthetic declaration and an empty file path.
-    /// </summary>
-    public static IReadOnlyList<UsageMatch> FindMatches(
-        ICachedSolution cachedSolution,
-        INamedTypeSymbol targetType,
-        Func<QueryEntry, bool>? predicate,
-        List<IWildcardPattern>? includePatterns,
-        List<IWildcardPattern>? excludePatterns)
-    {
-        var derived = RoslynDerivedTypeService.FindDerivedTypes(cachedSolution, targetType);
+        var derived = derivedTypeService.FindDerivedTypes(cachedSolution, target);
         var results = new List<UsageMatch>(derived.Count);
 
         foreach (var type in derived)
         {
-            var typeName = type.ToDisplayString();
+            var candidateName = type.ToDisplayString();
 
-            if (includePatterns is not null && !includePatterns.Any(p => p.IsMatch(typeName)))
+            if (includePatterns is not null && !includePatterns.Any(p => p.IsMatch(candidateName)))
                 continue;
-            if (excludePatterns is not null && excludePatterns.Any(p => p.IsMatch(typeName)))
+            if (excludePatterns is not null && excludePatterns.Any(p => p.IsMatch(candidateName)))
                 continue;
 
             var entry = new QueryEntry
             {
                 Kind = UsageKind.Inheritance,
-                TypeName = targetType.ToDisplayString(),
+                TypeName = target.FullName,
             };
 
             if (predicate is not null && !predicate(entry))
                 continue;
 
-            var match = BuildMatch(type, entry);
-            results.Add(match);
+            results.Add(BuildMatch(type, entry));
         }
 
         return results;
@@ -85,11 +61,12 @@ static class InheritanceUsageProvider
         if (syntaxRef is not null)
         {
             var node = syntaxRef.GetSyntax();
+
             var declarationRange = node switch
             {
                 TypeDeclarationSyntax typeDecl => DeclarationRangeResolver.Resolve(typeDecl),
                 EnumDeclarationSyntax enumDecl => DeclarationRangeResolver.Resolve(enumDecl),
-                _                              => DeclarationRangeResolver.ResolveFallback(node),
+                _ => DeclarationRangeResolver.ResolveFallback(node),
             };
 
             var scope = new UsageScope(
