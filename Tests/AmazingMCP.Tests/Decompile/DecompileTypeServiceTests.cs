@@ -193,6 +193,59 @@ public class DecompileTypeServiceTests
         result.Should().Contain("Exception");
     }
 
+    // --- generic types ---
+
+    [Test]
+    public async Task DecompileTypeAsync_OpenGenericNuGetType_ReturnsTypeDeclaration()
+    {
+        // act
+        var result = await Act("Microsoft.Extensions.Options.OptionsManager<TOptions>");
+
+        // assert
+        result.Should().Contain("class OptionsManager");
+    }
+
+    [Test]
+    public async Task DecompileTypeAsync_OpenGenericNuGetType_ReturnsInstanceMember()
+    {
+        // act
+        var result = await Act("Microsoft.Extensions.Options.OptionsManager<TOptions>");
+
+        // assert
+        result.Should().Contain("Get");
+    }
+
+    [Test]
+    public async Task DecompileTypeAsync_OpenGenericTwoTypeParameters_ReturnsTypeDeclaration()
+    {
+        // act
+        var result = await Act("AutoMapper.IMappingExpression<TSource, TDestination>");
+
+        // assert
+        result.Should().Contain("interface IMappingExpression");
+    }
+
+    [Test]
+    public async Task DecompileTypeAsync_OpenGenericNuGetType_BacktickNotation_ReturnsTypeDeclaration()
+    {
+        // act
+        var result = await Act("Microsoft.Extensions.Options.OptionsManager`1");
+
+        // assert
+        result.Should().Contain("class OptionsManager");
+    }
+
+    [Test]
+    public async Task DecompileTypeAsync_OpenGenericNuGetType_WithMemberFilter_ReturnsFilteredMembers()
+    {
+        // act
+        var result = await Act("Microsoft.Extensions.Options.OptionsManager<TOptions>", ["*Get*"]);
+
+        // assert
+        result.Should().Contain("class OptionsManager");
+        result.Should().Contain("Get");
+    }
+
     // --- special messages ---
 
     [Test]

@@ -37,7 +37,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IDerived
         CancellationToken ct = default)
     {
         var cachedSolution = await roslynSymbolService.GetSolutionAsync(solutionPath, ct);
-        var (found, error) = await roslynSymbolService.FindExactTypeAsync(cachedSolution, fullTypeName, ct);
+        var (found, error) = roslynSymbolService.FindExactType(cachedSolution, fullTypeName);
 
         if (found is null)
             return error!;

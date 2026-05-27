@@ -24,7 +24,7 @@ public class DecompileTypeService(
     {
         // Resolve the type symbol from the solution compilations
         var solution = await roslynSymbolService.GetSolutionAsync(solutionPath, ct);
-        var (symbol, error) = await roslynSymbolService.FindExactTypeAsync(solution, fullTypeName, ct);
+        var (symbol, error) = roslynSymbolService.FindExactType(solution, fullTypeName);
 
         if (symbol is null)
             return error!;
@@ -82,8 +82,7 @@ public class DecompileTypeService(
     static string DecompileSource(INamedTypeSymbol symbol, string dllPath)
     {
         var decompiler = new CSharpDecompiler(dllPath, new DecompilerSettings { ThrowOnAssemblyResolveErrors = false });
-        var ilspyName = new FullTypeName(symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).Replace("global::", ""));
-        return decompiler.DecompileTypeAsString(ilspyName);
+        return decompiler.DecompileTypeAsString(IlspyFullTypeNameBuilder.Build(symbol));
     }
 
     static string BuildSourceTypeError(INamedTypeSymbol symbol)

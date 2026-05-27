@@ -213,6 +213,19 @@ public class RoslynDerivedTypeServiceTests
         result.Should().Contain("TestProject.App.Persistence.AnimalRepositoryV2");
     }
 
+    // ── NuGet interface + NuGet implementor ───────────────────────────────────
+
+    [Test]
+    public async Task FindDerivedTypes_NuGetInterface_FindsNuGetImplementor()
+    {
+        // act — AutoMapper.IMapper is a NuGet interface; AutoMapper.Mapper is its NuGet implementation
+        // Both types are from the same NuGet package (no source files)
+        var result = await Act("AutoMapper.IMapper");
+
+        // assert — NuGet implementor must be found
+        result.Should().Contain("AutoMapper.Mapper");
+    }
+
     // ── Deduplication ─────────────────────────────────────────────────────────
 
     [Test]

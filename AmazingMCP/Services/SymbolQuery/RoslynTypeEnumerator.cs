@@ -1,5 +1,4 @@
 using AmazingMCP.Models.Workspace;
-using AmazingMCP.Services.Wildcard;
 using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services.SymbolQuery;
@@ -9,43 +8,6 @@ namespace AmazingMCP.Services.SymbolQuery;
 /// </summary>
 public static class RoslynTypeEnumerator
 {
-    public static IEnumerable<INamedTypeSymbol> FindNamedTypes(INamespaceSymbol ns, IWildcardPattern pattern)
-    {
-        foreach (var member in ns.GetMembers())
-        {
-            switch (member)
-            {
-                case INamedTypeSymbol type:
-                    if (pattern.IsMatch(type.ToDisplayString()) || pattern.IsMatch(type.Name))
-                        yield return type;
-
-                    foreach (var nested in FindNestedTypes(type, pattern))
-                        yield return nested;
-                    break;
-
-                case INamespaceSymbol childNs:
-                    foreach (var t in FindNamedTypes(childNs, pattern))
-                        yield return t;
-                    break;
-            }
-        }
-    }
-
-    static IEnumerable<INamedTypeSymbol> FindNestedTypes(INamedTypeSymbol parent, IWildcardPattern pattern)
-    {
-        foreach (var nested in parent.GetTypeMembers())
-        {
-            if (!IsNestedTypeVisible(nested))
-                continue;
-
-            if (pattern.IsMatch(nested.ToDisplayString()) || pattern.IsMatch(nested.Name))
-                yield return nested;
-
-            foreach (var deeper in FindNestedTypes(nested, pattern))
-                yield return deeper;
-        }
-    }
-
     /// <summary>
     /// Enumerates all named types across all compilations in the solution,
     /// deduplicating by fully-qualified display name.
@@ -109,3 +71,4 @@ public static class RoslynTypeEnumerator
         return type.DeclaredAccessibility is not (Accessibility.Private or Accessibility.ProtectedAndInternal);
     }
 }
+

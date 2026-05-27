@@ -39,24 +39,15 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
     /// Supports CLR metadata notation (Foo`2), C# generic syntax (Foo&lt;T, TVal&gt;),
     /// and wildcard form (Foo&lt;*,*&gt;). Returns null if not found or ambiguous.
     /// </summary>
-    public async Task<(INamedTypeSymbol? Symbol, string? Error)> FindExactTypeAsync(
+    public (INamedTypeSymbol? Symbol, string? Error) FindExactType(
         ICachedSolution solution,
-        string fullTypeName,
-        CancellationToken ct = default)
+        string fullTypeName)
     {
         var pattern = wildcardFactory.CreateForTypeNames(TypeWildcardPatternBuilder.Build(fullTypeName));
 
-        var seen = new HashSet<string>();
-        var matches = new List<INamedTypeSymbol>();
-
-        foreach (var (_, compilation) in solution.Compilations)
-        {
-            foreach (var symbol in RoslynTypeEnumerator.FindNamedTypes(compilation.GlobalNamespace, pattern))
-            {
-                if (seen.Add(symbol.ToDisplayString()))
-                    matches.Add(symbol);
-            }
-        }
+        var matches = RoslynTypeEnumerator.EnumerateAll(solution)
+            .Where(t => pattern.IsMatch(t.ToDisplayString()))
+            .ToList();
 
         return matches.Count switch
         {

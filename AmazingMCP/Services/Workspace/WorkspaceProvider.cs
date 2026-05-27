@@ -82,7 +82,7 @@ public sealed class WorkspaceProvider(
         lock (_lock)
         {
             if (!_lockers.TryGetValue(solutionPath, out var locker))
-                _lockers[solutionPath] = locker = new SemaphoreSlim(1);
+                _lockers[solutionPath] = locker = new(1);
             return locker;
         }
     }
