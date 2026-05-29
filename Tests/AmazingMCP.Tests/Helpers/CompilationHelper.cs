@@ -1,10 +1,13 @@
 using AmazingMCP.Models;
 using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services;
+using AmazingMCP.Services.SymbolQuery;
+using AmazingMCP.Services.SymbolQuery.Strategies;
 using AmazingMCP.Services.Workspace;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.MSBuild;
+using Microsoft.Extensions.Caching.Memory;
 using NSubstitute;
 
 namespace AmazingMCP.Tests.Helpers;
@@ -28,6 +31,13 @@ public static class CompilationHelper
     public static string WorkspacePath => Path.GetDirectoryName(TestSolutionPath)!;
 
     // Shared across all test classes — compiled once per test process.
+    public static RoslynTypeProvider CreateTypeProvider() =>
+        new(new NuGetVersionResolver(new MemoryCache(new MemoryCacheOptions())));
+
+    public static ITypeEnumerationStrategy<INamedTypeSymbol> CreateAllInstancesStrategy() => new AllInstancesTypeStrategy();
+
+    public static ITypeEnumerationStrategy<TypeVersionGroup> CreateVersionedStrategy() => new VersionedTypeStrategy();
+
     public static IWorkspaceProvider CreateWorkspaceProvider(ICachedSolution solution)
     {
         var wp = Substitute.For<IWorkspaceProvider>();

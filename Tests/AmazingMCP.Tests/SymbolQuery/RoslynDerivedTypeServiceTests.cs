@@ -21,11 +21,9 @@ public class RoslynDerivedTypeServiceTests
     public async Task OneTimeSetUp()
     {
         _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
-        _symbolService = new RoslynSymbolService(
-            CreateWorkspaceProvider(_cachedSolution),
-            new WildcardPatternFactory());
-        _sut = new RoslynDerivedTypeService();
-        _resolver = new InheritanceSearchSymbolResolver();
+        _symbolService = new RoslynSymbolService(CreateWorkspaceProvider(_cachedSolution), new WildcardPatternFactory(), CreateTypeProvider(), CompilationHelper.CreateVersionedStrategy());
+        _sut = new RoslynDerivedTypeService(CreateTypeProvider(), CreateAllInstancesStrategy());
+        _resolver = new InheritanceSearchSymbolResolver(CreateTypeProvider(), CreateVersionedStrategy());
     }
 
     async Task<IReadOnlyList<string>> Act(string fullTypeName)

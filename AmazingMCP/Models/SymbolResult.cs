@@ -26,4 +26,7 @@ public record SymbolResult
 
     /// <summary>Set for member results; null for type results.</summary>
     public SymbolResult? DeclaringType { get; init; }
+
+    /// <summary>All known NuGet versions for this type across solution compilations. Empty for source types.</summary>
+    public IReadOnlyList<Version?> NuGetVersions { get; init; } = [];
 }

@@ -6,7 +6,7 @@ namespace AmazingMCP.Services.SymbolQuery;
 /// <summary>Converts Roslyn symbols into <see cref="SymbolResult"/> records.</summary>
 internal static class SymbolResultFactory
 {
-    public static SymbolResult ForType(INamedTypeSymbol symbol)
+    public static SymbolResult ForType(INamedTypeSymbol symbol, IReadOnlyList<Version?> nugetVersions)
     {
         var (path, line) = SourceLocation(symbol.DeclaringSyntaxReferences.FirstOrDefault());
         return new()
@@ -18,6 +18,7 @@ internal static class SymbolResultFactory
             SourceFilePath = path,
             DefinitionLine = line,
             SourceFilePaths = SourceLocationFormatter.GetSourcePaths(symbol),
+            NuGetVersions = nugetVersions,
         };
     }
 

@@ -6,20 +6,25 @@ namespace AmazingMCP.Services.SymbolQuery;
 public static class SourceLocationFormatter
 {
     /// <summary>
-    /// Formats a location comment from a list of source file paths.
-    /// Single file: "// source: path/File.cs, line N"
-    /// Multiple files: "// source: path/File.cs, File.Partial.cs | path2/Other.cs"
-    /// Assembly fallback: "// assembly: AssemblyName"
+    /// Formats a location description (without leading "// " marker).
+    /// Single file: "source: path/File.cs, line N"
+    /// Multiple files: "source: path/File.cs, File.Partial.cs | path2/Other.cs"
+    /// Assembly fallback: "assembly: AssemblyName" or "assembly: AssemblyName [v1.0.0, v2.0.0]"
+    /// Callers add the "// " prefix or other framing as appropriate.
     /// </summary>
-    public static string FormatLocation(IReadOnlyList<string> paths, string? assemblyName, int? singleFileLine = null)
+    public static string FormatLocation(
+        IReadOnlyList<string> paths,
+        string? assemblyName,
+        int? singleFileLine = null,
+        IReadOnlyList<Version?>? nugetVersions = null)
     {
         if (paths.Count == 0)
-            return $"// assembly: {assemblyName}";
+            return $"assembly: {assemblyName}{FormatVersions(nugetVersions)}";
 
         if (paths.Count == 1)
             return singleFileLine.HasValue
-                ? $"// source: {paths[0]}, line {singleFileLine}"
-                : $"// source: {paths[0]}";
+                ? $"source: {paths[0]}, line {singleFileLine}"
+                : $"source: {paths[0]}";
 
         var groups = paths
             .GroupBy(Path.GetDirectoryName)
@@ -30,7 +35,19 @@ public static class SourceLocationFormatter
                 return string.Join(", ", [first, ..rest]);
             });
 
-        return $"// source: {string.Join(" | ", groups)}";
+        return $"source: {string.Join(" | ", groups)}";
+    }
+
+    static string FormatVersions(IReadOnlyList<Version?>? nugetVersions)
+    {
+        if (nugetVersions is null)
+            return string.Empty;
+
+        var known = nugetVersions.Where(v => v is not null).ToList();
+        if (known.Count == 0)
+            return string.Empty;
+
+        return $" [{string.Join(", ", known.Select(v => $"v{v}"))}]";
     }
 
     /// <summary>Extracts non-generated source paths from a symbol's syntax references.</summary>

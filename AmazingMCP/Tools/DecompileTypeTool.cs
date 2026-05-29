@@ -26,11 +26,13 @@ public static class DecompileTypeTool
         string? solutionPath = null,
         [Description("Optional wildcard filters to show only matching members (e.g. [\"*Get*\", \"Create*\"]).")]
         string[] memberFilters = null!,
+        [Description("Optional NuGet version to show (e.g. '12.0.1'). When omitted, the highest available version is shown.")]
+        string? version = null,
         CancellationToken ct = default)
     {
         var (resolvedPath, resolveError) = solutionResolver.Resolve(solutionWorkspacePath, solutionPath);
         if (resolvedPath is null)
             return resolveError!;
-        return await decompileTypeService.DecompileTypeAsync(resolvedPath, fullTypeName, memberFilters, ct);
+        return await decompileTypeService.DecompileTypeAsync(resolvedPath, fullTypeName, memberFilters, version, ct);
     }
 }

@@ -1,23 +1,30 @@
+using AmazingMCP.Models;
 using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.SymbolQuery;
+using AmazingMCP.Services.SymbolQuery.Strategies;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AmazingMCP.Services.UsageQuery;
 
 /// <summary>
 /// Resolves a fully-qualified type name into an <see cref="InheritanceSearchSymbol"/>.
-/// If the type is found directly — uses it. If not found and the name is a closed generic,
-/// falls back to the open generic definition with IsOpenGeneric = false.
+/// Uses Versioned enumeration: when a type exists in multiple NuGet versions, the symbol
+/// from the highest version is used (<see cref="TypeVersionGroup.Best"/>).
+/// If the type is not found directly and the name is a closed generic, falls back to the
+/// open generic definition with IsOpenGeneric = false.
 /// </summary>
-public class InheritanceSearchSymbolResolver : IInheritanceSearchSymbolResolver
+public class InheritanceSearchSymbolResolver(
+    IRoslynTypeProvider typeProvider,
+    [FromKeyedServices(TypeEnumerationMode.Versioned)] ITypeEnumerationStrategy<TypeVersionGroup> versionedStrategy) : IInheritanceSearchSymbolResolver
 {
     public InheritanceSearchSymbol? Resolve(ICachedSolution cachedSolution, string typeName)
     {
-        var directMatch = RoslynTypeEnumerator.EnumerateAll(cachedSolution)
-            .FirstOrDefault(t => t.ToDisplayString() == typeName);
+        var match = typeProvider.GetAll(cachedSolution, versionedStrategy)
+            .FirstOrDefault(g => g.FullName == typeName);
 
-        if (directMatch is not null)
-            return FromSymbol(directMatch);
+        if (match is not null)
+            return FromSymbol(match.Best);
 
         return ResolveClosedGeneric(cachedSolution, typeName);
     }
@@ -30,7 +37,7 @@ public class InheritanceSearchSymbolResolver : IInheritanceSearchSymbolResolver
             IsOpenGeneric: symbol.IsGenericType
                 && SymbolEqualityComparer.Default.Equals(symbol, symbol.OriginalDefinition));
 
-    static InheritanceSearchSymbol? ResolveClosedGeneric(ICachedSolution cachedSolution, string typeName)
+    InheritanceSearchSymbol? ResolveClosedGeneric(ICachedSolution cachedSolution, string typeName)
     {
         var angleBracketIndex = typeName.IndexOf('<');
         if (angleBracketIndex < 0)
@@ -38,18 +45,18 @@ public class InheritanceSearchSymbolResolver : IInheritanceSearchSymbolResolver
 
         var baseName = typeName[..angleBracketIndex];
 
-        var openDef = RoslynTypeEnumerator.EnumerateAll(cachedSolution)
-            .FirstOrDefault(t => t.IsGenericType
-                && t.ToDisplayString().StartsWith(baseName + "<", StringComparison.Ordinal));
+        var openDef = typeProvider.GetAll(cachedSolution, versionedStrategy)
+            .FirstOrDefault(g => g.FullName.StartsWith(baseName + "<", StringComparison.Ordinal));
 
         if (openDef is null)
             return null;
 
-        // Use closed generic name but metadata from open generic definition
+        var symbol = openDef.Best;
+
         return new InheritanceSearchSymbol(
             FullName: typeName,
-            IsFromSource: openDef.DeclaringSyntaxReferences.Length > 0,
-            IsInterface: openDef.TypeKind == TypeKind.Interface,
+            IsFromSource: symbol.DeclaringSyntaxReferences.Length > 0,
+            IsInterface: symbol.TypeKind == TypeKind.Interface,
             IsOpenGeneric: false);
     }
 }

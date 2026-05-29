@@ -6,5 +6,6 @@ public interface IDecompileTypeService
         string solutionPath,
         string fullTypeName,
         string[]? memberFilters = null,
+        string? version = null,
         CancellationToken ct = default);
 }

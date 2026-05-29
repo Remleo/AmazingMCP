@@ -1,31 +1,13 @@
-using AmazingMCP.Models.Workspace;
 using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services.SymbolQuery;
 
 /// <summary>
-/// Low-level helpers for enumerating named types from Roslyn namespace/type trees.
+/// Low-level helpers for enumerating named types from a single Roslyn namespace tree.
+/// For cross-compilation enumeration with deduplication, use <see cref="RoslynTypeProvider"/>.
 /// </summary>
 public static class RoslynTypeEnumerator
 {
-    /// <summary>
-    /// Enumerates all named types across all compilations in the solution,
-    /// deduplicating by fully-qualified display name.
-    /// </summary>
-    public static IEnumerable<INamedTypeSymbol> EnumerateAll(ICachedSolution cachedSolution)
-    {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var (_, compilation) in cachedSolution.Compilations)
-        {
-            foreach (var type in EnumerateAllInCompilation(compilation.GlobalNamespace))
-            {
-                if (seen.Add(type.ToDisplayString()))
-                    yield return type;
-            }
-        }
-    }
-
     /// <summary>
     /// Enumerates all named types in a single namespace tree, including nested types at any depth.
     /// No filtering or deduplication is applied.

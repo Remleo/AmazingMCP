@@ -11,7 +11,8 @@ internal static class SymbolWalker
         INamedTypeSymbol typeSymbol,
         IWildcardPattern pattern,
         HashSet<SeenSymbolKey> seen,
-        List<SymbolResult> results)
+        List<SymbolResult> results,
+        IReadOnlyList<Version?> nugetVersions)
     {
         if (!pattern.IsMatch(typeSymbol.ToDisplayString()) && !pattern.IsMatch(typeSymbol.Name))
             return;
@@ -20,19 +21,20 @@ internal static class SymbolWalker
             typeDisplayName: typeSymbol.ToDisplayString(),
             assembly: typeSymbol.ContainingAssembly?.Name ?? "unknown");
         if (seen.Add(key))
-            results.Add(SymbolResultFactory.ForType(typeSymbol));
+            results.Add(SymbolResultFactory.ForType(typeSymbol, nugetVersions));
     }
 
     public static void CollectMembers(
         INamedTypeSymbol typeSymbol,
         IWildcardPattern pattern,
         HashSet<SeenSymbolKey> seen,
-        List<SymbolResult> results)
+        List<SymbolResult> results,
+        IReadOnlyList<Version?> nugetVersions)
     {
         if (WellKnownFrameworkTypes.IsWellKnown(typeSymbol))
             return;
 
-        var declaringType = SymbolResultFactory.ForType(typeSymbol);
+        var declaringType = SymbolResultFactory.ForType(typeSymbol, nugetVersions);
         var assembly = typeSymbol.ContainingAssembly?.Name ?? "unknown";
 
         if (typeSymbol.TypeKind == TypeKind.Enum)

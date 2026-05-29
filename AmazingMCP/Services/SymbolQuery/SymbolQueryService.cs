@@ -109,9 +109,10 @@ public class SymbolQueryService(
         var location = SourceLocationFormatter.FormatLocation(
             r.SourceFilePaths,
             r.ContainingAssembly,
-            r.SourceFilePaths.Count == 1 ? r.DefinitionLine : null);
+            r.SourceFilePaths.Count == 1 ? r.DefinitionLine : null,
+            r.NuGetVersions);
 
-        return $"[{r.Kind}] {r.FullName}  ({location[3..]})";
+        return $"[{r.Kind}] {r.FullName}  ({location})";
     }
 
     static string FormatMemberResult(SymbolResult r) =>

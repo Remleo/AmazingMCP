@@ -3,4 +3,5 @@
   <Project Path="TestProject.App\TestProject.App.csproj" />
   <Project Path="TestProject.Infrastructure\TestProject.Infrastructure.csproj" />
   <Project Path="TestProject.Tests\TestProject.Tests.csproj" />
+  <Project Path="TestProject.Host\TestProject.Host.csproj" />
 </Solution>

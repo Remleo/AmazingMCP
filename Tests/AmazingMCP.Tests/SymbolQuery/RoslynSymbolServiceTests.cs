@@ -17,14 +17,14 @@ public class RoslynSymbolServiceTests
     public async Task OneTimeSetUp()
     {
         _cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
-        _sut = new RoslynSymbolService(CreateWorkspaceProvider(_cachedSolution), new WildcardPatternFactory());
+        _sut = new RoslynSymbolService(CreateWorkspaceProvider(_cachedSolution), new WildcardPatternFactory(), CreateTypeProvider(), CompilationHelper.CreateVersionedStrategy());
     }
 
     async Task<(string? FullName, string? Error)> Act(string fullTypeName)
     {
         var solution = await _sut.GetSolutionAsync(CompilationHelper.SolutionPath);
-        var (symbol, error) = _sut.FindExactType(solution, fullTypeName);
-        return (symbol?.ToDisplayString(), error);
+        var (group, error) = _sut.FindExactType(solution, fullTypeName);
+        return (group?.FullName, error);
     }
 
     // ── Not found ─────────────────────────────────────────────────────────────

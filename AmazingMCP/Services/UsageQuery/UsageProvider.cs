@@ -129,6 +129,29 @@ public sealed class UsageProvider(
 
         // ── Type declarations ─────────────────────────────────────────────────
 
+        // Top-level statements are hosted inside a compiler-synthesized type with a <Main>$ method.
+        // Establish that scope so usages inside the statements are captured by DefaultVisit.
+        public override void VisitCompilationUnit(CompilationUnitSyntax node)
+        {
+            var firstStatement = node.Members.OfType<GlobalStatementSyntax>().FirstOrDefault();
+            var method = firstStatement is not null ? model.GetEnclosingSymbol(firstStatement.SpanStart) as IMethodSymbol : null;
+            var typeFullName = method?.ContainingType?.ToDisplayString();
+
+            var entered = typeFullName is not null
+                && (includePatterns is null || includePatterns.Any(p => p.IsMatch(typeFullName)))
+                && (excludePatterns is null || !excludePatterns.Any(p => p.IsMatch(typeFullName)));
+
+            if (entered)
+            {
+                _scopeStack.Push(new ScopeFrame(_currentTypeName, _currentMethodName, _currentMethodDefinitionRange, _currentMethodFullRange));
+                _currentTypeName = typeFullName;
+                _currentMethodName = method!.Name;
+            }
+
+            base.VisitCompilationUnit(node);
+            if (entered) ExitType();
+        }
+
         public override void VisitClassDeclaration(ClassDeclarationSyntax node)
         {
             if (!TryEnterType(node, model)) return;

@@ -20,14 +20,16 @@ public class DecompileTypeService(
         string solutionPath,
         string fullTypeName,
         string[]? memberFilters = null,
+        string? version = null,
         CancellationToken ct = default)
     {
-        // Resolve the type symbol from the solution compilations
         var solution = await roslynSymbolService.GetSolutionAsync(solutionPath, ct);
-        var (symbol, error) = roslynSymbolService.FindExactType(solution, fullTypeName);
+        var (group, error) = roslynSymbolService.FindExactType(solution, fullTypeName);
 
-        if (symbol is null)
+        if (group is null)
             return error!;
+
+        var symbol = SelectVersion(group, version);
 
         // Source types should be read directly from files
         if (!symbol.DeclaringSyntaxReferences.IsEmpty)
@@ -38,15 +40,51 @@ public class DecompileTypeService(
         if (dllPath is null)
             return $"Could not locate assembly for type '{fullTypeName}'";
 
+        var banner = BuildVersionBanner(group, symbol);
+
         // Decompile the full type source
         var fullSource = DecompileSource(symbol, dllPath);
 
         // No filters — return full source or digest if too large
         if (memberFilters is not { Length: > 0 })
-            return FormatFullOutput(fullSource);
+            return banner + FormatFullOutput(fullSource);
 
         // Apply member filters (constructors and usings are always included)
-        return FormatFilteredOutput(fullSource, memberFilters);
+        return banner + FormatFilteredOutput(fullSource, memberFilters);
+    }
+
+    static INamedTypeSymbol SelectVersion(Models.TypeVersionGroup group, string? requestedVersion)
+    {
+        if (requestedVersion is not null && Version.TryParse(requestedVersion, out var parsed))
+        {
+            var match = group.Versions.FirstOrDefault(v => v.Version == parsed);
+            if (match.Symbol is not null)
+                return match.Symbol;
+        }
+
+        return group.Best;
+    }
+
+    static string BuildVersionBanner(Models.TypeVersionGroup group, INamedTypeSymbol displayed)
+    {
+        if (group.Versions.Count <= 1 && group.Versions.All(v => v.Version is null))
+            return string.Empty;
+
+        var versions = group.Versions
+            .Select(v => v.Version)
+            .OrderByDescending(v => v)
+            .Select(v => v?.ToString() ?? "source")
+            .ToList();
+
+        var displayedVersion = group.Versions
+            .FirstOrDefault(v => SymbolEqualityComparer.Default.Equals(v.Symbol, displayed))
+            .Version?.ToString() ?? "source";
+
+        if (group.Versions.Count > 1)
+            return $"// ⚠ WARNING: This type exists in multiple versions: {string.Join(", ", versions)}\n" +
+                   $"// Showing version: {displayedVersion}. To see another version, pass version=\"<version>\" parameter.\n\n";
+
+        return $"// NuGet version: {displayedVersion}\n\n";
     }
 
     string FormatFullOutput(string fullSource)
@@ -94,19 +132,15 @@ public class DecompileTypeService(
 
     static string? FindDllPath(INamedTypeSymbol symbol, Models.Workspace.ICachedSolution solution)
     {
-        var assemblyName = symbol.ContainingAssembly?.Name;
-        if (assemblyName is null)
+        var asm = symbol.ContainingAssembly;
+        if (asm is null)
             return null;
 
         foreach (var (_, compilation) in solution.Compilations)
         {
-            foreach (var reference in compilation.References.OfType<PortableExecutableReference>())
-            {
-                if (reference.Display is not null
-                    && Path.GetFileNameWithoutExtension(reference.Display)
-                        .Equals(assemblyName, StringComparison.OrdinalIgnoreCase))
-                    return reference.Display;
-            }
+            if (compilation.GetMetadataReference(asm) is PortableExecutableReference peRef
+                && peRef.FilePath is not null)
+                return peRef.FilePath;
         }
 
         return null;

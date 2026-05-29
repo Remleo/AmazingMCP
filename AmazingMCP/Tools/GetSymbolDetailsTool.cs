@@ -25,12 +25,13 @@ public static class GetSymbolDetailsTool
         [Description("Fully qualified type name. Supports C# generic syntax (e.g. 'System.Collections.Generic.List<T>') and CLR metadata notation (e.g. 'System.Collections.Generic.List`1')")] string fullTypeName,
         [Description("Absolute path to the .sln/.slnx file. Required only when the workspace contains multiple solution files.")] string? solutionPath = null,
         [Description("Optional wildcard filters to show only matching members (e.g. [\"*Get*\", \"Create*\", \"MemberFullName\"]).")] string[] memberFilters = null!,
+        [Description("Optional NuGet version to show (e.g. '12.0.1'). When omitted, the highest available version is shown.")] string? version = null,
         CancellationToken ct = default)
     {
         var (resolved, error) = solutionResolver.Resolve(solutionWorkspacePath, solutionPath);
         if (resolved is null)
             return error!;
 
-        return await symbolInfo.GetSymbolInfoAsync(resolved, fullTypeName, memberFilters, ct);
+        return await symbolInfo.GetSymbolInfoAsync(resolved, fullTypeName, memberFilters, version, ct);
     }
 }

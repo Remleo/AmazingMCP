@@ -1,12 +1,17 @@
 using AmazingMCP.Models;
 using AmazingMCP.Models.Workspace;
+using AmazingMCP.Services.SymbolQuery.Strategies;
 using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Services.Workspace;
-using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AmazingMCP.Services.SymbolQuery;
 
-public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcardPatternFactory wildcardFactory)
+public class RoslynSymbolService(
+    IWorkspaceProvider workspaceProvider,
+    IWildcardPatternFactory wildcardFactory,
+    IRoslynTypeProvider typeProvider,
+    [FromKeyedServices(TypeEnumerationMode.Versioned)] ITypeEnumerationStrategy<TypeVersionGroup> versionedStrategy)
 {
     public Task<ICachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default) =>
         workspaceProvider.GetSolutionAsync(solutionPath, ct);
@@ -25,28 +30,30 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
         var seen = new HashSet<SeenSymbolKey>();
         var results = new List<SymbolResult>();
 
-        foreach (var type in RoslynTypeEnumerator.EnumerateAll(solution))
+        foreach (var group in typeProvider.GetAll(solution, versionedStrategy))
         {
-            SymbolWalker.CollectType(type, pattern, seen, results);
-            SymbolWalker.CollectMembers(type, pattern, seen, results);
+            var allVersions = group.Versions.Select(v => v.Version).ToList();
+
+            SymbolWalker.CollectType(group.Best, pattern, seen, results, allVersions);
+            SymbolWalker.CollectMembers(group.Best, pattern, seen, results, allVersions);
         }
 
         return results;
     }
 
     /// <summary>
-    /// Finds a single type by its fully-qualified name across all compilations.
+    /// Finds a type by its fully-qualified name, returning all known versions grouped.
     /// Supports CLR metadata notation (Foo`2), C# generic syntax (Foo&lt;T, TVal&gt;),
-    /// and wildcard form (Foo&lt;*,*&gt;). Returns null if not found or ambiguous.
+    /// and wildcard form (Foo&lt;*,*&gt;).
     /// </summary>
-    public (INamedTypeSymbol? Symbol, string? Error) FindExactType(
+    public (TypeVersionGroup? Group, string? Error) FindExactType(
         ICachedSolution solution,
         string fullTypeName)
     {
         var pattern = wildcardFactory.CreateForTypeNames(TypeWildcardPatternBuilder.Build(fullTypeName));
 
-        var matches = RoslynTypeEnumerator.EnumerateAll(solution)
-            .Where(t => pattern.IsMatch(t.ToDisplayString()))
+        var matches = typeProvider.GetAll(solution, versionedStrategy)
+            .Where(g => pattern.IsMatch(g.FullName))
             .ToList();
 
         return matches.Count switch
@@ -54,7 +61,7 @@ public class RoslynSymbolService(IWorkspaceProvider workspaceProvider, IWildcard
             0 => (null, $"Type '{fullTypeName}' not found."),
             1 => (matches[0], null),
             _ => (null, $"Ambiguous: '{fullTypeName}' matched multiple types:\n" +
-                        string.Join("\n", matches.Select(m => $"  {m.ToDisplayString()}")))
+                        string.Join("\n", matches.Select(m => $"  {m.FullName}")))
         };
     }
 }

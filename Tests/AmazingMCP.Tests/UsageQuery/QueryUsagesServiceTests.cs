@@ -22,8 +22,8 @@ public class QueryUsagesServiceTests
             CreateWorkspaceProvider(cachedSolution),
             new WildcardPatternFactory(),
             new InheritanceUsageProvider(
-                new InheritanceSearchSymbolResolver(),
-                new RoslynDerivedTypeService()),
+                new InheritanceSearchSymbolResolver(CreateTypeProvider(), CreateVersionedStrategy()),
+                new RoslynDerivedTypeService(CreateTypeProvider(), CreateAllInstancesStrategy())),
             Options.Create(new QueryUsagesOptions()));
 
         _sut = new QueryUsagesService(usageProvider, new UsageResultFormatter());

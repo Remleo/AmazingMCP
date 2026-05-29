@@ -17,7 +17,7 @@ public class SymbolQueryServiceTests
     public async Task OneTimeSetUp()
     {
         var cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
-        var roslyn = new RoslynSymbolService(CreateWorkspaceProvider(cachedSolution), new WildcardPatternFactory());
+        var roslyn = new RoslynSymbolService(CreateWorkspaceProvider(cachedSolution), new WildcardPatternFactory(), CreateTypeProvider(), CompilationHelper.CreateVersionedStrategy());
         _sut = new SymbolQueryService(roslyn, Options.Create(new SymbolOptions()));
     }
 
@@ -100,9 +100,7 @@ public class SymbolQueryServiceTests
     public async Task QueryAsync_ManyResults_TruncatesOutput()
     {
         var sut = new SymbolQueryService(
-            new RoslynSymbolService(
-                CreateWorkspaceProvider(await CompilationHelper.GetSharedSolutionAsync()),
-                new WildcardPatternFactory()),
+            new RoslynSymbolService(CreateWorkspaceProvider(await CompilationHelper.GetSharedSolutionAsync()), new WildcardPatternFactory(), CreateTypeProvider(), CompilationHelper.CreateVersionedStrategy()),
             Options.Create(new SymbolOptions { QueryOutputLineLimit = 5 }));
 
         var result = await sut.QueryAsync(CompilationHelper.SolutionPath, "*Animal*");

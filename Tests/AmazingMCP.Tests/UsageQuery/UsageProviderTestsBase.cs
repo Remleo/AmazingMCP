@@ -24,8 +24,8 @@ public abstract class UsageProviderTestsBase
             CreateWorkspaceProvider(cachedSolution),
             new WildcardPatternFactory(),
             new InheritanceUsageProvider(
-                new InheritanceSearchSymbolResolver(),
-                new RoslynDerivedTypeService()),
+                new InheritanceSearchSymbolResolver(CreateTypeProvider(), CreateVersionedStrategy()),
+                new RoslynDerivedTypeService(CreateTypeProvider(), CreateAllInstancesStrategy())),
             Options.Create(new QueryUsagesOptions()));
     }
 

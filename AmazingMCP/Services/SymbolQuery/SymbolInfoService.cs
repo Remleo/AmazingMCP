@@ -34,15 +34,21 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IDerived
         string solutionPath,
         string fullTypeName,
         string[]? memberFilters = null,
+        string? version = null,
         CancellationToken ct = default)
     {
         var cachedSolution = await roslynSymbolService.GetSolutionAsync(solutionPath, ct);
-        var (found, error) = roslynSymbolService.FindExactType(cachedSolution, fullTypeName);
+        var (group, error) = roslynSymbolService.FindExactType(cachedSolution, fullTypeName);
 
-        if (found is null)
+        if (group is null)
             return error!;
 
+        var found = SelectVersion(group, version);
+
         var sb = new StringBuilder();
+
+        AppendVersionBanner(sb, group, found);
+
         var visited = new HashSet<string>();
         Describe(found, sb, indent: 0, visited, memberFilters, inheritedCompact: false);
         DescribeDerivedTypes(found, cachedSolution, sb);
@@ -55,6 +61,46 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IDerived
         }
 
         return sb.ToString();
+    }
+
+    static INamedTypeSymbol SelectVersion(TypeVersionGroup group, string? requestedVersion)
+    {
+        if (requestedVersion is not null && Version.TryParse(requestedVersion, out var parsed))
+        {
+            var match = group.Versions.FirstOrDefault(v => v.Version == parsed);
+            if (match.Symbol is not null)
+                return match.Symbol;
+        }
+
+        return group.Best;
+    }
+
+    static void AppendVersionBanner(StringBuilder sb, TypeVersionGroup group, INamedTypeSymbol displayed)
+    {
+        if (group.Versions.Count <= 1 && group.Versions.All(v => v.Version is null))
+            return;
+
+        var versions = group.Versions
+            .Select(v => v.Version)
+            .OrderByDescending(v => v)
+            .Select(v => v?.ToString() ?? "source")
+            .ToList();
+
+        var displayedVersion = group.Versions
+            .FirstOrDefault(v => SymbolEqualityComparer.Default.Equals(v.Symbol, displayed))
+            .Version?.ToString() ?? "source";
+
+        if (group.Versions.Count > 1)
+        {
+            sb.AppendLine($"// ⚠ WARNING: This type exists in multiple versions: {string.Join(", ", versions)}");
+            sb.AppendLine($"// Showing version: {displayedVersion}. To see another version, pass version=\"<version>\" parameter.");
+        }
+        else
+        {
+            sb.AppendLine($"// NuGet version: {displayedVersion}");
+        }
+
+        sb.AppendLine();
     }
 
     void Describe(INamedTypeSymbol type, StringBuilder sb, int indent, HashSet<string> visited, string[]? memberFilters, bool inheritedCompact)
@@ -245,7 +291,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IDerived
     static string FormatTypeHeader(INamedTypeSymbol type) => TypeDeclarationFormatter.FormatHeader(type);
 
     static string FormatTypeLocation(INamedTypeSymbol type) =>
-        SourceLocationFormatter.FormatTypeLocation(type);
+        $"// {SourceLocationFormatter.FormatTypeLocation(type)}";
 
     static bool IsWellKnownFrameworkType(INamedTypeSymbol type) =>
         WellKnownFrameworkTypes.IsWellKnown(type);
