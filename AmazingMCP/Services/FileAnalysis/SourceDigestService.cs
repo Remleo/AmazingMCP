@@ -10,7 +10,11 @@ public class SourceDigestService(IXmlDocExtractor xmlDoc) : ISourceDigestService
     public string GetDigest(string source, bool includeLineNumbers)
     {
         var root = CSharpSyntaxTree.ParseText(source).GetRoot();
-        var sb   = new StringBuilder();
+
+        if (root.ChildNodes().OfType<GlobalStatementSyntax>().Any())
+            return source.TrimEnd();
+
+        var sb = new StringBuilder();
         AppendUsings(root, sb, includeLineNumbers);
         WalkNodes(root.ChildNodes(), sb, indent: 0, includeLineNumbers);
         return sb.ToString().TrimEnd();

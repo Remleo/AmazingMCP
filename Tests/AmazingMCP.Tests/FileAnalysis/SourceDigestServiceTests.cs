@@ -445,4 +445,18 @@ public class SourceDigestServiceTests
         result.Should().Contain("usings");
         result.Should().NotContain("/*[");
     }
+
+    [Test]
+    public void GetDigest_TopLevelStatements_ReturnsFullSource()
+    {
+        // arrange
+        var hostPath = Path.GetFullPath(Path.Combine(TestProjectAppPath, "..", "TestProject.Host", "Program.cs"));
+        var source = File.ReadAllText(hostPath);
+
+        // act
+        var result = _sut.GetDigest(source, includeLineNumbers: true);
+
+        // assert
+        result.Should().Be(source.TrimEnd());
+    }
 }
