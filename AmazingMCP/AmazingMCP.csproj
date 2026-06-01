@@ -12,7 +12,6 @@
 
     <!-- NuGet package identity -->
     <PackageId>HoldMyCoolantMeatbag.AmazingMCP</PackageId>
-    <Version>1.0.2</Version>
     <Authors>remleo</Authors>
     <Description>MCP server for deep C# codebase analysis via Roslyn — type search, dependency graphs, usage analysis, and architecture overviews. One server, any number of solutions.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
