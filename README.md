@@ -1,50 +1,97 @@
-﻿# AmazingMCP — Project Overview
+# AmazingMCP
 
-## What is it
+[![NuGet](https://img.shields.io/nuget/v/HoldMyCoolantMeatbag.AmazingMCP)](https://www.nuget.org/packages/HoldMyCoolantMeatbag.AmazingMCP)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![.NET 10](https://img.shields.io/badge/.NET-10-512BD4)
 
-An MCP server (Model Context Protocol) built on ASP.NET Core (.NET 10) that gives AI agents the ability to analyze C# solutions via Roslyn.
+An MCP server that gives AI agents deep understanding of C# codebases via Roslyn — type search, dependency graphs, usage analysis, and architecture overviews, all from a live in-memory compilation.
 
-The server opens `.sln`/`.slnx` files, compiles projects in memory, and enables type search, dependency map construction, and high-level architecture overview of a solution.
+**One server, any number of solutions.** Start it once and point it at any `.sln`/`.slnx` file per call — no restart needed when switching between projects.
 
-## Documentation
+## Installation
 
-- [DependencyMap — solution dependency map](docs/DependencyMap.md)
-- [ProjectDesign — high-level solution design map](docs/ProjectDesign.md)
-- [FileStructure — file structure outline](docs/FileStructure.md)
-- [QueryUsages — usage search across solution](docs/QueryUsages.md)
+```bash
+dotnet tool install -g HoldMyCoolantMeatbag.AmazingMCP
+```
+
+Requires .NET 10 SDK.
+
+## Usage
+
+```bash
+AmazingMCP
+# or on a custom port:
+AmazingMCP --urls http://localhost:9000
+```
+
+The server starts on `http://localhost:7777` by default. Each tool call accepts a `solutionWorkspacePath` parameter — the directory containing your `.sln`/`.slnx` file. Switch between solutions freely without restarting.
+
+### Command-line options
+
+| Option | Default | Description |
+|---|---|---|
+| `--urls` | `http://localhost:7777` | Listening URL |
+| `--Symbol:QueryOutputLineLimit` | `100` | Max output lines for `query_symbol` |
+| `--ReadCs:ReadOutputMaxLength` | `20000` | Max output characters for `read_large_cs_file` |
+| `--ProjectDesign:DetailsOutputMaxLength` | `30000` | Max output characters for `get_project_design_details` |
+| `--ProjectDesign:DetailsXmlDocSummaryMaxLength` | `2000` | Max XML doc summary characters in `get_project_design_details` |
+| `--QueryUsages:QueryMatchLimit` | `200` | Max usage matches for `query_usages` |
+| `--Diagnostics:IncludeExceptionDetails` | `false` | Include full exception details in tool error responses |
+
+### Claude Desktop
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "AmazingMCP": {
+      "command": "AmazingMCP"
+    }
+  }
+}
+```
 
 ## MCP Tools
 
 | Tool | Description |
 |---|---|
-| `get_project_design` | High-level map: abstraction groups by namespace and inter-group dependencies |
-| `get_project_design_details` | Detailed view of abstractions and implementations for specified namespace groups (supports `*` wildcard) |
-| `get_type_deps_and_usage` | Full dependency and usage info for a type (exact, wildcard, fuzzy search) |
-| `query_symbol` | Type search by name (including NuGet), with partial match support |
-| `get_symbol_info` | Detailed type info: properties, methods, base types, nested types (including NuGet) |
-| `get_file_structure` | Structural outline of a `.cs` file: namespaces, types, members with line/column positions — no implementations |
-| `query_usages` | Find all usages of a type across the solution: method calls, property/field access, constructor calls, generic arguments, parameter types |
+| `get_project_design` | High-level architecture map: abstraction groups by namespace and inter-group dependencies |
+| `get_project_design_details` | Detailed view of abstractions and implementations for specified namespaces (supports `*` wildcard) |
+| `query_symbol` | Find any type by name across the solution and NuGet packages |
+| `get_symbol_details` | Full type info: properties, methods, base types, nested types (including NuGet) |
+| `query_usages` | Find all usages of a type: method calls, property access, constructor calls, generic arguments |
+| `read_cs_file_digest` | Structural outline of a `.cs` file: types and members with line numbers — no implementations |
+| `read_large_cs_file` | Read specific members from large `.cs` files by name filter |
+| `decompile_type` | Decompile any type from a NuGet assembly |
+| `code_lens` | Resolve fully-qualified types for any line range in a `.cs` file |
 
-## Stack
+## How It Works
 
-- .NET 10, ASP.NET Core (Minimal API)
-- Microsoft.CodeAnalysis (Roslyn) 5.3.0 + MSBuild Workspaces
-- ModelContextProtocol.AspNetCore 1.2.0
-- HTTP transport (port 7777 in dev)
+- Opens `.sln`/`.slnx` files and compiles all projects in memory via MSBuild Workspaces
+- Workspace is cached with file watchers — `.cs` changes trigger incremental recompilation, `.csproj`/`.sln` changes invalidate the full cache
+- NuGet types are resolved and included in dependency analysis
+- Partial classes are deduplicated correctly
+- Test projects are automatically excluded from dependency analysis
 
-## Projects
+## Documentation
 
-| Project | Purpose |
-|---|---|
-| `AmazingMCP` | MCP server |
-| `AmazingMCP.Tests` | Tests (NUnit + FluentAssertions + NSubstitute) |
+- [ProjectDesign — architecture overview tool](docs/ProjectDesign.md)
+- [QueryUsages — usage search](docs/QueryUsages.md)
+- [FileStructure — file structure outline](docs/FileStructure.md)
+- [DependencyMap — dependency map](docs/DependencyMap.md)
 
-## Key Features
+## Contributing
 
-- Test projects (with `Microsoft.NET.Test.Sdk`) are automatically excluded from dependency analysis
-- NuGet types are tracked as dependencies (`SourceFilePath = null`) but do not create groups in ProjectDesign
-- Partial classes are deduplicated (the compilation owning the syntax tree is preferred)
-- Workspace is cached with file watchers: `.cs` files are recompiled incrementally, `.csproj`/`.sln` changes invalidate the cache
-- `DependencyMapService` results are cached separately (sliding expiration 2 hours)
-- Dependencies are aggregated recursively across base class chains via `IDependencyAggregator`
-- `get_file_structure` uses Roslyn SyntaxTree parsing only (no compilation) — works on any `.cs` file without a solution context
+PRs and issues are welcome. Please open an issue before submitting a large change.
+
+```bash
+git clone https://github.com/your-username/AmazingMCP
+cd AmazingMCP
+dotnet build
+dotnet test
+```
+
+## License
+
+MIT

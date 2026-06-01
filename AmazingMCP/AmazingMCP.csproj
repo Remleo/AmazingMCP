@@ -4,7 +4,28 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- dotnet tool -->
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>AmazingMCP</ToolCommandName>
+
+    <!-- NuGet package identity -->
+    <PackageId>HoldMyCoolantMeatbag.AmazingMCP</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>remleo</Authors>
+    <Description>MCP server for deep C# codebase analysis via Roslyn — type search, dependency graphs, usage analysis, and architecture overviews. One server, any number of solutions.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/remleo/AmazingMCP</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/remleo/AmazingMCP</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>mcp roslyn csharp dotnet-tool code-analysis</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="AmazingMCP.Tests" />
