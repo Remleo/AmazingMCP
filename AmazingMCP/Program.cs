@@ -18,8 +18,11 @@ using AmazingMCP.Services.Wildcard;
 using AmazingMCP.Services.Workspace;
 using AmazingMCP.Tools;
 
-if (Parser.Default.ParseArguments<CommandLineOptions>(args).Tag == ParserResultType.NotParsed)
+var parseResult = Parser.Default.ParseArguments<CommandLineOptions>(args);
+if (parseResult.Tag == ParserResultType.NotParsed)
     return;
+
+var cmdOptions = parseResult.Value;
 
 // MSBuild Locator MUST be registered before any Roslyn Workspace types are loaded
 MSBuildLocator.RegisterDefaults();
@@ -29,68 +32,74 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddMemoryCache();
 
 // Options
-builder.Services.Configure<SymbolOptions>(builder.Configuration.GetSection("Symbol"));
-builder.Services.Configure<ReadCsOptions>(builder.Configuration.GetSection("ReadCs"));
-builder.Services.Configure<ProjectDesignOptions>(builder.Configuration.GetSection("ProjectDesign"));
-builder.Services.Configure<QueryUsagesOptions>(builder.Configuration.GetSection("QueryUsages"));
-builder.Services.Configure<DiagnosticsOptions>(builder.Configuration.GetSection("Diagnostics"));
+builder.Services
+    .Configure<SymbolOptions>(builder.Configuration.GetSection("Symbol"))
+    .Configure<ReadCsOptions>(builder.Configuration.GetSection("ReadCs"))
+    .Configure<ProjectDesignOptions>(builder.Configuration.GetSection("ProjectDesign"))
+    .Configure<QueryUsagesOptions>(builder.Configuration.GetSection("QueryUsages"))
+    .Configure<DiagnosticsOptions>(builder.Configuration.GetSection("Diagnostics"));
 
 // Infrastructure
-builder.Services.AddSingleton<IWildcardPatternFactory, WildcardPatternFactory>();
-builder.Services.AddSingleton<ISolutionLoader, SolutionLoader>();
-builder.Services.AddSingleton<ISolutionWatcher, SolutionWatcher>();
-builder.Services.AddSingleton<ISolutionCache, SolutionCache>();
-builder.Services.AddSingleton<ISolutionRecompiler, SolutionRecompiler>();
-builder.Services.AddSingleton<WorkspaceProvider>();
-builder.Services.AddSingleton<IWorkspaceProvider>(sp => sp.GetRequiredService<WorkspaceProvider>());
-builder.Services.AddSingleton<ISolutionResolver, SolutionResolver>();
-builder.Services.AddSingleton<IXmlDocExtractor, XmlDocExtractor>();
-builder.Services.AddSingleton<NuGetVersionResolver>();
-builder.Services.AddKeyedSingleton<ITypeEnumerationStrategy<INamedTypeSymbol>>(TypeEnumerationMode.Simple, (_, _) => new SimpleTypeStrategy());
-builder.Services.AddKeyedSingleton<ITypeEnumerationStrategy<INamedTypeSymbol>>(TypeEnumerationMode.AllInstances, (_, _) => new AllInstancesTypeStrategy());
-builder.Services.AddKeyedSingleton<ITypeEnumerationStrategy<TypeVersionGroup>>(TypeEnumerationMode.Versioned, (_, _) => new VersionedTypeStrategy());
-builder.Services.AddSingleton<RoslynTypeProvider>();
-builder.Services.AddSingleton<IRoslynTypeProvider>(sp => sp.GetRequiredService<RoslynTypeProvider>());
-builder.Services.AddSingleton<RoslynSymbolService>();
-builder.Services.AddSingleton<ISymbolQueryService, SymbolQueryService>();
-builder.Services.AddSingleton<SymbolInfoService>();
-builder.Services.AddSingleton<IDecompileTypeService, DecompileTypeService>();
-builder.Services.AddSingleton<IFileReader, FileSystemFileReader>();
-builder.Services.AddSingleton<IFileStructureService, FileStructureService>();
-builder.Services.AddSingleton<ISourceDigestService, SourceDigestService>();
-builder.Services.AddSingleton<IFilteredSourceService, FilteredSourceService>();
-builder.Services.AddSingleton<IReadLargeCsFileService, ReadLargeCsFileService>();
-builder.Services.AddSingleton<IReadCsFileDigestService, ReadCsFileDigestService>();
+builder.Services
+    .AddSingleton<IWildcardPatternFactory, WildcardPatternFactory>()
+    .AddSingleton<ISolutionLoader, SolutionLoader>()
+    .AddSingleton<ISolutionWatcher, SolutionWatcher>()
+    .AddSingleton<ISolutionCache, SolutionCache>()
+    .AddSingleton<ISolutionRecompiler, SolutionRecompiler>()
+    .AddSingleton<WorkspaceProvider>()
+    .AddSingleton<IWorkspaceProvider>(sp => sp.GetRequiredService<WorkspaceProvider>())
+    .AddSingleton<ISolutionResolver, SolutionResolver>()
+    .AddSingleton<IXmlDocExtractor, XmlDocExtractor>()
+    .AddSingleton<NuGetVersionResolver>()
+    .AddKeyedSingleton<ITypeEnumerationStrategy<INamedTypeSymbol>>(TypeEnumerationMode.Simple, (_, _) => new SimpleTypeStrategy())
+    .AddKeyedSingleton<ITypeEnumerationStrategy<INamedTypeSymbol>>(TypeEnumerationMode.AllInstances, (_, _) => new AllInstancesTypeStrategy())
+    .AddKeyedSingleton<ITypeEnumerationStrategy<TypeVersionGroup>>(TypeEnumerationMode.Versioned, (_, _) => new VersionedTypeStrategy())
+    .AddSingleton<RoslynTypeProvider>()
+    .AddSingleton<IRoslynTypeProvider>(sp => sp.GetRequiredService<RoslynTypeProvider>())
+    .AddSingleton<RoslynSymbolService>()
+    .AddSingleton<ISymbolQueryService, SymbolQueryService>()
+    .AddSingleton<SymbolInfoService>()
+    .AddSingleton<IDecompileTypeService, DecompileTypeService>()
+    .AddSingleton<IFileReader, FileSystemFileReader>()
+    .AddSingleton<IFileStructureService, FileStructureService>()
+    .AddSingleton<ISourceDigestService, SourceDigestService>()
+    .AddSingleton<IFilteredSourceService, FilteredSourceService>()
+    .AddSingleton<IReadLargeCsFileService, ReadLargeCsFileService>()
+    .AddSingleton<IReadCsFileDigestService, ReadCsFileDigestService>();
 
 // Scanning
-builder.Services.AddSingleton<ITypeFilter, TypeFilter>();
-builder.Services.AddSingleton<IInvocationAnalyzer, InvocationAnalyzer>();
-builder.Services.AddSingleton<IMemberAccessAnalyzer, MemberAccessAnalyzer>();
-builder.Services.AddSingleton<IMemberUsageAnalyzer, MemberUsageAnalyzer>();
+builder.Services
+    .AddSingleton<ITypeFilter, TypeFilter>()
+    .AddSingleton<IInvocationAnalyzer, InvocationAnalyzer>()
+    .AddSingleton<IMemberAccessAnalyzer, MemberAccessAnalyzer>()
+    .AddSingleton<IMemberUsageAnalyzer, MemberUsageAnalyzer>();
 
 // Usage query
-builder.Services.AddSingleton<IInheritanceSearchSymbolResolver, InheritanceSearchSymbolResolver>();
-builder.Services.AddSingleton<IDerivedTypeService, RoslynDerivedTypeService>();
-builder.Services.AddSingleton<IInheritanceUsageProvider, InheritanceUsageProvider>();
-builder.Services.AddSingleton<IUsageProvider, UsageProvider>();
-builder.Services.AddSingleton<IUsageResultFormatter, UsageResultFormatter>();
-builder.Services.AddSingleton<IQueryUsagesService, QueryUsagesService>();
+builder.Services
+    .AddSingleton<IInheritanceSearchSymbolResolver, InheritanceSearchSymbolResolver>()
+    .AddSingleton<IDerivedTypeService, RoslynDerivedTypeService>()
+    .AddSingleton<IInheritanceUsageProvider, InheritanceUsageProvider>()
+    .AddSingleton<IUsageProvider, UsageProvider>()
+    .AddSingleton<IUsageResultFormatter, UsageResultFormatter>()
+    .AddSingleton<IQueryUsagesService, QueryUsagesService>();
 
-// Core services
-builder.Services.AddSingleton<ITypeCollector, TypeCollector>();
-builder.Services.AddSingleton<IAbstractionExtractor, AbstractionExtractor>();
-builder.Services.AddSingleton<IDependencyAggregator, DependencyAggregator>();
-builder.Services.AddSingleton<IDependencyMapService, DependencyMapService>();
-builder.Services.AddSingleton<IProjectDesignProvider, ProjectDesignProvider>();
-builder.Services.AddSingleton<IProjectDesignDetailsService, ProjectDesignDetailsService>();
-builder.Services.AddSingleton<IProjectDesignService, ProjectDesignService>();
-builder.Services.AddSingleton<ICodeLensService, CodeLensService>();
+// Core builder.Services
+builder.Services
+    .AddSingleton<ITypeCollector, TypeCollector>()
+    .AddSingleton<IAbstractionExtractor, AbstractionExtractor>()
+    .AddSingleton<IDependencyAggregator, DependencyAggregator>()
+    .AddSingleton<IDependencyMapService, DependencyMapService>()
+    .AddSingleton<IProjectDesignProvider, ProjectDesignProvider>()
+    .AddSingleton<IProjectDesignDetailsService, ProjectDesignDetailsService>()
+    .AddSingleton<IProjectDesignService, ProjectDesignService>()
+    .AddSingleton<ICodeLensService, CodeLensService>();
 
 // Tools
-builder.Services.AddSingleton<QuerySymbolTool>();
-builder.Services.AddSingleton<ReadLargeCsFileTool>();
-builder.Services.AddSingleton<GetProjectDesignDetailsTool>();
-builder.Services.AddSingleton<QueryUsagesTool>();
+builder.Services
+    .AddSingleton<QuerySymbolTool>()
+    .AddSingleton<ReadLargeCsFileTool>()
+    .AddSingleton<GetProjectDesignDetailsTool>()
+    .AddSingleton<QueryUsagesTool>();
 
 builder.Services
     .AddMcpServer(options =>
@@ -100,8 +109,10 @@ builder.Services
     .WithHttpTransport()
     .WithToolsFromAssembly();
 
-builder.Services.AddToolParameterValidation();
-builder.Services.AddExceptionHandling();
+builder.Services
+    .AddToolParameterValidation()
+    .AddExceptionHandling()
+    .AddDisabledTools(cmdOptions.DisabledTools);
 
 var app = builder.Build();
 

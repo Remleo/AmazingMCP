@@ -24,4 +24,7 @@ class CommandLineOptions
 
     [Option("Diagnostics:IncludeExceptionDetails", Default = false, HelpText = "Include full exception details in tool error responses")]
     public bool? DiagnosticsIncludeExceptionDetails { get; set; }
+
+    [Option("DisabledTools", Separator = ',', HelpText = "Comma-separated list of tool names to disable (e.g. get_project_design,code_lens)")]
+    public IEnumerable<string> DisabledTools { get; set; } = [];
 }
