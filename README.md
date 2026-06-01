@@ -19,9 +19,13 @@ Requires .NET 10 SDK.
 ## Usage
 
 ```bash
-AmazingMCP
-# or on a custom port:
-AmazingMCP --urls http://localhost:9000
+AmazingMCP <options>
+
+# example:
+AmazingMCP --urls=http://localhost:7777 --Diagnostics:IncludeExceptionDetails=true --Symbol:QueryOutputLineLimit=200
+
+# see all options:
+AmazingMCP --help
 ```
 
 The server starts on `http://localhost:7777` by default. Each tool call accepts a `solutionWorkspacePath` parameter — the directory containing your `.sln`/`.slnx` file. Switch between solutions freely without restarting.
@@ -38,21 +42,9 @@ The server starts on `http://localhost:7777` by default. Each tool call accepts 
 | `--QueryUsages:QueryMatchLimit` | `200` | Max usage matches for `query_usages` |
 | `--Diagnostics:IncludeExceptionDetails` | `false` | Include full exception details in tool error responses |
 
-### Claude Desktop
+### MCP Client Configuration
 
-First, start the server in your terminal:
-
-```bash
-AmazingMCP <options>
-
-# example:
-AmazingMCP --urls=http://localhost:7777 --Diagnostics:IncludeExceptionDetails=true --Symbol:QueryOutputLineLimit=200
-
-# see all options:
-AmazingMCP --help
-```
-
-Then add to `claude_desktop_config.json`:
+Add to your MCP client config (Claude Desktop, JetBrains AI, Kiro, etc.):
 
 ```json
 {
@@ -60,6 +52,29 @@ Then add to `claude_desktop_config.json`:
     "AmazingMCP": {
       "type": "http",
       "url": "http://localhost:7777"
+    }
+  }
+}
+```
+
+Then start the server manually in your terminal:
+
+```bash
+AmazingMCP --urls=http://localhost:7777 <other options>
+```
+
+Or add a launcher entry so the client starts the server automatically:
+
+```json
+{
+  "mcpServers": {
+    "AmazingMCP": {
+      "type": "http",
+      "url": "http://localhost:7777"
+    },
+    "AmazingMCP Launcher": {
+      "command": "AmazingMCP",
+      "args": ["--urls=http://localhost:7777"]
     }
   }
 }
