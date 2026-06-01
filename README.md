@@ -40,13 +40,26 @@ The server starts on `http://localhost:7777` by default. Each tool call accepts 
 
 ### Claude Desktop
 
-Add to `claude_desktop_config.json`:
+First, start the server in your terminal:
+
+```bash
+AmazingMCP <options>
+
+# example:
+AmazingMCP --urls=http://localhost:7777 --Diagnostics:IncludeExceptionDetails=true --Symbol:QueryOutputLineLimit=200
+
+# see all options:
+AmazingMCP --help
+```
+
+Then add to `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "AmazingMCP": {
-      "command": "AmazingMCP"
+      "type": "http",
+      "url": "http://localhost:7777"
     }
   }
 }
