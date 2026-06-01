@@ -1,50 +1,28 @@
-﻿# ProjectDesign — High-Level Solution Design Map
+# get_project_design / get_project_design_details — Architecture Overview
 
 ## Purpose
 
-`ProjectDesignService` builds a high-level design map of a C# solution: groups of abstractions and dependencies between them. Unlike `DependencyMap`, which operates on individual types, ProjectDesign works at the group level — showing the architectural structure of a solution without details of specific classes and interfaces.
+Two tools for understanding the high-level architecture of a C# solution.
 
-MCP tool: `get_project_design`
+- `get_project_design` — helicopter view: namespace groups and their inter-dependencies
+- `get_project_design_details` — deep dive into specific namespace groups: abstractions, implementations, and dependency details
 
-## What It Shows
+Both tools are built on top of `DependencyMapService` — see [DependencyMap.md](DependencyMap.md) for the underlying data model.
 
-A flat list of abstraction groups (no per-project split). For each group:
+---
 
-- Short name (relative to the project's root namespace)
-- Full name (full namespace)
-- Entry count (number of abstractions in the group)
-- Dependencies on other groups (full namespaces of target groups)
+## get_project_design
 
-## What Goes Into Groups
+Returns a flat list of abstraction groups (one per namespace) with their entry counts and dependencies on other groups.
 
-Groups are formed only from abstractions with `SourceFilePath != null` — i.e., types defined in the solution's source code. NuGet types (with `SourceFilePath = null`) do not form groups but participate in dependency resolution: if an implementation depends on a NuGet type, its namespace will appear in the corresponding group's `DependsOn`.
+### Input
 
-Types from test projects are excluded at the `DependencyMapService` level and do not appear in groups.
-
-## Grouping
-
-Abstractions are grouped by namespace. The root namespace is determined from `<RootNamespace>` in `.csproj`; if absent, the project name is used. The short group name is computed relative to the root namespace.
-
-| Namespace | Root namespace | Short name |
+| Parameter | Required | Description |
 |---|---|---|
-| `MyApp.Core` | `MyApp.Core` | `(root)` |
-| `MyApp.Core.Services` | `MyApp.Core` | `Services` |
-| `MyApp.Core.Mapping.Tv2` | `MyApp.Core` | `Mapping.Tv2` |
+| `solutionWorkspacePath` | Yes | Absolute path to the directory containing the `.sln`/`.slnx` file |
+| `solutionPath` | No | Explicit path to the `.sln`/`.slnx` file (required only when multiple solutions exist) |
 
-## Inter-Group Dependencies
-
-For each group, external dependencies are collected — those that go beyond the group's boundaries. Algorithm:
-
-1. Take all abstractions in the group
-2. For each abstraction, take all its implementations
-3. For standalone abstractions (not an interface, not an abstract class) — also process as an implementation
-4. For each implementation, `IDependencyAggregator.GetAllUsages()` recursively collects dependencies across the base class chain
-5. Filter: keep only those that are known abstractions and do not belong to the current group
-6. Resolve each dependency to the full namespace of the target group
-
-NuGet dependencies are resolved to the external library's namespace (e.g., `AutoMapper`, `Microsoft.Extensions.Logging`) and appear in `DependsOn` alongside source groups.
-
-## Example Output
+### Output format
 
 ```markdown
 # Project Design
@@ -53,110 +31,130 @@ NuGet dependencies are resolved to the external library's namespace (e.g., `Auto
 > To get detailed info for specific groups, call `get_project_design_details` with `forNamespaces`.
 > Use the `FullNamespace` value directly, or use `*` as a wildcard anywhere (e.g. `MyApp.App.*`, `*.Mapping`, `MyApp.*.Services`).
 
-## Configuration (TestProject.Core.Configuration)
-Entries count: 1
-
-## EventHandling (TestProject.Core.EventHandling)
+## Services (MyApp.Core.Services)
 Entries count: 3
 
-## GenericConsumers (TestProject.App.Services.GenericConsumers)
-Entries count: 1
 Depends on:
-- → TestProject.Core.EventHandling
-- → TestProject.Core.Persistence
+- MyApp.Core.Persistence
+- MyApp.Core.Configuration
 
-## Logging (TestProject.Core.Logging)
-Entries count: 1
-
-## Mapping (TestProject.App.Mapping)
-Entries count: 5
-Depends on:
-- → AutoMapper
-
-## Mapping.Tv2 (TestProject.App.Mapping.Tv2)
-Entries count: 1
-
-## Mapping.Tv3 (TestProject.App.Mapping.Tv3)
-Entries count: 1
-
-## Mapping.Tv4 (TestProject.App.Mapping.Tv4)
-Entries count: 1
-
-## Messaging (TestProject.App.Messaging)
-Entries count: 3
-Depends on:
-- → TestProject.App.Mapping
-- → TestProject.Core.EventHandling
-
-## Notifications (TestProject.Core.Notifications)
-Entries count: 1
-
-## Persistence (TestProject.Core.Persistence)
-Entries count: 3
-
-## Services (TestProject.App.Services)
-Entries count: 3
-Depends on:
-- → TestProject.Core.Configuration
-- → TestProject.Core.Persistence
-- → TestProject.Core.Services
-
-## Services (TestProject.Core.Services)
-Entries count: 3
-Depends on:
-- → TestProject.Core.Persistence
+## Persistence (MyApp.Core.Persistence)
+Entries count: 2
 ```
 
-## What Is NOT Included in the Output
+### What goes into groups
 
-- Names of specific abstractions (interfaces, classes)
-- Implementation names
-- Dependency details and member usages
-- Namespace groups without their own source-defined abstractions
-- Types from test projects
-- NuGet types as standalone groups (only as targets in `DependsOn`)
+- Only source-defined abstractions (`SourceFilePath != null`) form groups
+- NuGet types do not form groups but appear in `Depends on` (e.g. `AutoMapper`, `Microsoft.Extensions.Logging`)
+- Types from test projects are excluded
+- Groups are formed by namespace; short name is relative to the project's root namespace (`<RootNamespace>` in `.csproj`, fallback to project name)
+- Root namespace group is shown as `(root)`
 
-## Architecture
+### Inter-group dependencies
 
-`ProjectDesignService` uses `DependencyMapService` as a data source and `IDependencyAggregator` for recursive dependency collection:
+For each group, external dependencies are collected:
+1. Take all abstractions in the group
+2. For each abstraction, take all its implementations
+3. For standalone abstractions (not interface/abstract class) — also process as implementation
+4. For each implementation, `IDependencyAggregator.GetAllUsages()` recursively collects dependencies across the base class chain
+5. Filter: keep only those that are known abstractions and do not belong to the current group
+6. Resolve each dependency to the full namespace of the target group
+
+### Implementation
 
 ```
 ProjectDesignService
-├── DependencyMapService.BuildMapAsync() → DependencyMapResult
-├── Phase 1: group source abstractions by namespace
-│   └── skip abstractions with SourceFilePath = null (NuGet)
-├── Phase 2: lookup all abstractions (including NuGet) for dependency resolution
-├── Phase 3: for each group — CollectExternalDependencies()
-│   └── IDependencyAggregator.GetAllUsages() → recursive walk impl + base classes
-├── ResolveRootNamespaces() → reads <RootNamespace> from .csproj files
-├── ResolveOwningProject() → longest-prefix match namespace → project (for short name)
-└── GetRelativeNamespace() → computes the short group name
+└── IProjectDesignProvider.BuildAsync()
+    └── ProjectDesignProvider
+        ├── DependencyMapService.BuildMapAsync()      — builds full dependency map
+        ├── Phase 1: group source abstractions by namespace
+        ├── Phase 2: for each group — CollectExternalDependencies()
+        │   └── IDependencyAggregator.GetAllUsages()  — recursive walk impl + base classes
+        ├── ResolveRootNamespaces()                   — reads <RootNamespace> from .csproj files
+        └── GetRelativeNamespace()                    — computes short group name
 ```
 
-`BuildFromDependencyMap` is an `internal static` method, enabling testing of the logic without async dependencies.
+---
 
-## Models
+## get_project_design_details
+
+Deep-dives into specific namespace groups: shows each abstraction with its implementations and dependency details.
+
+### Input
+
+| Parameter | Required | Description |
+|---|---|---|
+| `solutionWorkspacePath` | Yes | Absolute path to the directory containing the `.sln`/`.slnx` file |
+| `forNamespaces` | Yes | Namespace patterns to include. Supports `*` wildcard anywhere. At least one required |
+| `includeDependencyUsage` | No | When `true`, shows which methods/properties are called on each dependency. Default: `false` |
+| `includeImplementations` | No | When `true` (default), shows the list of implementations for each abstraction |
+| `solutionPath` | No | Explicit path to the `.sln`/`.slnx` file (required only when multiple solutions exist) |
+
+### Output format
+
+```markdown
+# Project Design Details
+
+> Namespaces: `MyApp.Core.Services`
+> Abstractions found: 3
+
+## MyApp.Core.Services.IAnimalService
+> Manages animal lifecycle operations.
+
+### Implementations
+- MyApp.App.Services.AnimalService
+
+### Depends on
+- MyApp.Core.Persistence.IAnimalRepository
+  - FindById()
+  - Save()
+- MyApp.Core.Logging.ILogger
+  - LogInformation()
+```
+
+### Namespace pattern matching
+
+Patterns are matched against the abstraction's **namespace** (not full name):
+- `MyApp.Core.Services` — exact namespace match
+- `MyApp.Core.*` — all namespaces starting with `MyApp.Core.`
+- `*.Services` — all namespaces ending with `.Services`
+- `*` — all namespaces
+
+### Dependency usage format
+
+When `includeDependencyUsage: true`, each dependency shows the member-level calls:
+- `MethodName()` — method call
+- `PropertyName {get}` — property getter
+- `PropertyName {set}` — property setter
+
+Closed generic dependencies are collapsed to their open generic form when the open generic exists in abstractions (e.g. `IRepository<Animal>` + `IRepository<Order>` → `IRepository<T>`).
+
+### Output size control
+
+Output is truncated at `--ProjectDesign:DetailsOutputMaxLength` (default 30 000 chars) with a hint to use more specific namespaces or disable `includeDependencyUsage`/`includeImplementations`.
+
+XML doc summaries are truncated at `--ProjectDesign:DetailsXmlDocSummaryMaxLength` (default 2 000 chars).
+
+### Implementation
 
 ```
-ProjectDesignResult
-└── Groups: IReadOnlyList<AbstractionGroup>
-    ├── FullName (full namespace)
-    ├── Name (short name, "" for root)
-    ├── EntryCount
-    └── DependsOn: IReadOnlyList<string> (full namespaces of target groups, including NuGet)
+ProjectDesignDetailsService
+├── DependencyMapService.BuildMapAsync()
+├── Filter abstractions by namespace patterns (wildcard match)
+├── For each abstraction:
+│   ├── Show XML doc summary (if present)
+│   ├── List implementations (if includeImplementations)
+│   └── Collect dependencies via IDependencyAggregator.GetAllUsages()
+│       └── Collapse closed generics via GenericCollapseHelper
+└── Truncate output if > DetailsOutputMaxLength
 ```
 
-## Tests
+---
 
-Tests are located in `Tests/AmazingMCP.Tests/ProjectDesignServiceTests.cs`:
+## Typical agent workflow
 
-| Area | Coverage |
-|---|---|
-| Flat groups | Source groups present, Infrastructure absent, sub-namespaces (Mapping.Tv2/Tv3/Tv4), GenericConsumers |
-| NuGet exclusion | NuGet types do not create groups but appear in DependsOn |
-| EntryCount | Entry counts in Services, Persistence groups |
-| DependsOn | Cross-group deps, NuGet deps (AutoMapper), internal deps excluded, GenericConsumers → Persistence + EventHandling |
-| ResolveOwningProject | Exact match, longest-prefix, fallback |
-| GetRelativeNamespace | Root, child, empty root, different root |
-| ExtractRootNamespace | With tag, without tag |
-| Markdown | No project headers, group headers, full name, entries count label, depends on with full namespaces |
+```
+1. get_project_design()                                    → see all namespace groups and dependencies
+2. get_project_design_details(["MyApp.Core.Services"])     → drill into a specific group
+3. get_project_design_details(["MyApp.Core.*"], includeDependencyUsage: true) → full details with call info
+```

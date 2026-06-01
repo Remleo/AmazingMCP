@@ -159,7 +159,7 @@ Determines which types are excluded from the dependency map. Two methods:
 
 ## Caching
 
-The `BuildMapAsync` result is cached in `IMemoryCache` by the full path to the solution file. Sliding expiration — 2 hours.
+The `BuildMapAsync` result is cached in `IMemoryCache` by the full path to the solution file. Absolute expiration — 5 minutes.
 
 ## Service Architecture
 

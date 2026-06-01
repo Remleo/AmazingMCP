@@ -2,11 +2,9 @@
 
 ## Purpose
 
-`query_usages` traverses the entire solution via Roslyn and finds all usages of a given type —
-method calls, property/field access, constructor calls, generic arguments, return types, and parameter types.
+`query_usages` traverses the entire solution via Roslyn and finds all usages of a given type — method calls, property/field access, constructor calls, generic arguments, return types, parameter types, inheritance, `nameof`, `typeof`, and `is`/`as` checks.
 
-Results are grouped by containing type and file, and rendered as annotated source code snippets
-inside a single `csharp` block per file.
+Results are grouped by containing type and file, and rendered as annotated source code snippets inside a single `csharp` block per file.
 
 ## Input
 
@@ -25,19 +23,17 @@ The fully qualified name of the type to search for — must include the namespac
 
 - Example: `MyApp.Core.IRequestStream`
 - For closed generics, all type arguments must also be fully qualified: `System.Collections.Generic.List<MyApp.Core.Animal>`
-- For open generics, argument names must match the declaration: `System.Collections.Generic.IEnumerable<T>`
+- For open generics, argument names must match the declaration: `MyApp.Persistance.IRepository<TKey, TValue>`
 
-If no usages are found, verify the name is correct:
-- Use `query_symbol` to locate the type and see its fully qualified name
-- Use `code_lens` on any line where the type appears — it shows the full name of every type in the span
+If no usages are found, the tool returns a detailed hint explaining how to find the correct full name using `query_symbol` or `code_lens`.
 
 ### predicate
 
-A C# boolean expression evaluated as `Func<QueryEntry, bool>` with variable `x`.
+A C# boolean expression evaluated as `Func<QueryEntry, bool>` with variable `x`. Compiled via `CSharpCompilation` into a dynamic assembly at runtime.
 
-Supports `&&`, `||`, `()` for complex conditions. Allowed static calls: `Enumerable`, `String`, `Math`, `Convert`, `Enum`, `Type`.
+Supports `&&`, `||`, `()`. Allowed static calls: `Enumerable`, `String`, `Math`, `Convert`, `Enum`, `Type`. Instance method calls on any type are always allowed.
 
-Forbidden: `new`, lambda expressions, type declarations, static calls outside the whitelist.
+Forbidden: `new`, lambda expressions, anonymous methods, type declarations, static calls outside the whitelist.
 
 **`QueryEntry` fields:**
 
@@ -54,39 +50,37 @@ Forbidden: `new`, lambda expressions, type declarations, static calls outside th
 
 | Value | Description |
 |---|---|
-| `MethodCall` | Instance method call with explicit receiver (`_repo.FindById(...)`) |
+| `MethodCall` | Instance method call with explicit receiver |
 | `ConstructorCall` | `new MyType(...)` or `new(...)` |
 | `PropertyRead` | Property getter access |
 | `PropertyWrite` | Property setter or object initializer |
 | `FieldRead` | Field read |
 | `FieldWrite` | Field write or object initializer |
-| `TypeAsGenericArgument` | Type used as generic argument: `List<MyType>`, `IHandler<MyType, int>` |
-| `TypeAsGenericConstraint` | Type used in `where T : MyType` |
-| `TypeAsReturnType` | Type used as return type of a method, property, or field declaration |
-| `TypeAsParameter` | Type used as a method or constructor parameter type |
+| `GenericArgument` | Type used as generic argument: `List<MyType>` |
+| `GenericConstraint` | Type used in `where T : MyType` |
+| `ReturnType` | Type used as return type of a method, property, or field |
+| `Parameter` | Type used as a method or constructor parameter type |
+| `Inheritance` | Type appears in base type list or interface list |
+| `NameOf` | `nameof(MyType)` |
+| `TypeOf` | `typeof(MyType)` |
+| `IsOrAs` | `x is MyType` or `x as MyType` |
 
-**Note:** Self-references (accessing own fields/methods without explicit receiver) are excluded.
+### scanInclude / scanExclude
 
-### scanInclude
+Restrict which **containing types** are traversed. Does not affect what is searched — only where.
 
-Restricts which **containing types** are traversed. Does not affect what is searched — only where.
-
-- Leave `null` to scan the entire solution
-- Supports `*` wildcard: `["MyApp.Services.*", "MyApp.Core.*"]`
-
-### scanExclude
-
-Excludes specific **containing types** from traversal. Takes precedence over `scanInclude`.
-
-- Leave `null` to exclude nothing
-- Supports `*` wildcard: `["*.Tests.*", "MyApp.Generated.*"]`
+- `scanInclude: ["MyApp.Services.*"]` — only scan types in that namespace
+- `scanExclude: ["*.Tests.*"]` — skip test types
+- `scanExclude` takes precedence over `scanInclude`
 
 ## Output format
 
-Results are grouped by `TypeName + FilePath`. Each group is rendered as a single `csharp` block:
+Results are grouped by `TypeName + FilePath`. Each group is rendered as:
 
 ```
-## My.Namespace.MyClass  `path/to/File.cs`
+## MyApp.Services.AnimalService
+
+file: C:\...\AnimalService.cs
 
 ```csharp
     // line 10 +1
@@ -98,9 +92,8 @@ Results are grouped by `TypeName + FilePath`. Each group is rendered as a single
         return result;
     // ...
         // lines 44 +7
-        _sut = new RefreshRequestStream(
-            _betContentSearcher,
-            ...
+        _sut = new AnimalService(
+            _repository,
             _logger);
 ```
 
@@ -110,28 +103,13 @@ Results are grouped by `TypeName + FilePath`. Each group is rendered as a single
 - `// lines N +K` — multi-line section (K = line count)
 - `// ...` — cut separator between non-adjacent sections; indented to match the surrounding code
 
-### Method definition headers
-
-When a usage is inside a method body, the method signature is shown before the first section from that method:
-
-```csharp
-    // lines 30 +47
-    public void SetUp()
-    {
-    // ...
-        // line 37 +1
-        _logger = Substitute.For<ILogger<RefreshRequestStream>>();
-```
-
-The annotation `// lines N +K` on the definition header reflects the **full method span** (signature + body), so the reader knows the total extent and can read the relevant lines directly. The definition is shown **once per method per file**, even if the method has multiple non-adjacent matches.
-
 ### Section resolution
 
 For each matched usage node, `SectionResolver` walks up the AST:
 
-- **`BlockSyntax` encountered first:** the parent node's total span (block + keyword line) is measured.
+- **`BlockSyntax` encountered first:** measures the parent node's total span.
   - If ≤ 8 lines → section is the **full parent** (e.g. `catch (...) { ... }`, `if (...) { ... }`)
-  - If > 8 lines → section falls back to the **usage node itself** (no surrounding context)
+  - If > 8 lines → section falls back to the **usage node itself**
 - **Other qualifying ancestor found first:**
 
 | Ancestor | Section span |
@@ -143,27 +121,51 @@ For each matched usage node, `SectionResolver` walks up the AST:
 | `FieldDeclarationSyntax` | Full field declaration |
 | `ReturnStatementSyntax` | Full `return ...` |
 | `ThrowStatementSyntax` / `ThrowExpressionSyntax` | Full `throw ...` |
-| `IfStatementSyntax` | Condition only — when usage is **in the condition**, not the body |
-| `WhileStatementSyntax` | Condition only — when usage is **in the condition**, not the body |
+| `IfStatementSyntax` | Condition only — when usage is in the condition, not the body |
+| `WhileStatementSyntax` | Condition only — when usage is in the condition, not the body |
 | `ForStatementSyntax` | Condition + initializer (not body) |
 | `ParameterSyntax` in primary constructor | Entire `ParameterListSyntax` |
 | `PropertyDeclarationSyntax` | Type declaration line only |
+| `MethodDeclarationSyntax` / `ConstructorDeclarationSyntax` | Signature lines (from attributes to opening brace) |
 
-**Note on `TypeName`:** for method calls and property/field access, `TypeName` reflects the **receiver's actual type** (e.g. `ILogger<RefreshRequestStream>`), not the declaring type. This means searching for `*ILogger*` finds calls like `logger.LogInformation(...)` even when `LogInformation` is an extension method declared on a different type.
+### Truncation
 
-### Predicate safety (`PredicateSafetyValidator`)
+Output is truncated at `--QueryUsages:QueryMatchLimit` (default 200 matches) with a note:
+```
+> Too many results (200+ matches). Output is truncated. Narrow your query using a more specific predicate or add scanInclude/scanExclude.
+```
 
-Before compilation, the predicate expression is parsed and validated:
-- Forbidden: `new`, lambda expressions, anonymous methods, type declarations
-- Static calls allowed only from: `Enumerable`, `String`, `Math`, `Convert`, `Enum`, `Type`
-- Instance method calls on any type are always allowed
+## Implementation
 
-The predicate is compiled via `CSharpCompilation` into a dynamic assembly and invoked per entry.
+```
+QueryUsagesService
+├── IUsageProvider.QueryAsync()
+│   └── UsageProvider
+│       ├── UsagePredicateCompiler.CompileAsync()     — compiles predicate via CSharpCompilation
+│       │   └── PredicateSafetyValidator              — validates predicate before compilation
+│       ├── IWorkspaceProvider.GetSolutionAsync()
+│       ├── Per compilation → per syntax tree:
+│       │   └── UsageSyntaxWalker (CSharpSyntaxWalker)
+│       │       ├── Scope stack: tracks current type + method + definition range
+│       │       ├── TryEnterType() — applies scanInclude/scanExclude filters
+│       │       ├── VisitMethodDeclaration/ConstructorDeclaration/PropertyDeclaration — tracks method scope
+│       │       └── DefaultVisit() — QueryEntryFactory.TryCreate() per node → predicate → SectionResolver.Resolve()
+│       │           └── QueryEntryFactory — creates QueryEntry for each usage kind
+│       └── IInheritanceUsageProvider.FindMatches()  — finds Inheritance usages (base type lists)
+└── IUsageResultFormatter.Format()
+    └── UsageResultFormatter
+        ├── Groups by (TypeName, FilePath)
+        ├── MergeRanges() — merges overlapping section + method definition ranges
+        └── AppendCodeLines() — reads source file lines, formats with // line N +K annotations
+```
 
-### Output formatting (`UsageResultFormatter`)
+## Typical agent workflow
 
-1. All section ranges for a file are merged globally (sorted by start line, overlapping ranges joined)
-2. For each merged block, methods whose definitions are not fully contained in the block are shown as headers
-3. Each method definition is shown at most once per file
-4. `// ...` separators use the indentation of the following code block
-5. Leading attributes (`[...]`) and XML doc comments (`///`) are stripped from method definition headers
+```
+1. query_symbol("IAnimalRepository")                          → find the full type name
+2. query_usages("MyApp.Core.IAnimalRepository")               → find all usages
+3. query_usages("MyApp.Core.IAnimalRepository",
+     predicate: "x.Kind == UsageKind.ConstructorCall")        → only instantiations
+4. query_usages("MyApp.Core.IAnimalRepository",
+     scanInclude: ["MyApp.Services.*"])                       → only in services
+```

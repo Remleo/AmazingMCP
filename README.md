@@ -6,8 +6,6 @@
 
 An MCP server that gives AI agents deep understanding of C# codebases via Roslyn — type search, dependency graphs, usage analysis, and architecture overviews, all from a live in-memory compilation.
 
-**One server, any number of solutions.** Start it once and point it at any `.sln`/`.slnx` file per call — no restart needed when switching between projects.
-
 ## Installation
 
 ```bash
@@ -15,6 +13,27 @@ dotnet tool install -g HoldMyCoolantMeatbag.AmazingMCP
 ```
 
 Requires .NET 10 SDK.
+
+## MCP Tools
+
+| Tool | Description |
+|---|---|
+| `query_symbol` | Find any type by name across the solution and NuGet packages |
+| `get_symbol_details` | Full type info: properties, methods, base types, nested types (including NuGet) |
+| `query_usages` | Find all usages of a type across the solution: method calls, constructor calls, property access, generic arguments, inheritance, `nameof`, `typeof`, `is`/`as`. Supports predicate filtering and scan scope control |
+| `read_cs_file_digest` | Token-efficient entry point for large `.cs` files (hundreds or thousands of lines): returns a structural outline — types and members with line numbers, no implementations. Use this first, then fetch only the members you need with `read_large_cs_file` |
+| `read_large_cs_file` | Read specific member implementations from a `.cs` file by name filter — use after `read_cs_file_digest` to load only what's relevant instead of the entire file |
+| `decompile_type` | Decompile any type from a NuGet assembly to C# source — no external tools required, ILSpy is built in |
+| `code_lens` | Resolve fully-qualified types for any line range in a `.cs` file: local variables, field/property types, method call signatures, object creations, and declarations — all from the Roslyn semantic model |
+| `get_project_design` | High-level architecture map: abstraction groups by namespace and inter-group dependencies |
+| `get_project_design_details` | Detailed view of abstractions and implementations for specified namespaces (supports `*` wildcard) |
+
+## Features
+
+- **One server, any number of solutions** — start it once and point it at any project per call, no restart needed when switching between solutions.
+- **Live in-memory compilation** — opens `.sln`/`.slnx` via MSBuild Workspaces and compiles all projects in memory. All tools run against a real Roslyn semantic model, not text search.
+- **Incremental cache** — workspace is cached with file watchers. `.cs` changes trigger incremental recompilation; `.csproj`/`.sln` changes invalidate the full cache. First call per solution is slow; subsequent calls are instant.
+- **NuGet-aware** — NuGet types are fully resolved and searchable alongside source types. `query_symbol`, `get_symbol_details`, and `decompile_type` work on any referenced package.
 
 ## Usage
 
@@ -28,7 +47,7 @@ AmazingMCP --urls=http://localhost:7777 --Diagnostics:IncludeExceptionDetails=tr
 AmazingMCP --help
 ```
 
-The server starts on `http://localhost:7777` by default. Each tool call accepts a `solutionWorkspacePath` parameter — the directory containing your `.sln`/`.slnx` file. Switch between solutions freely without restarting.
+The server starts on `http://localhost:7777` by default. Each tool call accepts a `solutionWorkspacePath` parameter — the directory containing your `.sln`/`.slnx` file.
 
 ### Command-line options
 
@@ -81,33 +100,15 @@ Or add a launcher entry so the client starts the server automatically:
 }
 ```
 
-## MCP Tools
-
-| Tool | Description |
-|---|---|
-| `get_project_design` | High-level architecture map: abstraction groups by namespace and inter-group dependencies |
-| `get_project_design_details` | Detailed view of abstractions and implementations for specified namespaces (supports `*` wildcard) |
-| `query_symbol` | Find any type by name across the solution and NuGet packages |
-| `get_symbol_details` | Full type info: properties, methods, base types, nested types (including NuGet) |
-| `query_usages` | Find all usages of a type: method calls, property access, constructor calls, generic arguments |
-| `read_cs_file_digest` | Structural outline of a `.cs` file: types and members with line numbers — no implementations |
-| `read_large_cs_file` | Read specific members from large `.cs` files by name filter |
-| `decompile_type` | Decompile any type from a NuGet assembly |
-| `code_lens` | Resolve fully-qualified types for any line range in a `.cs` file |
-
-## How It Works
-
-- Opens `.sln`/`.slnx` files and compiles all projects in memory via MSBuild Workspaces
-- Workspace is cached with file watchers — `.cs` changes trigger incremental recompilation, `.csproj`/`.sln` changes invalidate the full cache
-- NuGet types are resolved and included in dependency analysis
-- Partial classes are deduplicated correctly
-- Test projects are automatically excluded from dependency analysis
 
 ## Documentation
 
-- [ProjectDesign — architecture overview tool](docs/ProjectDesign.md)
+- [QuerySymbol — type and member search](docs/QuerySymbol.md)
 - [QueryUsages — usage search](docs/QueryUsages.md)
-- [FileStructure — file structure outline](docs/FileStructure.md)
+- [CodeLens — type resolution for a code span](docs/CodeLens.md)
+- [FileStructure — token-efficient file reading](docs/FileStructure.md)
+- [DecompileType — NuGet assembly decompilation](docs/DecompileType.md)
+- [ProjectDesign — architecture overview tool](docs/ProjectDesign.md)
 - [DependencyMap — dependency map](docs/DependencyMap.md)
 
 ## Contributing
@@ -115,7 +116,7 @@ Or add a launcher entry so the client starts the server automatically:
 PRs and issues are welcome. Please open an issue before submitting a large change.
 
 ```bash
-git clone https://github.com/your-username/AmazingMCP
+git clone https://github.com/HoldMyCoolantMeatbag/AmazingMCP
 cd AmazingMCP
 dotnet build
 dotnet test
