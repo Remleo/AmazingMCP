@@ -1,4 +1,4 @@
-# AmazingMCP
+# AmazingMCP — MCP Server for .NET / C# Codebases
 
 [![NuGet](https://img.shields.io/nuget/v/HoldMyCoolantMeatbag.AmazingMCP)](https://www.nuget.org/packages/HoldMyCoolantMeatbag.AmazingMCP)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
