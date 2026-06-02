@@ -18,7 +18,7 @@ Requires .NET 10 SDK.
 
 | Tool | Description |
 |---|---|
-| `query_symbol` | Find any type by name across the solution and NuGet packages |
+| `query_symbol` | Find types, members (methods, properties, fields), extension methods, constants, and enum values across the solution and NuGet packages |
 | `get_symbol_details` | Full type info: properties, methods, base types, nested types (including NuGet) |
 | `query_usages` | Find all usages of a type across the solution: method calls, constructor calls, property/field read and write, generic arguments and constraints, return types, parameter types, inheritance, `nameof`, `typeof`, `is`/`as`. Supports predicate filtering and scan scope control |
 | `read_cs_file_digest` | Token-efficient entry point for large `.cs` files (hundreds or thousands of lines): returns a structural outline — types and members with line numbers, no implementations. Use this first, then fetch only the members you need with `read_large_cs_file` |
