@@ -20,7 +20,7 @@ Requires .NET 10 SDK.
 |---|---|
 | `query_symbol` | Find any type by name across the solution and NuGet packages |
 | `get_symbol_details` | Full type info: properties, methods, base types, nested types (including NuGet) |
-| `query_usages` | Find all usages of a type across the solution: method calls, constructor calls, property access, generic arguments, inheritance, `nameof`, `typeof`, `is`/`as`. Supports predicate filtering and scan scope control |
+| `query_usages` | Find all usages of a type across the solution: method calls, constructor calls, property/field read and write, generic arguments and constraints, return types, parameter types, inheritance, `nameof`, `typeof`, `is`/`as`. Supports predicate filtering and scan scope control |
 | `read_cs_file_digest` | Token-efficient entry point for large `.cs` files (hundreds or thousands of lines): returns a structural outline — types and members with line numbers, no implementations. Use this first, then fetch only the members you need with `read_large_cs_file` |
 | `read_large_cs_file` | Read specific member implementations from a `.cs` file by name filter — use after `read_cs_file_digest` to load only what's relevant instead of the entire file |
 | `decompile_type` | Decompile any type from a NuGet assembly to C# source — no external tools required, ILSpy is built in |
@@ -41,13 +41,13 @@ Requires .NET 10 SDK.
 AmazingMCP <options>
 
 # example:
-AmazingMCP --urls=http://localhost:7777 --Diagnostics:IncludeExceptionDetails=true --Symbol:QueryOutputLineLimit=200
+AmazingMCP --urls=http://localhost:7777 --Symbol:QueryOutputLineLimit=50 --ReadCs:ReadOutputMaxLength=50000
 
 # see all options:
 AmazingMCP --help
 ```
 
-The server starts on `http://localhost:7777` by default. Each tool call accepts a `solutionWorkspacePath` parameter — the directory containing your `.sln`/`.slnx` file.
+The server starts on `http://localhost:7777` by default.
 
 ### Command-line options
 
@@ -59,7 +59,7 @@ The server starts on `http://localhost:7777` by default. Each tool call accepts 
 | `--ProjectDesign:DetailsOutputMaxLength` | `30000` | Max output characters for `get_project_design_details` |
 | `--ProjectDesign:DetailsXmlDocSummaryMaxLength` | `2000` | Max XML doc summary characters in `get_project_design_details` |
 | `--QueryUsages:QueryMatchLimit` | `200` | Max usage matches for `query_usages` |
-| `--Diagnostics:IncludeExceptionDetails` | `false` | Include full exception details in tool error responses |
+| `--Diagnostics:IncludeExceptionDetails` | `false` | Include full exception details in tool error responses (for diagnostics) |
 | `--DisabledTools` | _(none)_ | Comma-separated list of tool names to disable (e.g. `code_lens,get_project_design`) |
 
 ### MCP Client Configuration
@@ -116,7 +116,7 @@ Or add a launcher entry so the client starts the server automatically:
 PRs and issues are welcome. Please open an issue before submitting a large change.
 
 ```bash
-git clone https://github.com/HoldMyCoolantMeatbag/AmazingMCP
+git clone https://github.com/remleo/AmazingMCP
 cd AmazingMCP
 dotnet build
 dotnet test
