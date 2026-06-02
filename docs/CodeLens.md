@@ -145,5 +145,5 @@ CodeLensService (orchestrator)
 ```
 1. read_cs_file_digest(filePath)                      → see all members with line positions
 2. code_lens(filePath, startLine=27, endLine=52)      → resolve all types in the method body
-3. get_symbol_details(fullTypeName)                   → drill into a specific type if needed
+3. get_type_details(fullTypeName)                   → drill into a specific type if needed
 ```

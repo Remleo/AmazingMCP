@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests.SymbolQuery;
 public class SymbolInfoServiceTestsXmlDoc : SymbolInfoServiceTestsBase
 {
     [Test]
-    public async Task GetSymbolInfoAsync_SourceType_DoesNotContainXmlDoc()
+    public async Task GetTypeDetailsAsync_SourceType_DoesNotContainXmlDoc()
     {
         // Source types have no ISymbol XML doc — only syntax-based doc shown via FileDigest
         var result = await Act("TestProject.Core.Models.Animal");
@@ -17,7 +17,7 @@ public class SymbolInfoServiceTestsXmlDoc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ThirdPartyType_XmlDocAppearsBeforeTypeHeader()
+    public async Task GetTypeDetailsAsync_ThirdPartyType_XmlDocAppearsBeforeTypeHeader()
     {
         // AutoMapper.TypeMap has XML doc on the type itself
         var result = await Act("AutoMapper.TypeMap");
@@ -30,7 +30,7 @@ public class SymbolInfoServiceTestsXmlDoc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ThirdPartyType_MultilineXmlDocHasTripleSlashOnEveryLine()
+    public async Task GetTypeDetailsAsync_ThirdPartyType_MultilineXmlDocHasTripleSlashOnEveryLine()
     {
         // IMapper's doc is multi-line — every line must start with "///"
         var result = await Act("AutoMapper.IMapper");
@@ -46,7 +46,7 @@ public class SymbolInfoServiceTestsXmlDoc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ThirdPartyType_XmlDocDoesNotContainMemberWrapperTag()
+    public async Task GetTypeDetailsAsync_ThirdPartyType_XmlDocDoesNotContainMemberWrapperTag()
     {
         // GetDocumentationCommentXml() wraps content in <member name="..."> — must be stripped
         var result = await Act("AutoMapper.IMapper");
@@ -56,7 +56,7 @@ public class SymbolInfoServiceTestsXmlDoc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ThirdPartyType_XmlDocContainsSummaryTag()
+    public async Task GetTypeDetailsAsync_ThirdPartyType_XmlDocContainsSummaryTag()
     {
         // after stripping <member>, the <summary> content should be present
         var result = await Act("AutoMapper.IMapper");
@@ -66,7 +66,7 @@ public class SymbolInfoServiceTestsXmlDoc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ThirdPartyType_MemberXmlDocAppearsBeforeMemberSignature()
+    public async Task GetTypeDetailsAsync_ThirdPartyType_MemberXmlDocAppearsBeforeMemberSignature()
     {
         // doc for a member must appear before the member's signature line
         var result = await Act("AutoMapper.IMapper");
@@ -76,7 +76,7 @@ public class SymbolInfoServiceTestsXmlDoc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ThirdPartyBaseType_XmlDocIsShown()
+    public async Task GetTypeDetailsAsync_ThirdPartyBaseType_XmlDocIsShown()
     {
         // When a third-party type has a third-party base type, the base type's doc should also appear.
         // AutoMapper.Mapper extends internal base — use IMapper which has IMapperBase as interface.

@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests.SymbolQuery;
 public class SymbolInfoServiceTestsPartialType : SymbolInfoServiceTestsBase
 {
     [Test]
-    public async Task GetSymbolInfoAsync_PartialType_ContainsBothFileNames()
+    public async Task GetTypeDetailsAsync_PartialType_ContainsBothFileNames()
     {
         // act
         var result = await Act("TestProject.Core.Models.PartialAnimal");
@@ -17,7 +17,7 @@ public class SymbolInfoServiceTestsPartialType : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_PartialType_DoesNotContainLineNumber()
+    public async Task GetTypeDetailsAsync_PartialType_DoesNotContainLineNumber()
     {
         // act
         var result = await Act("TestProject.Core.Models.PartialAnimal");
@@ -28,7 +28,7 @@ public class SymbolInfoServiceTestsPartialType : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_PartialType_FilesGroupedUnderSameDirectory()
+    public async Task GetTypeDetailsAsync_PartialType_FilesGroupedUnderSameDirectory()
     {
         // act
         var result = await Act("TestProject.Core.Models.PartialAnimal");
@@ -41,7 +41,7 @@ public class SymbolInfoServiceTestsPartialType : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_SingleFileType_ContainsLineNumber()
+    public async Task GetTypeDetailsAsync_SingleFileType_ContainsLineNumber()
     {
         // act
         var result = await Act("TestProject.Core.Models.Animal");

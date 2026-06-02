@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests.SymbolQuery;
 public class SymbolInfoServiceTestsOperators : SymbolInfoServiceTestsBase
 {
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithImplicitOperator_ReturnsImplicitOperator()
+    public async Task GetTypeDetailsAsync_TypeWithImplicitOperator_ReturnsImplicitOperator()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalWeight");
@@ -16,7 +16,7 @@ public class SymbolInfoServiceTestsOperators : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithExplicitOperator_ReturnsExplicitOperator()
+    public async Task GetTypeDetailsAsync_TypeWithExplicitOperator_ReturnsExplicitOperator()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalWeight");
@@ -26,7 +26,7 @@ public class SymbolInfoServiceTestsOperators : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithUserDefinedOperator_ReturnsOperator()
+    public async Task GetTypeDetailsAsync_TypeWithUserDefinedOperator_ReturnsOperator()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalWeight");
@@ -36,7 +36,7 @@ public class SymbolInfoServiceTestsOperators : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithComparisonOperators_ReturnsBothOperators()
+    public async Task GetTypeDetailsAsync_TypeWithComparisonOperators_ReturnsBothOperators()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalWeight");

@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests.SymbolQuery;
 public class SymbolInfoServiceTestsMisc : SymbolInfoServiceTestsBase
 {
     [Test]
-    public async Task GetSymbolInfoAsync_SourceType_ContainsSourceFileInfo()
+    public async Task GetTypeDetailsAsync_SourceType_ContainsSourceFileInfo()
     {
         // act
         var result = await Act("TestProject.Core.Models.Animal");
@@ -17,7 +17,7 @@ public class SymbolInfoServiceTestsMisc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ExtensionMethod_ShowsThisParameter()
+    public async Task GetTypeDetailsAsync_ExtensionMethod_ShowsThisParameter()
     {
         // act
         var result = await Act("TestProject.App.Helpers.AnimalExtensions");
@@ -27,7 +27,7 @@ public class SymbolInfoServiceTestsMisc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ExtensionMethod_AllMethodsShowThisParameter()
+    public async Task GetTypeDetailsAsync_ExtensionMethod_AllMethodsShowThisParameter()
     {
         // act
         var result = await Act("TestProject.App.Helpers.AnimalExtensions");
@@ -39,7 +39,7 @@ public class SymbolInfoServiceTestsMisc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_Interface_ContainsKnownImplementors()
+    public async Task GetTypeDetailsAsync_Interface_ContainsKnownImplementors()
     {
         // act
         var result = await Act("TestProject.Core.Services.IAnimalService");
@@ -52,7 +52,7 @@ public class SymbolInfoServiceTestsMisc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_AbstractClass_ContainsKnownDerivedTypes()
+    public async Task GetTypeDetailsAsync_AbstractClass_ContainsKnownDerivedTypes()
     {
         // act
         var result = await Act("TestProject.App.Services.AnimalServiceBase");
@@ -63,7 +63,7 @@ public class SymbolInfoServiceTestsMisc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_InterfaceWithNoImplementors_DoesNotContainDerivedSection()
+    public async Task GetTypeDetailsAsync_InterfaceWithNoImplementors_DoesNotContainDerivedSection()
     {
         // act — IAnimalValidator has no implementors in the test solution
         var result = await Act("TestProject.Core.Services.IAnimalValidator");
@@ -74,7 +74,7 @@ public class SymbolInfoServiceTestsMisc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_Interface_KnownImplementors_ContainSourceFileInfo()
+    public async Task GetTypeDetailsAsync_Interface_KnownImplementors_ContainSourceFileInfo()
     {
         // act
         var result = await Act("TestProject.Core.Services.IAnimalService");
@@ -88,7 +88,7 @@ public class SymbolInfoServiceTestsMisc : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_AbstractClass_KnownDerivedTypes_ContainSourceFileInfo()
+    public async Task GetTypeDetailsAsync_AbstractClass_KnownDerivedTypes_ContainSourceFileInfo()
     {
         // act
         var result = await Act("TestProject.App.Services.AnimalServiceBase");

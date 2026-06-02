@@ -19,7 +19,7 @@ Requires .NET 10 SDK.
 | Tool | Description |
 |---|---|
 | `query_symbol` | Find types, members (methods, properties, fields), extension methods, constants, and enum values across the solution and NuGet packages |
-| `get_symbol_details` | Full type info: properties, methods, base types, nested types (including NuGet) |
+| `get_type_details` | Full type info: properties, methods, base types, nested types (including NuGet) |
 | `query_usages` | Find all usages of a type across the solution: method calls, constructor calls, property/field read and write, generic arguments and constraints, return types, parameter types, inheritance, `nameof`, `typeof`, `is`/`as`. Supports predicate filtering and scan scope control |
 | `read_cs_file_digest` | Token-efficient entry point for large `.cs` files (hundreds or thousands of lines): returns a structural outline — types and members with line numbers, no implementations. Use this first, then fetch only the members you need with `read_large_cs_file` |
 | `read_large_cs_file` | Read specific member implementations from a `.cs` file by name filter — use after `read_cs_file_digest` to load only what's relevant instead of the entire file |
@@ -33,7 +33,7 @@ Requires .NET 10 SDK.
 - **One server, any number of solutions** — start it once and point it at any project per call, no restart needed when switching between solutions.
 - **Live in-memory compilation** — opens `.sln`/`.slnx` via MSBuild Workspaces and compiles all projects in memory. All tools run against a real Roslyn semantic model, not text search.
 - **Incremental cache** — workspace is cached with file watchers. `.cs` changes trigger incremental recompilation; `.csproj`/`.sln` changes invalidate the full cache. First call per solution is slow; subsequent calls are instant.
-- **NuGet-aware** — NuGet types are fully resolved and searchable alongside source types. `query_symbol`, `get_symbol_details`, and `decompile_type` work on any referenced package.
+- **NuGet-aware** — NuGet types are fully resolved and searchable alongside source types. `query_symbol`, `get_type_details`, and `decompile_type` work on any referenced package.
 
 ## Usage
 

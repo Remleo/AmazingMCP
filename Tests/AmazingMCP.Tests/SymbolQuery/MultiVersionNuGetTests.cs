@@ -97,13 +97,13 @@ public class MultiVersionNuGetTests
         result.Should().Contain(Version108);
     }
 
-    // ── get_symbol_info: version banner ───────────────────────────────────────
+    // ── get_type_details: version banner ──────────────────────────────────────
 
     [Test]
-    public async Task GetSymbolInfoAsync_MultiVersionNuGetType_ShowsVersionWarningBanner()
+    public async Task GetTypeDetailsAsync_MultiVersionNuGetType_ShowsVersionWarningBanner()
     {
         // act
-        var result = await _infoService.GetSymbolInfoAsync(CompilationHelper.SolutionPath, MultiVersionType);
+        var result = await _infoService.GetTypeDetailsAsync(CompilationHelper.SolutionPath, MultiVersionType);
 
         // assert
         result.Should().Contain("WARNING");
@@ -112,20 +112,20 @@ public class MultiVersionNuGetTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_MultiVersionNuGetType_DefaultsToHighestVersion()
+    public async Task GetTypeDetailsAsync_MultiVersionNuGetType_DefaultsToHighestVersion()
     {
         // act
-        var result = await _infoService.GetSymbolInfoAsync(CompilationHelper.SolutionPath, MultiVersionType);
+        var result = await _infoService.GetTypeDetailsAsync(CompilationHelper.SolutionPath, MultiVersionType);
 
         // assert — banner shows which version is displayed
         result.Should().Contain($"Showing version: {Version108}");
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_MultiVersionNuGetType_WithVersionParam_ShowsRequestedVersion()
+    public async Task GetTypeDetailsAsync_MultiVersionNuGetType_WithVersionParam_ShowsRequestedVersion()
     {
         // act
-        var result = await _infoService.GetSymbolInfoAsync(
+        var result = await _infoService.GetTypeDetailsAsync(
             CompilationHelper.SolutionPath, MultiVersionType, version: Version105);
 
         // assert

@@ -1,10 +1,10 @@
-# query_symbol / get_symbol_details — Symbol Lookup
+# query_symbol / get_type_details — Symbol Lookup
 
 ## Purpose
 
 Two tools for discovering and inspecting types across the solution and NuGet packages.
 
-The recommended workflow is: `query_symbol` to find the type and its fully qualified name, then `get_symbol_details` to get its full member list.
+The recommended workflow is: `query_symbol` to find the type and its fully qualified name, then `get_type_details` to get its full member list.
 
 ---
 
@@ -65,7 +65,7 @@ Output is truncated at `--Symbol:QueryOutputLineLimit` (default 100 lines) with 
 
 ### What is NOT searched
 
-- Constructors (use `get_symbol_details` to see them)
+- Constructors (use `get_type_details` to see them)
 - Private members of source types are included; private members of NuGet types are excluded
 - Well-known framework types (BCL, ASP.NET Core, etc.) are excluded from member search to reduce noise
 
@@ -87,7 +87,7 @@ SymbolQueryService
 
 ---
 
-## get_symbol_details
+## get_type_details
 
 Returns detailed information about a type by its fully qualified name. Works for both source-defined types and NuGet types.
 
@@ -166,6 +166,6 @@ SymbolInfoService
 
 ```
 1. query_symbol("Animal")                          → find the type, get its full name
-2. get_symbol_details("MyApp.Core.Models.Animal")  → get all members and signatures
-3. get_symbol_details("MyApp.Core.Models.Animal", memberFilters: ["*Get*"]) → filtered view
+2. get_type_details("MyApp.Core.Models.Animal")  → get all members and signatures
+3. get_type_details("MyApp.Core.Models.Animal", memberFilters: ["*Get*"]) → filtered view
 ```

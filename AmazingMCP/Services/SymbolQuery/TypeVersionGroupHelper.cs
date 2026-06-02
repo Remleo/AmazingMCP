@@ -5,7 +5,7 @@ namespace AmazingMCP.Services.SymbolQuery;
 
 /// <summary>
 /// Shared version-selection and banner-building logic for <see cref="TypeVersionGroup"/>,
-/// used by both get_symbol_info and decompile_type.
+/// used by both get_type_details and decompile_type.
 /// </summary>
 static class TypeVersionGroupHelper
 {

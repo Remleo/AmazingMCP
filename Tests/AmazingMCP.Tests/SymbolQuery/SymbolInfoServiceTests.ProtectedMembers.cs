@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests.SymbolQuery;
 public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
 {
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedConst_ReturnsProtectedConst()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedConst_ReturnsProtectedConst()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -16,7 +16,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedStaticField_ReturnsProtectedStaticField()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedStaticField_ReturnsProtectedStaticField()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -26,7 +26,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedInstanceField_ReturnsProtectedField()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedInstanceField_ReturnsProtectedField()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -36,7 +36,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedConstructor_ReturnsProtectedConstructor()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedConstructor_ReturnsProtectedConstructor()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -46,7 +46,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedStaticProperty_ReturnsProtectedStaticProperty()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedStaticProperty_ReturnsProtectedStaticProperty()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -56,7 +56,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedInstanceProperty_ReturnsProtectedProperty()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedInstanceProperty_ReturnsProtectedProperty()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -66,7 +66,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedStaticMethod_ReturnsProtectedStaticMethod()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedStaticMethod_ReturnsProtectedStaticMethod()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -76,7 +76,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedInstanceMethod_ReturnsProtectedMethod()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedInstanceMethod_ReturnsProtectedMethod()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -86,7 +86,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedNestedType_ReturnsProtectedNestedType()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedNestedType_ReturnsProtectedNestedType()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -97,7 +97,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedInternalField_ReturnsProtectedInternalField()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedInternalField_ReturnsProtectedInternalField()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -107,7 +107,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithPrivateProtectedField_ReturnsPrivateProtectedField()
+    public async Task GetTypeDetailsAsync_TypeWithPrivateProtectedField_ReturnsPrivateProtectedField()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -117,7 +117,7 @@ public class SymbolInfoServiceTestsProtectedMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithPrivateField_DoesNotReturnPrivateField()
+    public async Task GetTypeDetailsAsync_TypeWithPrivateField_DoesNotReturnPrivateField()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");

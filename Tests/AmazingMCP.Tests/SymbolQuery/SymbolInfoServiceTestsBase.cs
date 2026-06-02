@@ -27,8 +27,8 @@ public abstract class SymbolInfoServiceTestsBase
     }
 
     protected async Task<string> Act(string typeName) =>
-        await _sut.GetSymbolInfoAsync(CompilationHelper.SolutionPath, typeName);
+        await _sut.GetTypeDetailsAsync(CompilationHelper.SolutionPath, typeName);
 
     protected async Task<string> ActWithFilters(string typeName, string[] memberFilters) =>
-        await _sut.GetSymbolInfoAsync(CompilationHelper.SolutionPath, typeName, memberFilters);
+        await _sut.GetTypeDetailsAsync(CompilationHelper.SolutionPath, typeName, memberFilters);
 }

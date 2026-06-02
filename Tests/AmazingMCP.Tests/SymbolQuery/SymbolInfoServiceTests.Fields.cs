@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests.SymbolQuery;
 public class SymbolInfoServiceTestsFields : SymbolInfoServiceTestsBase
 {
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithConstants_ReturnsConstants()
+    public async Task GetTypeDetailsAsync_TypeWithConstants_ReturnsConstants()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -17,7 +17,7 @@ public class SymbolInfoServiceTestsFields : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithInternalConst_ReturnsInternalConst()
+    public async Task GetTypeDetailsAsync_TypeWithInternalConst_ReturnsInternalConst()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -28,7 +28,7 @@ public class SymbolInfoServiceTestsFields : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithStaticField_ReturnsStaticFields()
+    public async Task GetTypeDetailsAsync_TypeWithStaticField_ReturnsStaticFields()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -38,7 +38,7 @@ public class SymbolInfoServiceTestsFields : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithPublicInstanceField_ReturnsFields()
+    public async Task GetTypeDetailsAsync_TypeWithPublicInstanceField_ReturnsFields()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -48,7 +48,7 @@ public class SymbolInfoServiceTestsFields : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithReadonlyInstanceField_ShowsReadonlyModifier()
+    public async Task GetTypeDetailsAsync_TypeWithReadonlyInstanceField_ShowsReadonlyModifier()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -58,7 +58,7 @@ public class SymbolInfoServiceTestsFields : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithInternalInstanceField_ReturnsInternalField()
+    public async Task GetTypeDetailsAsync_TypeWithInternalInstanceField_ReturnsInternalField()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -68,7 +68,7 @@ public class SymbolInfoServiceTestsFields : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithPrivateInstanceField_DoesNotReturnPrivateField()
+    public async Task GetTypeDetailsAsync_TypeWithPrivateInstanceField_DoesNotReturnPrivateField()
     {
         // act
         var result = await Act("TestProject.App.Helpers.AnimalFormatter");
@@ -78,7 +78,7 @@ public class SymbolInfoServiceTestsFields : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithEvent_ReturnsEvent()
+    public async Task GetTypeDetailsAsync_TypeWithEvent_ReturnsEvent()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");

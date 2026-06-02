@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests.SymbolQuery;
 public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBase
 {
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithVirtualMethod_ShowsVirtualModifier()
+    public async Task GetTypeDetailsAsync_TypeWithVirtualMethod_ShowsVirtualModifier()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -16,7 +16,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithVirtualMethodWithParams_ShowsVirtualModifier()
+    public async Task GetTypeDetailsAsync_TypeWithVirtualMethodWithParams_ShowsVirtualModifier()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -26,7 +26,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProtectedVirtualMethod_ShowsBothModifiers()
+    public async Task GetTypeDetailsAsync_TypeWithProtectedVirtualMethod_ShowsBothModifiers()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -36,7 +36,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithVirtualProperty_ShowsVirtualModifier()
+    public async Task GetTypeDetailsAsync_TypeWithVirtualProperty_ShowsVirtualModifier()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -46,7 +46,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_AbstractClass_ShowsAbstractMethods()
+    public async Task GetTypeDetailsAsync_AbstractClass_ShowsAbstractMethods()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalBase");
@@ -57,7 +57,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_AbstractClass_ShowsProtectedAbstractMethod()
+    public async Task GetTypeDetailsAsync_AbstractClass_ShowsProtectedAbstractMethod()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalBase");
@@ -67,7 +67,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_AbstractClass_ShowsAbstractProperty()
+    public async Task GetTypeDetailsAsync_AbstractClass_ShowsAbstractProperty()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalBase");
@@ -77,7 +77,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_AbstractClass_ShowsVirtualMethod()
+    public async Task GetTypeDetailsAsync_AbstractClass_ShowsVirtualMethod()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalBase");
@@ -87,7 +87,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ConcreteClass_ShowsOverrideMethods()
+    public async Task GetTypeDetailsAsync_ConcreteClass_ShowsOverrideMethods()
     {
         // act
         var result = await Act("TestProject.Core.Models.ConcreteAnimal");
@@ -98,7 +98,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ConcreteClass_ShowsSealedOverrideMethod()
+    public async Task GetTypeDetailsAsync_ConcreteClass_ShowsSealedOverrideMethod()
     {
         // act
         var result = await Act("TestProject.Core.Models.ConcreteAnimal");
@@ -108,7 +108,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ConcreteClass_ShowsOverrideProperty()
+    public async Task GetTypeDetailsAsync_ConcreteClass_ShowsOverrideProperty()
     {
         // act
         var result = await Act("TestProject.Core.Models.ConcreteAnimal");
@@ -119,7 +119,7 @@ public class SymbolInfoServiceTestsVirtualAndAbstract : SymbolInfoServiceTestsBa
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_ConcreteClass_ShowsProtectedOverrideMethod()
+    public async Task GetTypeDetailsAsync_ConcreteClass_ShowsProtectedOverrideMethod()
     {
         // act
         var result = await Act("TestProject.Core.Models.ConcreteAnimal");

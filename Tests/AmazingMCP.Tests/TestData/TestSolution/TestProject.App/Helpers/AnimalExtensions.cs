@@ -3,7 +3,7 @@ using TestProject.Core.Models;
 namespace TestProject.App.Helpers;
 
 /// <summary>
-/// Extension methods for Animal — used to verify that get_symbol_details
+/// Extension methods for Animal — used to verify that get_type_details
 /// correctly renders the 'this' parameter for extension methods.
 /// </summary>
 public static class AnimalExtensions

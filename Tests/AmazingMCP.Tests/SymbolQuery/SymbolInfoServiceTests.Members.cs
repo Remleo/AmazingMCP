@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests.SymbolQuery;
 public class SymbolInfoServiceTestsMembers : SymbolInfoServiceTestsBase
 {
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithProperties_ReturnsProperties()
+    public async Task GetTypeDetailsAsync_TypeWithProperties_ReturnsProperties()
     {
         // act
         var result = await Act("TestProject.Core.Models.Animal");
@@ -17,7 +17,7 @@ public class SymbolInfoServiceTestsMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithStaticProperty_ReturnsStaticProperties()
+    public async Task GetTypeDetailsAsync_TypeWithStaticProperty_ReturnsStaticProperties()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -27,7 +27,7 @@ public class SymbolInfoServiceTestsMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithStaticMethod_ReturnsStaticMethods()
+    public async Task GetTypeDetailsAsync_TypeWithStaticMethod_ReturnsStaticMethods()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -37,7 +37,7 @@ public class SymbolInfoServiceTestsMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithInternalStaticMethod_ReturnsInternalStaticMethod()
+    public async Task GetTypeDetailsAsync_TypeWithInternalStaticMethod_ReturnsInternalStaticMethod()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -47,7 +47,7 @@ public class SymbolInfoServiceTestsMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithInstanceMethod_ReturnsMethods()
+    public async Task GetTypeDetailsAsync_TypeWithInstanceMethod_ReturnsMethods()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -57,7 +57,7 @@ public class SymbolInfoServiceTestsMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_Interface_ReturnsInterfaceMethods()
+    public async Task GetTypeDetailsAsync_Interface_ReturnsInterfaceMethods()
     {
         // act
         var result = await Act("TestProject.Core.Services.IAnimalService");
@@ -69,7 +69,7 @@ public class SymbolInfoServiceTestsMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithConstructors_ReturnsConstructorsSection()
+    public async Task GetTypeDetailsAsync_TypeWithConstructors_ReturnsConstructorsSection()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -79,7 +79,7 @@ public class SymbolInfoServiceTestsMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithParameterlessConstructor_ShowsEmptyParams()
+    public async Task GetTypeDetailsAsync_TypeWithParameterlessConstructor_ShowsEmptyParams()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -89,7 +89,7 @@ public class SymbolInfoServiceTestsMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithParameterizedConstructor_ShowsParams()
+    public async Task GetTypeDetailsAsync_TypeWithParameterizedConstructor_ShowsParams()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -99,7 +99,7 @@ public class SymbolInfoServiceTestsMembers : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithInternalConstructor_ShowsInternalConstructor()
+    public async Task GetTypeDetailsAsync_TypeWithInternalConstructor_ShowsInternalConstructor()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");

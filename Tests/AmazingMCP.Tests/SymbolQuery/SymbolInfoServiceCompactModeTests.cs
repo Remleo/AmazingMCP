@@ -26,12 +26,12 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     async Task<string> Act(string typeName, string[]? memberFilters = null) =>
-        await _sut.GetSymbolInfoAsync(CompilationHelper.SolutionPath, typeName, memberFilters);
+        await _sut.GetTypeDetailsAsync(CompilationHelper.SolutionPath, typeName, memberFilters);
 
     // ── BigType (21 members > threshold 20) ──────────────────────────────────
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithManyMembers_UsesCompactMode()
+    public async Task GetTypeDetailsAsync_TypeWithManyMembers_UsesCompactMode()
     {
         // act
         var result = await Act("TestProject.Core.Models.BigType");
@@ -41,7 +41,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithManyMembers_CompactMode_ShowsMemberNames()
+    public async Task GetTypeDetailsAsync_TypeWithManyMembers_CompactMode_ShowsMemberNames()
     {
         // act
         var result = await Act("TestProject.Core.Models.BigType");
@@ -53,7 +53,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithManyMembers_CompactMode_DoesNotShowFullSignatures()
+    public async Task GetTypeDetailsAsync_TypeWithManyMembers_CompactMode_DoesNotShowFullSignatures()
     {
         // act
         var result = await Act("TestProject.Core.Models.BigType");
@@ -64,7 +64,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithManyMembers_CompactMode_ShowsMemberCount()
+    public async Task GetTypeDetailsAsync_TypeWithManyMembers_CompactMode_ShowsMemberCount()
     {
         // act
         var result = await Act("TestProject.Core.Models.BigType");
@@ -74,7 +74,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithManyMembers_MemberFilters_MatchingFewMembers_ShowsFullSignatures()
+    public async Task GetTypeDetailsAsync_TypeWithManyMembers_MemberFilters_MatchingFewMembers_ShowsFullSignatures()
     {
         // act
         var result = await Act("TestProject.Core.Models.BigType", ["*Get*"]);
@@ -86,7 +86,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithManyMembers_MemberFilters_ExcludesNonMatchingMembers()
+    public async Task GetTypeDetailsAsync_TypeWithManyMembers_MemberFilters_ExcludesNonMatchingMembers()
     {
         // act
         var result = await Act("TestProject.Core.Models.BigType", ["*Get*"]);
@@ -97,7 +97,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_TypeWithManyMembers_MemberFilters_StillManyMembers_UsesCompactMode()
+    public async Task GetTypeDetailsAsync_TypeWithManyMembers_MemberFilters_StillManyMembers_UsesCompactMode()
     {
         // act — "*" matches all members, still >20 → compact mode
         var result = await Act("TestProject.Core.Models.BigType", ["*"]);
@@ -109,7 +109,7 @@ public class SymbolInfoServiceCompactModeTests
     // ── CompactModeDerivedType (1 member) : CompactModeBaseType (21 members) ─
 
     [Test]
-    public async Task GetSymbolInfoAsync_SmallDerivedType_LargeBaseType_DerivedIsNotCompact()
+    public async Task GetTypeDetailsAsync_SmallDerivedType_LargeBaseType_DerivedIsNotCompact()
     {
         // act
         var result = await Act("TestProject.Core.Models.CompactModeDerivedType");
@@ -121,7 +121,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_SmallDerivedType_LargeBaseType_BaseIsCompact()
+    public async Task GetTypeDetailsAsync_SmallDerivedType_LargeBaseType_BaseIsCompact()
     {
         // act
         var result = await Act("TestProject.Core.Models.CompactModeDerivedType");
@@ -133,7 +133,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_SmallDerivedType_LargeBaseType_WarningAppearsOnlyInBaseSection()
+    public async Task GetTypeDetailsAsync_SmallDerivedType_LargeBaseType_WarningAppearsOnlyInBaseSection()
     {
         // act
         var result = await Act("TestProject.Core.Models.CompactModeDerivedType");
@@ -150,7 +150,7 @@ public class SymbolInfoServiceCompactModeTests
     // compact but WITHOUT repeating the warning message (inherited compact mode).
 
     [Test]
-    public async Task GetSymbolInfoAsync_LargeDerivedType_BaseTypeIsAlsoCompact_NoWarningRepeated()
+    public async Task GetTypeDetailsAsync_LargeDerivedType_BaseTypeIsAlsoCompact_NoWarningRepeated()
     {
         // act
         var result = await Act("TestProject.Core.Models.CompactModeLargeDerived");
@@ -171,7 +171,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_LargeDerivedType_BaseTypeIsAlsoCompact_BaseMemberNamesShown()
+    public async Task GetTypeDetailsAsync_LargeDerivedType_BaseTypeIsAlsoCompact_BaseMemberNamesShown()
     {
         // act
         var result = await Act("TestProject.Core.Models.CompactModeLargeDerived");
@@ -187,7 +187,7 @@ public class SymbolInfoServiceCompactModeTests
     // ── memberFilters applied to base types ──────────────────────────────────
 
     [Test]
-    public async Task GetSymbolInfoAsync_MemberFilters_AppliedToBaseType()
+    public async Task GetTypeDetailsAsync_MemberFilters_AppliedToBaseType()
     {
         // arrange — CompactModeDerivedType (1 member) : CompactModeBaseType (21 members)
         // with filter "Prop*" base type has only 6 members → full mode, signatures visible
@@ -206,7 +206,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_MemberFilters_BaseTypeStillCompact_WhenFilterMatchesTooMany()
+    public async Task GetTypeDetailsAsync_MemberFilters_BaseTypeStillCompact_WhenFilterMatchesTooMany()
     {
         // arrange — filter "*" matches all 21 members of base → still compact
         // act
@@ -219,7 +219,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_MemberFilters_FooterNoteShown()
+    public async Task GetTypeDetailsAsync_MemberFilters_FooterNoteShown()
     {
         // act
         var result = await Act("TestProject.Core.Models.BigType", ["*Get*"]);
@@ -230,7 +230,7 @@ public class SymbolInfoServiceCompactModeTests
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_NoMemberFilters_FooterNoteNotShown()
+    public async Task GetTypeDetailsAsync_NoMemberFilters_FooterNoteNotShown()
     {
         // act
         var result = await Act("TestProject.Core.Models.BigType");

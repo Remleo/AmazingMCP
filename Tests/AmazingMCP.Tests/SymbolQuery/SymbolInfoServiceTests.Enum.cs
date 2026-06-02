@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests.SymbolQuery;
 public class SymbolInfoServiceTestsEnum : SymbolInfoServiceTestsBase
 {
     [Test]
-    public async Task GetSymbolInfoAsync_UnknownType_ReturnsNotFound()
+    public async Task GetTypeDetailsAsync_UnknownType_ReturnsNotFound()
     {
         // act
         var result = await Act("NonExistent.Type");
@@ -16,7 +16,7 @@ public class SymbolInfoServiceTestsEnum : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_Enum_ReturnsAllValues()
+    public async Task GetTypeDetailsAsync_Enum_ReturnsAllValues()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalKind");
@@ -29,7 +29,7 @@ public class SymbolInfoServiceTestsEnum : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_Enum_ReturnsUnderlyingType()
+    public async Task GetTypeDetailsAsync_Enum_ReturnsUnderlyingType()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalKind");
@@ -39,7 +39,7 @@ public class SymbolInfoServiceTestsEnum : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_Enum_DoesNotContainMemberSections()
+    public async Task GetTypeDetailsAsync_Enum_DoesNotContainMemberSections()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalKind");
@@ -50,7 +50,7 @@ public class SymbolInfoServiceTestsEnum : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_Enum_HeaderContainsEnum()
+    public async Task GetTypeDetailsAsync_Enum_HeaderContainsEnum()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalKind");
@@ -60,7 +60,7 @@ public class SymbolInfoServiceTestsEnum : SymbolInfoServiceTestsBase
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_Enum_DoesNotContainDerivedSection()
+    public async Task GetTypeDetailsAsync_Enum_DoesNotContainDerivedSection()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalKind");

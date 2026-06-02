@@ -6,7 +6,7 @@ namespace AmazingMCP.Tests.SymbolQuery;
 public class SymbolInfoServiceTestsTypeHeaderModifiers : SymbolInfoServiceTestsBase
 {
     [Test]
-    public async Task GetSymbolInfoAsync_PublicClass_HeaderContainsPublicClass()
+    public async Task GetTypeDetailsAsync_PublicClass_HeaderContainsPublicClass()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalDefaults");
@@ -16,7 +16,7 @@ public class SymbolInfoServiceTestsTypeHeaderModifiers : SymbolInfoServiceTestsB
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_AbstractClass_HeaderContainsAbstractClass()
+    public async Task GetTypeDetailsAsync_AbstractClass_HeaderContainsAbstractClass()
     {
         // act
         var result = await Act("TestProject.Core.Models.AnimalBase");
@@ -26,7 +26,7 @@ public class SymbolInfoServiceTestsTypeHeaderModifiers : SymbolInfoServiceTestsB
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_SealedClass_HeaderContainsSealedClass()
+    public async Task GetTypeDetailsAsync_SealedClass_HeaderContainsSealedClass()
     {
         // act
         var result = await Act("TestProject.Core.Models.ConcreteAnimal");
@@ -36,7 +36,7 @@ public class SymbolInfoServiceTestsTypeHeaderModifiers : SymbolInfoServiceTestsB
     }
 
     [Test]
-    public async Task GetSymbolInfoAsync_Interface_HeaderContainsInterface()
+    public async Task GetTypeDetailsAsync_Interface_HeaderContainsInterface()
     {
         // act
         var result = await Act("TestProject.Core.Services.IAnimalService");

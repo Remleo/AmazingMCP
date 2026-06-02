@@ -7,9 +7,9 @@ using ModelContextProtocol.Server;
 namespace AmazingMCP.Tools;
 
 [McpServerToolType]
-public static class GetSymbolDetailsTool
+public static class GetTypeDetailsTool
 {
-    [McpServerTool(Name = "get_symbol_details", ReadOnly = true), Description(
+    [McpServerTool(Name = "get_type_details", ReadOnly = true), Description(
         "IMPORTANT: THIS TOOL RESOLVES TYPE DETAILS FROM THIRD-PARTY NUGET PACKAGES — " +
         "USE THIS MCP WHEN YOU NEED MEMBERS/PROPERTIES/METHODS OF TYPES FROM EXTERNAL LIBRARIES. " +
         "Returns detailed information about a type by its full name. " +
@@ -18,7 +18,7 @@ public static class GetSymbolDetailsTool
         "and known implementors / derived types. " +
         "For enums: all values. Supports nested type names (e.g. 'Outer.Inner'). " +
         "Use query_symbol first to find the full type name.")]
-    public static async Task<string> GetSymbolDetails(
+    public static async Task<string> GetTypeDetails(
         SymbolInfoService symbolInfo,
         ISolutionResolver solutionResolver,
         [Description("Absolute path to the directory where the .sln/.slnx file is located")] string solutionWorkspacePath,
@@ -32,6 +32,6 @@ public static class GetSymbolDetailsTool
         if (resolved is null)
             return error!;
 
-        return await symbolInfo.GetSymbolInfoAsync(resolved, fullTypeName, memberFilters, version, ct);
+        return await symbolInfo.GetTypeDetailsAsync(resolved, fullTypeName, memberFilters, version, ct);
     }
 }

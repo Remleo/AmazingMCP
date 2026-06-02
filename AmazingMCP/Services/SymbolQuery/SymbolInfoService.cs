@@ -30,7 +30,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IDerived
             SymbolDisplayParameterOptions.IncludeName |
             SymbolDisplayParameterOptions.IncludeDefaultValue);
 
-    public async Task<string> GetSymbolInfoAsync(
+    public async Task<string> GetTypeDetailsAsync(
         string solutionPath,
         string fullTypeName,
         string[]? memberFilters = null,
