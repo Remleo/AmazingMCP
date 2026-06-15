@@ -12,16 +12,18 @@ public class RoslynSymbolService(
     IWildcardPatternFactory wildcardFactory,
     IRoslynTypeProvider typeProvider,
     [FromKeyedServices(TypeEnumerationMode.Versioned)] ITypeEnumerationStrategy<TypeVersionGroup> versionedStrategy)
+    : IRoslynSymbolService
 {
-    public Task<ICachedSolution> GetSolutionAsync(string solutionPath, CancellationToken ct = default) =>
-        workspaceProvider.GetSolutionAsync(solutionPath, ct);
-
     public async Task<IReadOnlyList<SymbolResult>> QuerySymbolsAsync(
         string solutionPath,
         string query,
+        IReadOnlyList<KindGroup>? kindGroups = null,
         CancellationToken ct = default)
     {
         var solution = await workspaceProvider.GetSolutionAsync(solutionPath, ct);
+
+        var includeTypes = kindGroups is null || kindGroups.Contains(KindGroup.Type);
+        var includeMembers = kindGroups is null || kindGroups.Contains(KindGroup.Member);
 
         // If the query has no wildcards, wrap it as a contains-pattern: *query*
         var wildcardQuery = query.Contains('*') ? query : $"*{query}*";
@@ -34,18 +36,17 @@ public class RoslynSymbolService(
         {
             var allVersions = group.Versions.Select(v => v.Version).ToList();
 
-            SymbolWalker.CollectType(group.Best, pattern, seen, results, allVersions);
-            SymbolWalker.CollectMembers(group.Best, pattern, seen, results, allVersions);
+            if (includeTypes)
+                SymbolWalker.CollectType(group.Best, pattern, seen, results, allVersions);
+
+            if (includeMembers)
+                SymbolWalker.CollectMembers(group.Best, pattern, seen, results, allVersions);
         }
 
         return results;
     }
 
-    /// <summary>
-    /// Finds a type by its fully-qualified name, returning all known versions grouped.
-    /// Supports CLR metadata notation (Foo`2), C# generic syntax (Foo&lt;T, TVal&gt;),
-    /// and wildcard form (Foo&lt;*,*&gt;).
-    /// </summary>
+    /// <inheritdoc />
     public (TypeVersionGroup? Group, string? Error) FindExactType(
         ICachedSolution solution,
         string fullTypeName)

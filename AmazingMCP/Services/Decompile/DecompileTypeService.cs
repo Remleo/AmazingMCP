@@ -2,6 +2,7 @@ using AmazingMCP.Configuration;
 using AmazingMCP.Models.FileAnalysis;
 using AmazingMCP.Services.FileAnalysis;
 using AmazingMCP.Services.SymbolQuery;
+using AmazingMCP.Services.Workspace;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.TypeSystem;
@@ -11,7 +12,8 @@ using Microsoft.Extensions.Options;
 namespace AmazingMCP.Services.Decompile;
 
 public class DecompileTypeService(
-    RoslynSymbolService roslynSymbolService,
+    IRoslynSymbolService roslynSymbolService,
+    IWorkspaceProvider workspaceProvider,
     IFilteredSourceService filteredSource,
     ISourceDigestService sourceDigest,
     IOptions<ReadCsOptions> options) : IDecompileTypeService
@@ -23,7 +25,7 @@ public class DecompileTypeService(
         string? version = null,
         CancellationToken ct = default)
     {
-        var solution = await roslynSymbolService.GetSolutionAsync(solutionPath, ct);
+        var solution = await workspaceProvider.GetSolutionAsync(solutionPath, ct);
         var (group, error) = roslynSymbolService.FindExactType(solution, fullTypeName);
 
         if (group is null)

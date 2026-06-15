@@ -11,20 +11,13 @@ namespace AmazingMCP.Services.UsageQuery;
 /// </summary>
 public class UsageResultFormatter : IUsageResultFormatter
 {
-    public string Format(IReadOnlyList<UsageMatch> matches, bool truncated = false)
+    public string Format(
+        IReadOnlyList<UsageMatch> matches,
+        bool truncated = false,
+        IReadOnlyList<SymbolResult>? typeSuggestions = null)
     {
         if (matches.Count == 0)
-            return
-                "No usages found.\n\n" +
-                "If you expected results, make sure the type name is fully qualified (includes namespace). " +
-                "Example: `MyApp.Core.IRequestStream`, not just `IRequestStream`.\n\n" +
-                "For closed generics, all type arguments must also be fully qualified: " +
-                "`System.Collections.Generic.List<MyApp.Core.Animal>`.\n\n" +
-                "For open generics, argument names must match the declaration: " +
-                "`MyApp.Persistance.IRepository<TKey, TValue>`.\n\n" +
-                "To find the correct full name:\n" +
-                "- Use `query_symbol` to locate the type by name and see its fully qualified form.\n" +
-                "- Use `code_lens` on any line where the type appears — it shows the full name of every type in the span.";
+            return FormatNoUsages(typeSuggestions);
 
         var sb = new StringBuilder();
 
@@ -96,6 +89,46 @@ public class UsageResultFormatter : IUsageResultFormatter
                       "Narrow your query using a more specific predicate or add `scanInclude`/`scanExclude` to limit the scanned types.";
 
         return result;
+    }
+
+    static string FormatNoUsages(IReadOnlyList<SymbolResult>? typeSuggestions)
+    {
+        var sb = new StringBuilder();
+        sb.Append(
+            "No usages found.\n\n" +
+            "If you expected results, make sure the type name is fully qualified (includes namespace). " +
+            "Example: `MyApp.Core.IRequestStream`, not just `IRequestStream`.\n\n" +
+            "For closed generics, all type arguments must also be fully qualified: " +
+            "`System.Collections.Generic.List<MyApp.Core.Animal>`.\n\n" +
+            "For open generics, argument names must match the declaration: " +
+            "`MyApp.Persistance.IRepository<TKey, TValue>`.\n\n" +
+            "To find the correct full name:\n" +
+            "- Use `query_symbol` to locate the type by name and see its fully qualified form.\n" +
+            "- Use `code_lens` on any line where the type appears — it shows the full name of every type in the span.");
+
+        if (typeSuggestions is not { Count: > 0 })
+            return sb.ToString();
+
+        sb.AppendLine();
+        sb.AppendLine();
+        sb.AppendLine(
+            "**The type name you specified may be incorrect.** " +
+            "These existing types match the simple name — one of them may be what you meant:");
+        sb.AppendLine();
+
+        foreach (var suggestion in typeSuggestions)
+            sb.AppendLine(FormatSuggestion(suggestion));
+
+        return sb.ToString().TrimEnd();
+    }
+
+    static string FormatSuggestion(SymbolResult suggestion)
+    {
+        var assembly = suggestion.ContainingAssembly is null
+            ? string.Empty
+            : $"  ({suggestion.ContainingAssembly})";
+
+        return $"- [{suggestion.Kind}] {suggestion.FullName}{assembly}";
     }
 
     static void AppendCodeLines(StringBuilder sb, string[]? sourceLines, LineRange range)

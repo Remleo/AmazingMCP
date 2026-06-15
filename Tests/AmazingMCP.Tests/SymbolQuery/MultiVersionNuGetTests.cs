@@ -37,8 +37,9 @@ public class MultiVersionNuGetTests
     public async Task OneTimeSetUp()
     {
         var cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
+        var workspaceProvider = CreateWorkspaceProvider(cachedSolution);
         var roslyn = new RoslynSymbolService(
-            CreateWorkspaceProvider(cachedSolution),
+            workspaceProvider,
             new WildcardPatternFactory(),
             CreateTypeProvider(),
             CompilationHelper.CreateVersionedStrategy());
@@ -47,6 +48,7 @@ public class MultiVersionNuGetTests
 
         _infoService = new SymbolInfoService(
             roslyn,
+            workspaceProvider,
             new RoslynDerivedTypeService(CreateTypeProvider(), CreateAllInstancesStrategy()),
             new XmlDocExtractor(),
             new WildcardPatternFactory())
@@ -56,6 +58,7 @@ public class MultiVersionNuGetTests
 
         _decompileService = new DecompileTypeService(
             roslyn,
+            workspaceProvider,
             new FilteredSourceService(new FileStructureService(), new WildcardPatternFactory()),
             new SourceDigestService(new XmlDocExtractor()),
             Options.Create(new ReadCsOptions { ReadOutputMaxLength = 50_000 }));

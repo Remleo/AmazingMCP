@@ -17,6 +17,9 @@ public record SymbolResult
     /// <summary>Type kind (Class, Interface, Enum, …) or member kind (Method, Property).</summary>
     public required string Kind { get; init; }
 
+    /// <summary>Coarse classification: whether this result is a type or a member.</summary>
+    public required KindGroup KindGroup { get; init; }
+
     public required string? ContainingAssembly { get; init; }
     public required string? SourceFilePath { get; init; }
     public required int? DefinitionLine { get; init; }

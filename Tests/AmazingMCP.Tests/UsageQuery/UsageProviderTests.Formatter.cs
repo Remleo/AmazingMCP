@@ -1,3 +1,4 @@
+using AmazingMCP.Models;
 using AmazingMCP.Models.UsageQuery;
 using AmazingMCP.Services.UsageQuery;
 using FluentAssertions;
@@ -66,6 +67,44 @@ public class UsageProviderTestsFormatter : UsageProviderTestsBase
 
         // assert
         output.Should().Contain("No usages found");
+    }
+
+    [Test]
+    public void Format_NoMatchesWithTypeSuggestions_RendersSuggestions()
+    {
+        // arrange
+        var suggestions = new[]
+        {
+            new SymbolResult
+            {
+                Name = "IAnimalRepository",
+                FullName = "TestProject.Core.Persistence.IAnimalRepository",
+                Kind = "Interface",
+                KindGroup = KindGroup.Type,
+                ContainingAssembly = "TestProject.Core",
+                SourceFilePath = null,
+                DefinitionLine = null,
+            }
+        };
+
+        // act
+        var output = new UsageResultFormatter().Format([], typeSuggestions: suggestions);
+
+        // assert
+        output.Should().Contain("No usages found");
+        output.Should().Contain("[Interface] TestProject.Core.Persistence.IAnimalRepository");
+        output.Should().Contain("TestProject.Core");
+    }
+
+    [Test]
+    public void Format_NoMatchesWithEmptyTypeSuggestions_FallsBackToGuidance()
+    {
+        // act
+        var output = new UsageResultFormatter().Format([], typeSuggestions: []);
+
+        // assert
+        output.Should().Contain("No usages found");
+        output.Should().Contain("query_symbol");
     }
 
     [Test]

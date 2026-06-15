@@ -150,6 +150,9 @@
     <Compile Update="Services\SymbolQuery\IRoslynTypeProvider.cs">
       <DependentUpon>RoslynTypeProvider.cs</DependentUpon>
     </Compile>
+    <Compile Update="Services\SymbolQuery\IRoslynSymbolService.cs">
+      <DependentUpon>RoslynSymbolService.cs</DependentUpon>
+    </Compile>
     <Compile Update="Services\SymbolQuery\IDerivedTypeService.cs">
       <DependentUpon>RoslynDerivedTypeService.cs</DependentUpon>
     </Compile>

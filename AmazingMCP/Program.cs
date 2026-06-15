@@ -56,7 +56,7 @@ builder.Services
     .AddKeyedSingleton<ITypeEnumerationStrategy<TypeVersionGroup>>(TypeEnumerationMode.Versioned, (_, _) => new VersionedTypeStrategy())
     .AddSingleton<RoslynTypeProvider>()
     .AddSingleton<IRoslynTypeProvider>(sp => sp.GetRequiredService<RoslynTypeProvider>())
-    .AddSingleton<RoslynSymbolService>()
+    .AddSingleton<IRoslynSymbolService, RoslynSymbolService>()
     .AddSingleton<ISymbolQueryService, SymbolQueryService>()
     .AddSingleton<SymbolInfoService>()
     .AddSingleton<IDecompileTypeService, DecompileTypeService>()

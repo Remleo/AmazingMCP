@@ -4,11 +4,12 @@ using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.FileAnalysis;
 using AmazingMCP.Services.UsageQuery;
 using AmazingMCP.Services.Wildcard;
+using AmazingMCP.Services.Workspace;
 using Microsoft.CodeAnalysis;
 
 namespace AmazingMCP.Services.SymbolQuery;
 
-public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IDerivedTypeService derivedTypeService, IXmlDocExtractor xmlDoc, IWildcardPatternFactory wildcardFactory)
+public class SymbolInfoService(IRoslynSymbolService roslynSymbolService, IWorkspaceProvider workspaceProvider, IDerivedTypeService derivedTypeService, IXmlDocExtractor xmlDoc, IWildcardPatternFactory wildcardFactory)
 {
 
     public int CompactModeThreshold { get; set; } = 25;
@@ -37,7 +38,7 @@ public class SymbolInfoService(RoslynSymbolService roslynSymbolService, IDerived
         string? version = null,
         CancellationToken ct = default)
     {
-        var cachedSolution = await roslynSymbolService.GetSolutionAsync(solutionPath, ct);
+        var cachedSolution = await workspaceProvider.GetSolutionAsync(solutionPath, ct);
         var (group, error) = roslynSymbolService.FindExactType(cachedSolution, fullTypeName);
 
         if (group is null)

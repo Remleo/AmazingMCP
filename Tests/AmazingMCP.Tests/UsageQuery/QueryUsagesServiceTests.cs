@@ -26,7 +26,14 @@ public class QueryUsagesServiceTests
                 new RoslynDerivedTypeService(CreateTypeProvider(), CreateAllInstancesStrategy())),
             Options.Create(new QueryUsagesOptions()));
 
-        _sut = new QueryUsagesService(usageProvider, new UsageResultFormatter());
+        _sut = new QueryUsagesService(
+            usageProvider,
+            new UsageResultFormatter(),
+            new RoslynSymbolService(
+                CreateWorkspaceProvider(cachedSolution),
+                new WildcardPatternFactory(),
+                CreateTypeProvider(),
+                CreateVersionedStrategy()));
     }
 
     async Task<string> Act(string typeName, string? predicate = null) =>
@@ -39,6 +46,17 @@ public class QueryUsagesServiceTests
     {
         var result = await Act("TestProject.Core.Models.NonExistentType");
         result.Should().Contain("No usages found");
+    }
+
+    [Test]
+    public async Task QueryAsync_NoMatch_WrongNamespaceButSimpleNameExists_SuggestsCorrectType()
+    {
+        // arrange — wrong namespace, but a type named "IAnimalRepository" really exists
+        var result = await Act("Wrong.Namespace.IAnimalRepository");
+
+        // assert
+        result.Should().Contain("No usages found");
+        result.Should().Contain("TestProject.Core.Persistence.IAnimalRepository");
     }
 
     // ── Found results — output structure ─────────────────────────────────────

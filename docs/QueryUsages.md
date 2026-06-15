@@ -25,7 +25,7 @@ The fully qualified name of the type to search for — must include the namespac
 - For closed generics, all type arguments must also be fully qualified: `System.Collections.Generic.List<MyApp.Core.Animal>`
 - For open generics, argument names must match the declaration: `MyApp.Persistance.IRepository<TKey, TValue>`
 
-If no usages are found, the tool returns a detailed hint explaining how to find the correct full name using `query_symbol` or `code_lens`.
+If no usages are found, the tool returns a detailed hint explaining how to find the correct full name using `query_symbol` or `code_lens`. In addition, it automatically searches for **types whose simple name matches `typeName`** (ignoring namespace and generic parameters) and lists any exact matches — an incorrect namespace or generic arity is a frequent cause of empty results, and the listed types are likely what you meant.
 
 ### predicate
 
@@ -128,6 +128,12 @@ For each matched usage node, `SectionResolver` walks up the AST:
 | `PropertyDeclarationSyntax` | Type declaration line only |
 | `MethodDeclarationSyntax` / `ConstructorDeclarationSyntax` | Signature lines (from attributes to opening brace) |
 
+### No usages found
+
+The output starts with the standard guidance on fully-qualified names. If any **types share the simple name** of `typeName`, they are appended as suggestions, each as `- [Kind] FullName (assembly)`.
+
+The lookup is exact and type-only: the simple name is extracted from `typeName` (generic parameters and namespace stripped), and only types whose name matches exactly are listed — members are never suggested.
+
 ### Truncation
 
 Output is truncated at `--QueryUsages:QueryMatchLimit` (default 200 matches) with a note:
@@ -152,8 +158,11 @@ QueryUsagesService
 │       │       └── DefaultVisit() — QueryEntryFactory.TryCreate() per node → predicate → SectionResolver.Resolve()
 │       │           └── QueryEntryFactory — creates QueryEntry for each usage kind
 │       └── IInheritanceUsageProvider.FindMatches()  — finds Inheritance usages (base type lists)
-└── IUsageResultFormatter.Format()
+├── On empty results: IRoslynSymbolService.QuerySymbolsAsync(simpleName, [KindGroup.Type])
+│   └── TypeNameHelper.GetSimpleName() strips generics + namespace; exact name matches kept as suggestions
+└── IUsageResultFormatter.Format(matches, truncated, typeSuggestions)
     └── UsageResultFormatter
+        ├── No matches → guidance text + optional type suggestions block
         ├── Groups by (TypeName, FilePath)
         ├── MergeRanges() — merges overlapping section + method definition ranges
         └── AppendCodeLines() — reads source file lines, formats with // line N +K annotations

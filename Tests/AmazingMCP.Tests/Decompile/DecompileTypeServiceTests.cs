@@ -22,6 +22,7 @@ public class DecompileTypeServiceTests
         var cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         _sut = new DecompileTypeService(
             new RoslynSymbolService(CreateWorkspaceProvider(cachedSolution), new WildcardPatternFactory(), CreateTypeProvider(), CompilationHelper.CreateVersionedStrategy()),
+            CreateWorkspaceProvider(cachedSolution),
             new FilteredSourceService(new FileStructureService(), new WildcardPatternFactory()),
             new SourceDigestService(new XmlDocExtractor()),
             Options.Create(new ReadCsOptions { ReadOutputMaxLength = 50_000 }));
@@ -276,6 +277,7 @@ public class DecompileTypeServiceTests
         var cachedSolution = await CompilationHelper.GetSharedSolutionAsync();
         var sut = new DecompileTypeService(
             new RoslynSymbolService(CreateWorkspaceProvider(cachedSolution), new WildcardPatternFactory(), CreateTypeProvider(), CompilationHelper.CreateVersionedStrategy()),
+            CreateWorkspaceProvider(cachedSolution),
             new FilteredSourceService(new FileStructureService(), new WildcardPatternFactory()),
             new SourceDigestService(new XmlDocExtractor()),
             Options.Create(new ReadCsOptions { ReadOutputMaxLength = 10 }));

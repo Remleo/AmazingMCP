@@ -6,14 +6,14 @@ using Microsoft.Extensions.Options;
 namespace AmazingMCP.Services.SymbolQuery;
 
 public class SymbolQueryService(
-    RoslynSymbolService roslyn,
+    IRoslynSymbolService roslyn,
     IOptions<SymbolOptions> options) : ISymbolQueryService
 {
     readonly SymbolOptions _options = options.Value;
 
     public async Task<string> QueryAsync(string solutionPath, string query, CancellationToken ct = default)
     {
-        var results = await roslyn.QuerySymbolsAsync(solutionPath, query, ct);
+        var results = await roslyn.QuerySymbolsAsync(solutionPath, query, ct: ct);
 
         if (results.Count == 0)
             return $"No types or members matching '{query}' found.";

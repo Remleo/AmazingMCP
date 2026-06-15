@@ -1,3 +1,4 @@
+using AmazingMCP.Models;
 using AmazingMCP.Models.Workspace;
 using AmazingMCP.Services.SymbolQuery;
 using AmazingMCP.Services.Wildcard;
@@ -22,7 +23,7 @@ public class RoslynSymbolServiceTests
 
     async Task<(string? FullName, string? Error)> Act(string fullTypeName)
     {
-        var solution = await _sut.GetSolutionAsync(CompilationHelper.SolutionPath);
+        var solution = await CompilationHelper.GetSharedSolutionAsync();
         var (group, error) = _sut.FindExactType(solution, fullTypeName);
         return (group?.FullName, error);
     }
@@ -436,5 +437,67 @@ public class RoslynSymbolServiceTests
 
         // assert
         results.Should().ContainSingle(r => r.Kind == "Property" && r.Name == "MaxAllowed");
+    }
+
+    // ── KindGroup classification ──────────────────────────────────────────────
+
+    [Test]
+    public async Task QuerySymbolsAsync_TypeResult_HasTypeKindGroup()
+    {
+        // act
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "AnimalKind");
+
+        // assert
+        results.Where(r => r.Name == "AnimalKind" && r.DeclaringType is null)
+            .Should().AllSatisfy(r => r.KindGroup.Should().Be(KindGroup.Type));
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_MemberResult_HasMemberKindGroup()
+    {
+        // act
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "FindById");
+
+        // assert
+        results.Where(r => r.Kind == "Method")
+            .Should().AllSatisfy(r => r.KindGroup.Should().Be(KindGroup.Member));
+    }
+
+    // ── KindGroup filter ──────────────────────────────────────────────────────
+
+    [Test]
+    public async Task QuerySymbolsAsync_TypeGroupFilter_ReturnsTypesOnly()
+    {
+        // act
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "Animal", [KindGroup.Type]);
+
+        // assert
+        results.Should().NotBeEmpty();
+        results.Should().AllSatisfy(r =>
+        {
+            r.KindGroup.Should().Be(KindGroup.Type);
+            r.DeclaringType.Should().BeNull();
+        });
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_TypeGroupFilter_ExcludesMembers()
+    {
+        // act — "FindById" is a method name only; no type is named like it
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "FindById", [KindGroup.Type]);
+
+        // assert
+        results.Should().BeEmpty();
+    }
+
+    [Test]
+    public async Task QuerySymbolsAsync_MemberGroupFilter_ReturnsMembersOnly()
+    {
+        // act
+        var results = await _sut.QuerySymbolsAsync(CompilationHelper.SolutionPath, "FindById", [KindGroup.Member]);
+
+        // assert
+        results.Should().NotBeEmpty();
+        results.Should().AllSatisfy(r => r.KindGroup.Should().Be(KindGroup.Member));
     }
 }
