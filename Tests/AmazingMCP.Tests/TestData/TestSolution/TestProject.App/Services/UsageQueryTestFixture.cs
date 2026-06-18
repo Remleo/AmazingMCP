@@ -308,6 +308,22 @@ public class UsageQueryTestFixture
         // TypeOf: open generic — System.Collections.Generic.List<T>
         return typeof(List<>);
     }
+
+    // ── Event subscribe / unsubscribe ─────────────────────────────────────────
+
+    public void SubscribeToRepository(IAnimalRepository repository)
+    {
+        // EventSubscribe: RepositoryChanged
+        repository.RepositoryChanged += OnRepositoryChanged;
+    }
+
+    public void UnsubscribeFromRepository(IAnimalRepository repository)
+    {
+        // EventUnsubscribe: RepositoryChanged
+        repository.RepositoryChanged -= OnRepositoryChanged;
+    }
+
+    void OnRepositoryChanged(object? sender, System.EventArgs e) { }
 }
 
 /// <summary>Fixture: class constant used inside an attribute on a method parameter.</summary>
@@ -388,4 +404,22 @@ public class IsAsPatternFixture
 
     // AsPattern: obj as Animal
     public Animal? AsAnimal(object obj) => obj as Animal;
+}
+
+/// <summary>Fixture: event ?.Invoke() — treated as EventCall on the declaring type.</summary>
+public class EventCallFixture
+{
+    event EventHandler? StatusChanged;
+
+    // EventCall: StatusChanged?.Invoke(...)
+    public void NotifyStatusChanged()
+    {
+        StatusChanged?.Invoke(this, System.EventArgs.Empty);
+    }
+
+    // EventCall: direct invocation without ?.Invoke
+    public void NotifyStatusChangedDirect()
+    {
+        StatusChanged(this, System.EventArgs.Empty);
+    }
 }

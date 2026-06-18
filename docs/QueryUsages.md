@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`query_usages` traverses the entire solution via Roslyn and finds all usages of a given type — method calls, property/field access, constructor calls, generic arguments, return types, parameter types, inheritance, `nameof`, `typeof`, and `is`/`as` checks.
+`query_usages` traverses the entire solution via Roslyn and finds all usages of a given type — method calls, property/field access, constructor calls, generic arguments, return types, parameter types, inheritance, `nameof`, `typeof`, `is`/`as` checks, and event subscribe/unsubscribe/invoke.
 
 Results are grouped by containing type and file, and rendered as annotated source code snippets inside a single `csharp` block per file.
 
@@ -45,6 +45,7 @@ Forbidden: `new`, lambda expressions, anonymous methods, type declarations, stat
 | `ArgumentTypes` | `IReadOnlyList<string>?` | `MethodCall`, `ConstructorCall` |
 | `PropertyName` | `string?` | `PropertyRead`, `PropertyWrite` |
 | `FieldName` | `string?` | `FieldRead`, `FieldWrite` |
+| `EventName` | `string?` | `EventSubscribe`, `EventUnsubscribe`, `EventCall` |
 
 **`UsageKind` values:**
 
@@ -64,6 +65,9 @@ Forbidden: `new`, lambda expressions, anonymous methods, type declarations, stat
 | `NameOf` | `nameof(MyType)` |
 | `TypeOf` | `typeof(MyType)` |
 | `IsOrAs` | `x is MyType` or `x as MyType` |
+| `EventSubscribe` | `obj.Event += handler` |
+| `EventUnsubscribe` | `obj.Event -= handler` |
+| `EventCall` | `Event?.Invoke(...)` or direct `Event(...)` invocation |
 
 ### scanInclude / scanExclude
 

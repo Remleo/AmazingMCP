@@ -16,4 +16,7 @@ public enum UsageKind
     NameOf,
     TypeOf,
     IsOrAs,
+    EventSubscribe,
+    EventUnsubscribe,
+    EventCall,
 }

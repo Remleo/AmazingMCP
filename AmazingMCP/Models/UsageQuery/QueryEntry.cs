@@ -28,4 +28,7 @@ public sealed class QueryEntry
 
     /// <summary>Field name for <see cref="UsageKind.FieldRead"/> and <see cref="UsageKind.FieldWrite"/>.</summary>
     public string? FieldName { get; init; }
+
+    /// <summary>Event name for <see cref="UsageKind.EventSubscribe"/>, <see cref="UsageKind.EventUnsubscribe"/>, and <see cref="UsageKind.EventCall"/>.</summary>
+    public string? EventName { get; init; }
 }
