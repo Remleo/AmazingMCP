@@ -27,6 +27,16 @@ The fully qualified name of the type to search for — must include the namespac
 
 If no usages are found, the tool returns a detailed hint explaining how to find the correct full name using `query_symbol` or `code_lens`. In addition, it automatically searches for **types whose simple name matches `typeName`** (ignoring namespace and generic parameters) and lists any exact matches — an incorrect namespace or generic arity is a frequent cause of empty results, and the listed types are likely what you meant.
 
+### Interface member unification
+
+When a member is accessed via a **concrete type** that implicitly implements an interface, the tool generates **two entries** — one for the concrete type and one for the interface. This mirrors how Rider's "Find Usages" works.
+
+For example, if `SqlAnimalRepository` implements `IAnimalRepository` and code calls `repo.FindById(id)` where `repo` is typed as `SqlAnimalRepository`, searching by either `SqlAnimalRepository` or `IAnimalRepository` will find that call.
+
+This applies to: `MethodCall`, `PropertyRead`, `PropertyWrite`, `EventSubscribe`, `EventUnsubscribe`, `EventCall` — including implicit-`this` calls inside the implementing class itself.
+
+> **Tip:** always prefer searching by the **interface** type — it gives the broadest results across all implementations.
+
 ### predicate
 
 A C# boolean expression evaluated as `Func<QueryEntry, bool>` with variable `x`. Compiled via `CSharpCompilation` into a dynamic assembly at runtime.
@@ -51,7 +61,7 @@ Forbidden: `new`, lambda expressions, anonymous methods, type declarations, stat
 
 | Value | Description |
 |---|---|
-| `MethodCall` | Instance method call with explicit receiver |
+| `MethodCall` | Method call — explicit receiver (`obj.Method()`), implicit-this, or via null-conditional (`obj?.Method()`) |
 | `ConstructorCall` | `new MyType(...)` or `new(...)` |
 | `PropertyRead` | Property getter access |
 | `PropertyWrite` | Property setter or object initializer |
@@ -160,7 +170,9 @@ QueryUsagesService
 │       │       ├── TryEnterType() — applies scanInclude/scanExclude filters
 │       │       ├── VisitMethodDeclaration/ConstructorDeclaration/PropertyDeclaration — tracks method scope
 │       │       └── DefaultVisit() — QueryEntryFactory.TryCreate() per node → predicate → SectionResolver.Resolve()
-│       │           └── QueryEntryFactory — creates QueryEntry for each usage kind
+│       │           ├── QueryEntryFactory — creates QueryEntry for each usage kind
+│       │           └── InterfaceMemberCache (per-request) — for each entry on a concrete member,
+│       │               looks up all interface members it implicitly implements and adds mirrored entries
 │       └── IInheritanceUsageProvider.FindMatches()  — finds Inheritance usages (base type lists)
 ├── On empty results: IRoslynSymbolService.QuerySymbolsAsync(simpleName, [KindGroup.Type])
 │   └── TypeNameHelper.GetSimpleName() strips generics + namespace; exact name matches kept as suggestions

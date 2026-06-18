@@ -156,6 +156,9 @@
     <Compile Update="Services\SymbolQuery\IDerivedTypeService.cs">
       <DependentUpon>RoslynDerivedTypeService.cs</DependentUpon>
     </Compile>
+    <Compile Update="Services\UsageQuery\IInterfaceMemberCache.cs">
+      <DependentUpon>InterfaceMemberCache.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

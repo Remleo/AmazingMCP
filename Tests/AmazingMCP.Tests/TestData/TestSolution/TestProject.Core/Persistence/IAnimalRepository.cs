@@ -11,5 +11,6 @@ public interface IAnimalRepository
     IReadOnlyList<Animal> FindByKind(AnimalKind kind);
     void Save(Animal animal);
     int Count { get; }
+    AnimalKind DefaultKind { get; set; }
     event EventHandler RepositoryChanged;
 }

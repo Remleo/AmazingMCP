@@ -51,6 +51,7 @@ public sealed class UsageProvider(
         var cachedSolution = await workspaceProvider.GetSolutionAsync(solutionPath, ct);
         var matches = new List<UsageMatch>();
         var truncated = false;
+        var interfaceMemberCache = new InterfaceMemberCache();
 
         foreach (var (_, compilation) in cachedSolution.Compilations)
         {
@@ -74,7 +75,8 @@ public sealed class UsageProvider(
                     includePatterns,
                     excludePatterns,
                     matches,
-                    _options.QueryMatchLimit);
+                    _options.QueryMatchLimit,
+                    interfaceMemberCache);
 
                 walker.Visit(root);
 
@@ -115,7 +117,8 @@ public sealed class UsageProvider(
         List<IWildcardPattern>? includePatterns,
         List<IWildcardPattern>? excludePatterns,
         List<UsageMatch> results,
-        int limit) : CSharpSyntaxWalker(SyntaxWalkerDepth.Node)
+        int limit,
+        IInterfaceMemberCache interfaceMemberCache) : CSharpSyntaxWalker(SyntaxWalkerDepth.Node)
     {
         // Scope stack — each frame pushed on entry, popped on exit
         readonly Stack<ScopeFrame> _scopeStack = new();
@@ -341,36 +344,92 @@ public sealed class UsageProvider(
 
         public override void DefaultVisit(SyntaxNode node)
         {
-            // Stop traversal once the limit is reached
             if (results.Count >= limit) return;
 
-            // Only attempt to create entries when we're inside a type
             if (_currentTypeName is not null)
-            {
-                foreach (var entry in QueryEntryFactory.TryCreate(node, model))
-                {
-                    if (!string.Equals(entry.TypeName, typeName, StringComparison.Ordinal)) continue;
-                    if (predicate is not null && !predicate(entry)) continue;
-
-                    var section = SectionResolver.Resolve(node);
-                    var lineSpan = node.GetLocation().GetLineSpan();
-                    var matchLine = lineSpan.StartLinePosition.Line + 1;
-
-                    var scope = new UsageScope(
-                        _currentTypeName,
-                        _currentFilePath,
-                        _currentMethodName,
-                        _currentMethodDefinitionRange,
-                        _currentMethodFullRange,
-                        section,
-                        matchLine);
-
-                    results.Add(new UsageMatch(entry, scope));
-                    if (results.Count >= limit) break;
-                }
-            }
+                ProcessNode(node);
 
             base.DefaultVisit(node);
+        }
+
+        void ProcessNode(SyntaxNode node)
+        {
+            foreach (var entry in QueryEntryFactory.TryCreate(node, model))
+            {
+                TryAddMatch(entry, node);
+                if (results.Count >= limit) break;
+
+                AddInterfaceEntries(entry, node);
+                if (results.Count >= limit) break;
+            }
+        }
+
+        void AddInterfaceEntries(QueryEntry entry, SyntaxNode node)
+        {
+            var memberSymbol = TryGetMemberSymbol(node, model, entry);
+            if (memberSymbol is null) return;
+
+            foreach (var ifaceMember in interfaceMemberCache.GetInterfaceMembers(memberSymbol))
+            {
+                var ifaceEntry = new QueryEntry
+                {
+                    Kind = entry.Kind,
+                    TypeName = ifaceMember.ContainingType.ToDisplayString(),
+                    MethodName = entry.MethodName,
+                    ArgumentTypes = entry.ArgumentTypes,
+                    PropertyName = entry.PropertyName,
+                    FieldName = entry.FieldName,
+                    EventName = entry.EventName,
+                };
+                TryAddMatch(ifaceEntry, node);
+                if (results.Count >= limit) break;
+            }
+        }
+
+        void TryAddMatch(QueryEntry entry, SyntaxNode node)
+        {
+            if (!string.Equals(entry.TypeName, typeName, StringComparison.Ordinal)) return;
+            if (predicate is not null && !predicate(entry)) return;
+
+            var section = SectionResolver.Resolve(node);
+            var lineSpan = node.GetLocation().GetLineSpan();
+            var matchLine = lineSpan.StartLinePosition.Line + 1;
+
+            var scope = new UsageScope(
+                _currentTypeName!,
+                _currentFilePath,
+                _currentMethodName,
+                _currentMethodDefinitionRange,
+                _currentMethodFullRange,
+                section,
+                matchLine);
+
+            results.Add(new UsageMatch(entry, scope));
+        }
+
+        static ISymbol? TryGetMemberSymbol(SyntaxNode node, SemanticModel model, QueryEntry entry)
+        {
+            if (entry.Kind is not (UsageKind.MethodCall or UsageKind.PropertyRead or UsageKind.PropertyWrite
+                or UsageKind.EventSubscribe or UsageKind.EventUnsubscribe or UsageKind.EventCall))
+                return null;
+
+            // For event assignment (+=/-=) — resolve Left symbol
+            if (node is AssignmentExpressionSyntax assign)
+                return model.GetSymbolInfo(assign.Left).Symbol;
+
+            // For EventCall via ?.Invoke() — resolve the event symbol from the conditional access expression
+            if (entry.Kind == UsageKind.EventCall && node is InvocationExpressionSyntax inv)
+            {
+                var conditionalAccess = inv.FirstAncestorOrSelf<ConditionalAccessExpressionSyntax>();
+                if (conditionalAccess is not null)
+                    return model.GetSymbolInfo(conditionalAccess.Expression).Symbol;
+
+                // Direct invocation: Event(args)
+                if (inv.Expression is IdentifierNameSyntax id)
+                    return model.GetSymbolInfo(id).Symbol;
+            }
+
+            return model.GetSymbolInfo(node).Symbol;
         }
     }
 
