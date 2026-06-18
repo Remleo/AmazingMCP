@@ -9,6 +9,16 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
       "commandLineArgs": "--urls=http://localhost:7779 --Diagnostics:IncludeExceptionDetails=true"
+    },
+
+    "http-7777": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "commandLineArgs": "--urls=http://localhost:7777 --Diagnostics:IncludeExceptionDetails=true"
     }
   }
 }
