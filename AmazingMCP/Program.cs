@@ -6,6 +6,7 @@ using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using AmazingMCP.Infrastructure;
 using AmazingMCP.Services;
+using ModelContextProtocol.AspNetCore;
 using AmazingMCP.Services.CodeLens;
 using AmazingMCP.Services.Design;
 using AmazingMCP.Services.Decompile;
@@ -37,7 +38,8 @@ builder.Services
     .Configure<ReadCsOptions>(builder.Configuration.GetSection("ReadCs"))
     .Configure<ProjectDesignOptions>(builder.Configuration.GetSection("ProjectDesign"))
     .Configure<QueryUsagesOptions>(builder.Configuration.GetSection("QueryUsages"))
-    .Configure<DiagnosticsOptions>(builder.Configuration.GetSection("Diagnostics"));
+    .Configure<DiagnosticsOptions>(builder.Configuration.GetSection("Diagnostics"))
+    .Configure<HttpServerTransportOptions>(builder.Configuration.GetSection("HttpServerTransport"));
 
 // Infrastructure
 builder.Services

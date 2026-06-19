@@ -60,6 +60,7 @@ The server starts on `http://localhost:7777` by default.
 | `--ProjectDesign:DetailsXmlDocSummaryMaxLength` | `2000` | Max XML doc summary characters in `get_project_design_details` |
 | `--QueryUsages:QueryMatchLimit` | `200` | Max usage matches for `query_usages` |
 | `--Diagnostics:IncludeExceptionDetails` | `false` | Include full exception details in tool error responses (for diagnostics) |
+| `--HttpServerTransport:IdleTimeout` | `7.00:00:00` | MCP session idle timeout — how long a session is kept alive without activity (e.g. `7.00:00:00` for 7 days, `2:00:00` for 2 hours) |
 | `--DisabledTools` | _(none)_ | Comma-separated list of tool names to disable (e.g. `code_lens,get_project_design`) |
 
 ### MCP Client Configuration
