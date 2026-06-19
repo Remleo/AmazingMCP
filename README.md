@@ -104,6 +104,7 @@ Or add a launcher entry so the client starts the server automatically:
 
 ## Documentation
 
+- [Changelog](CHANGELOG.md)
 - [QuerySymbol — type and member search](docs/QuerySymbol.md)
 - [QueryUsages — usage search](docs/QueryUsages.md)
 - [CodeLens — type resolution for a code span](docs/CodeLens.md)
