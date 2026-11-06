@@ -4,7 +4,7 @@
 
 `DependencyMapService` builds a complete dependency map of a C# solution via Roslyn analysis. The result is two dictionaries: abstractions and their implementations with details about dependency usage (method calls, property access, static calls).
 
-The map is used as a data source for `ProjectDesignService`, `GetDetailedProjectDesignTool`, and `GetTypeDepsAndUsageTool`.
+The map is used as a data source for `ProjectDesignService` (`get_project_design`) and `ProjectDesignDetailsService` (`get_project_design_details`).
 
 ## What Goes Into the Map
 

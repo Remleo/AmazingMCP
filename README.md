@@ -111,7 +111,6 @@ Or add a launcher entry so the client starts the server automatically:
 - [FileStructure — token-efficient file reading](docs/FileStructure.md)
 - [DecompileType — NuGet assembly decompilation](docs/DecompileType.md)
 - [ProjectDesign — architecture overview tool](docs/ProjectDesign.md)
-- [DependencyMap — dependency map](docs/DependencyMap.md)
 
 ## Contributing
 
