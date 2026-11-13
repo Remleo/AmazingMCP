@@ -17,25 +17,39 @@ Searches types, members, extension methods, constants, and enum values across th
 | Parameter | Required | Description |
 |---|---|---|
 | `solutionWorkspacePath` | Yes | Absolute path to the directory containing the `.sln`/`.slnx` file |
-| `query` | Yes | Name or wildcard pattern |
+| `typeQuery` | No* | Wildcard patterns matched against the full or simple type name (OR) |
+| `typeExclude` | No | Wildcard patterns; matching types and all their members are skipped |
+| `memberQuery` | No* | Wildcard patterns matched against the simple member name (OR) |
 | `solutionPath` | No | Explicit path to the `.sln`/`.slnx` file (required only when multiple solutions exist) |
+
+\* At least one of `typeQuery` or `memberQuery` is required.
+
+### Query modes
+
+| `typeQuery` | `memberQuery` | Result |
+|---|---|---|
+| set | — | Matching types |
+| — | set | Matching members of any type |
+| set | set | Matching members declared in matching types; the types themselves are not returned |
 
 ### Query patterns
 
 | Pattern | Behavior |
 |---|---|
-| `Animal` | No wildcard → wrapped as `*Animal*` (contains-match) |
-| `Get*` | Starts with |
-| `*Repository` | Ends with |
-| `*.Services.*Animal*` | Namespace + name |
-| `*Redis*Connection*` | Topic/technology search across all types and members |
-| `SomeNugetNamespace.*` | All types in a NuGet namespace |
+| `typeQuery: ["Animal"]` | No wildcard → wrapped as `*Animal*` (contains-match) |
+| `memberQuery: ["Get*"]` | Members starting with `Get` |
+| `typeQuery: ["*.Services.*"]` | Types in a `Services` namespace |
+| `typeQuery: ["*.Fixture.*"], memberQuery: ["*Aggregate", "*Aggregated"]` | Members with either name inside `Fixture` namespaces |
+| `typeQuery: ["SomeNugetNamespace.*"], memberQuery: ["*"]` | All members of all types in a NuGet namespace |
+| `memberQuery: ["*Aggregated*"], typeExclude: ["*.Tests.*"]` | Members outside test namespaces |
 
-Queries without `*` are automatically wrapped as `*query*` — so `Animal` finds `IAnimalRepository`, `AnimalService`, etc.
+Patterns without `*` are automatically wrapped as `*pattern*`, so `Animal` finds `IAnimalRepository`, `AnimalService`, etc.
+A topic search such as `*Redis*Connection*` takes two calls: one with `typeQuery`, one with `memberQuery`.
 
 ### Output format
 
-Results are split into **exact matches** (name equals query) and **partial matches** (name contains query), separated by `--- N partial match(es) ---`.
+Results are split into **exact matches** (name equals a pattern) and **partial matches** (name contains a pattern), separated by `--- N partial match(es) ---`.
+Results are judged by `memberQuery` when it is set and by `typeQuery` otherwise; when any of those patterns contains `*`, the output is flat.
 
 Types are shown as:
 ```
@@ -74,12 +88,14 @@ Output is truncated at `--Symbol:QueryOutputLineLimit` (default 100 lines) with 
 ```
 SymbolQueryService
 └── RoslynSymbolService.QuerySymbolsAsync()
+    ├── ValidateQuery()                           — typeQuery or memberQuery is required
     ├── IWorkspaceProvider.GetSolutionAsync()     — loads/reuses cached MSBuild workspace
     ├── IRoslynTypeProvider.GetAll(versionedStrategy) — enumerates all types across compilations
     │   └── VersionedTypeStrategy                 — groups same type from multiple assemblies by version
+    ├── IsTypeSelected()                          — typeQuery / typeExclude against type full or short name
     └── SymbolWalker (per type group)
-        ├── CollectType()   — matches type full name or short name against pattern
-        └── CollectMembers() — matches member names against pattern
+        ├── CollectType()    — when memberQuery is empty
+        └── CollectMembers() — matches member names against memberQuery
             ├── Methods: MethodKind.Ordinary only
             ├── Properties, Fields, Events
             └── Enum values (IFieldSymbol with HasConstantValue)
@@ -165,7 +181,7 @@ SymbolInfoService
 ## Typical agent workflow
 
 ```
-1. query_symbol("Animal")                          → find the type, get its full name
+1. query_symbol(typeQuery: ["Animal"])             → find the type, get its full name
 2. get_type_details("MyApp.Core.Models.Animal")  → get all members and signatures
 3. get_type_details("MyApp.Core.Models.Animal", memberFilters: ["*Get*"]) → filtered view
 ```

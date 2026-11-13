@@ -70,7 +70,7 @@ public class MultiVersionNuGetTests
     public async Task QueryAsync_SingleVersionNuGetType_ShowsVersionInParens()
     {
         // act — AutoMapper exists only in one version in TestSolution
-        var result = await _queryService.QueryAsync(CompilationHelper.SolutionPath, "AutoMapper.MapperConfiguration");
+        var result = await _queryService.QueryAsync(CompilationHelper.SolutionPath, typeQuery: ["AutoMapper.MapperConfiguration"], typeExclude: null, memberQuery: null);
 
         // assert
         result.Should().MatchRegex(@"\(assembly: AutoMapper \[v\d+\.\d+\.\d+\]\)");
@@ -80,7 +80,7 @@ public class MultiVersionNuGetTests
     public async Task QueryAsync_SourceType_NoVersionInParens()
     {
         // act
-        var result = await _queryService.QueryAsync(CompilationHelper.SolutionPath, "TestProject.Core.Models.Animal");
+        var result = await _queryService.QueryAsync(CompilationHelper.SolutionPath, typeQuery: ["TestProject.Core.Models.Animal"], typeExclude: null, memberQuery: null);
 
         // assert — source types have no version suffix
         result.Should().NotMatchRegex(@", v\d");
@@ -93,7 +93,7 @@ public class MultiVersionNuGetTests
     public async Task QueryAsync_MultiVersionNuGetType_ReturnsBothVersions()
     {
         // act
-        var result = await _queryService.QueryAsync(CompilationHelper.SolutionPath, MultiVersionType);
+        var result = await _queryService.QueryAsync(CompilationHelper.SolutionPath, typeQuery: [MultiVersionType], typeExclude: null, memberQuery: null);
 
         // assert
         result.Should().Contain(Version105);

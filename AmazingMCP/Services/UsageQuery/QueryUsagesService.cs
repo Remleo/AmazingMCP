@@ -41,7 +41,7 @@ public class QueryUsagesService(
         if (string.IsNullOrEmpty(simpleName))
             return [];
 
-        var candidates = await roslyn.QuerySymbolsAsync(solutionPath, simpleName, [KindGroup.Type], ct);
+        var candidates = await roslyn.QuerySymbolsAsync(solutionPath, typeQuery: [simpleName], typeExclude: null, memberQuery: null, ct);
 
         return candidates
             .Where(c => c.Name.Equals(simpleName, StringComparison.OrdinalIgnoreCase))

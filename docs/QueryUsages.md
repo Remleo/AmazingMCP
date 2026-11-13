@@ -174,7 +174,7 @@ QueryUsagesService
 │       │           └── InterfaceMemberCache (per-request) — for each entry on a concrete member,
 │       │               looks up all interface members it implicitly implements and adds mirrored entries
 │       └── IInheritanceUsageProvider.FindMatches()  — finds Inheritance usages (base type lists)
-├── On empty results: IRoslynSymbolService.QuerySymbolsAsync(simpleName, [KindGroup.Type])
+├── On empty results: IRoslynSymbolService.QuerySymbolsAsync(typeQuery: [simpleName])
 │   └── TypeNameHelper.GetSimpleName() strips generics + namespace; exact name matches kept as suggestions
 └── IUsageResultFormatter.Format(matches, truncated, typeSuggestions)
     └── UsageResultFormatter
@@ -187,7 +187,7 @@ QueryUsagesService
 ## Typical agent workflow
 
 ```
-1. query_symbol("IAnimalRepository")                          → find the full type name
+1. query_symbol(typeQuery: ["IAnimalRepository"])             → find the full type name
 2. query_usages("MyApp.Core.IAnimalRepository")               → find all usages
 3. query_usages("MyApp.Core.IAnimalRepository",
      predicate: "x.Kind == UsageKind.ConstructorCall")        → only instantiations

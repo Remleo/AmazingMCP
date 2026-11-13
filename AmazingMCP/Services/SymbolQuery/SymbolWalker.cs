@@ -9,14 +9,10 @@ internal static class SymbolWalker
 {
     public static void CollectType(
         INamedTypeSymbol typeSymbol,
-        IWildcardPattern pattern,
         HashSet<SeenSymbolKey> seen,
         List<SymbolResult> results,
         IReadOnlyList<Version?> nugetVersions)
     {
-        if (!pattern.IsMatch(typeSymbol.ToDisplayString()) && !pattern.IsMatch(typeSymbol.Name))
-            return;
-
         var key = SeenSymbolKey.ForType(
             typeDisplayName: typeSymbol.ToDisplayString(),
             assembly: typeSymbol.ContainingAssembly?.Name ?? "unknown");
@@ -26,7 +22,7 @@ internal static class SymbolWalker
 
     public static void CollectMembers(
         INamedTypeSymbol typeSymbol,
-        IWildcardPattern pattern,
+        IReadOnlyList<IWildcardPattern> memberPatterns,
         HashSet<SeenSymbolKey> seen,
         List<SymbolResult> results,
         IReadOnlyList<Version?> nugetVersions)
@@ -40,7 +36,7 @@ internal static class SymbolWalker
         if (typeSymbol.TypeKind == TypeKind.Enum)
         {
             foreach (var member in typeSymbol.GetMembers().OfType<IFieldSymbol>())
-                TryAddEnumValue(member, declaringType, assembly, pattern, seen, results);
+                TryAddEnumValue(member, declaringType, assembly, memberPatterns, seen, results);
             return;
         }
 
@@ -53,13 +49,13 @@ internal static class SymbolWalker
                 continue;
 
             if (member is IMethodSymbol method)
-                TryAddMethod(method, declaringType, assembly, pattern, seen, results);
+                TryAddMethod(method, declaringType, assembly, memberPatterns, seen, results);
             else if (member is IPropertySymbol property)
-                TryAddProperty(property, declaringType, assembly, pattern, seen, results);
+                TryAddProperty(property, declaringType, assembly, memberPatterns, seen, results);
             else if (member is IFieldSymbol field)
-                TryAddField(field, declaringType, assembly, pattern, seen, results);
+                TryAddField(field, declaringType, assembly, memberPatterns, seen, results);
             else if (member is IEventSymbol evt)
-                TryAddEvent(evt, declaringType, assembly, pattern, seen, results);
+                TryAddEvent(evt, declaringType, assembly, memberPatterns, seen, results);
         }
     }
 
@@ -67,11 +63,11 @@ internal static class SymbolWalker
         IFieldSymbol field,
         SymbolResult declaringType,
         string assembly,
-        IWildcardPattern pattern,
+        IReadOnlyList<IWildcardPattern> memberPatterns,
         HashSet<SeenSymbolKey> seen,
         List<SymbolResult> results)
     {
-        if (!pattern.IsMatch(field.Name)) return;
+        if (!IsNameMatch(field.Name, memberPatterns)) return;
         var key = SeenSymbolKey.ForMember(
             containingTypeDisplayName: field.ContainingType.ToDisplayString(),
             memberSignature: field.Name,
@@ -84,12 +80,12 @@ internal static class SymbolWalker
         IMethodSymbol method,
         SymbolResult declaringType,
         string assembly,
-        IWildcardPattern pattern,
+        IReadOnlyList<IWildcardPattern> memberPatterns,
         HashSet<SeenSymbolKey> seen,
         List<SymbolResult> results)
     {
         if (method.MethodKind != MethodKind.Ordinary) return;
-        if (!pattern.IsMatch(method.Name)) return;
+        if (!IsNameMatch(method.Name, memberPatterns)) return;
         var key = SeenSymbolKey.ForMember(
             containingTypeDisplayName: method.ContainingType.ToDisplayString(),
             memberSignature: SymbolResultFactory.MethodSignature(method),
@@ -102,11 +98,11 @@ internal static class SymbolWalker
         IPropertySymbol property,
         SymbolResult declaringType,
         string assembly,
-        IWildcardPattern pattern,
+        IReadOnlyList<IWildcardPattern> memberPatterns,
         HashSet<SeenSymbolKey> seen,
         List<SymbolResult> results)
     {
-        if (!pattern.IsMatch(property.Name)) return;
+        if (!IsNameMatch(property.Name, memberPatterns)) return;
         var key = SeenSymbolKey.ForMember(
             containingTypeDisplayName: property.ContainingType.ToDisplayString(),
             memberSignature: SymbolResultFactory.PropertySignature(property),
@@ -119,11 +115,11 @@ internal static class SymbolWalker
         IFieldSymbol field,
         SymbolResult declaringType,
         string assembly,
-        IWildcardPattern pattern,
+        IReadOnlyList<IWildcardPattern> memberPatterns,
         HashSet<SeenSymbolKey> seen,
         List<SymbolResult> results)
     {
-        if (!pattern.IsMatch(field.Name)) return;
+        if (!IsNameMatch(field.Name, memberPatterns)) return;
         var key = SeenSymbolKey.ForMember(
             containingTypeDisplayName: field.ContainingType.ToDisplayString(),
             memberSignature: field.Name,
@@ -136,11 +132,11 @@ internal static class SymbolWalker
         IEventSymbol evt,
         SymbolResult declaringType,
         string assembly,
-        IWildcardPattern pattern,
+        IReadOnlyList<IWildcardPattern> memberPatterns,
         HashSet<SeenSymbolKey> seen,
         List<SymbolResult> results)
     {
-        if (!pattern.IsMatch(evt.Name)) return;
+        if (!IsNameMatch(evt.Name, memberPatterns)) return;
         var key = SeenSymbolKey.ForMember(
             containingTypeDisplayName: evt.ContainingType.ToDisplayString(),
             memberSignature: evt.Name,
@@ -148,6 +144,9 @@ internal static class SymbolWalker
         if (seen.Add(key))
             results.Add(SymbolResultFactory.ForEvent(evt, declaringType));
     }
+
+    static bool IsNameMatch(string name, IReadOnlyList<IWildcardPattern> patterns) =>
+        patterns.Any(p => p.IsMatch(name));
 
     static bool IsClassOrInterface(INamedTypeSymbol type) =>
         type.TypeKind is TypeKind.Class or TypeKind.Interface;

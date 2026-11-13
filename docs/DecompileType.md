@@ -47,7 +47,7 @@ DecompileTypeService
 ## Typical agent workflow
 
 ```
-1. query_symbol("MapperConfiguration")              → find the full type name
+1. query_symbol(typeQuery: ["MapperConfiguration"]) → find the full type name
 2. decompile_type("AutoMapper.MapperConfiguration") → see the implementation
 3. decompile_type("AutoMapper.MapperConfiguration", memberFilters: ["*Map*"]) → filtered view
 ```

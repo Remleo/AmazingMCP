@@ -11,25 +11,44 @@ public class SymbolQueryService(
 {
     readonly SymbolOptions _options = options.Value;
 
-    public async Task<string> QueryAsync(string solutionPath, string query, CancellationToken ct = default)
+    public async Task<string> QueryAsync(
+        string solutionPath,
+        IReadOnlyList<string>? typeQuery,
+        IReadOnlyList<string>? typeExclude,
+        IReadOnlyList<string>? memberQuery,
+        CancellationToken ct = default)
     {
-        var results = await roslyn.QuerySymbolsAsync(solutionPath, query, ct: ct);
+        var hasTypeQuery = typeQuery is { Count: > 0 };
+        var hasMemberQuery = memberQuery is { Count: > 0 };
+
+        if (!hasTypeQuery && !hasMemberQuery)
+            return "At least one of typeQuery or memberQuery must be specified. " +
+                   "The former 'query' parameter is replaced by them: use typeQuery for types, memberQuery for members.";
+
+        var results = await roslyn.QuerySymbolsAsync(solutionPath, typeQuery, typeExclude, memberQuery, ct);
 
         if (results.Count == 0)
-            return $"No types or members matching '{query}' found.";
+        {
+            var queryDescription = DescribeQuery(typeQuery, memberQuery);
+            return $"No types or members matching {queryDescription} found.";
+        }
 
-        var hasWildcard = query.Contains('*');
+        // Results are members when memberQuery is set, types otherwise
+        var resultQuery = hasMemberQuery ? memberQuery! : typeQuery!;
 
-        if (hasWildcard)
-            return FormatAndTruncate(results, query);
+        if (resultQuery.Any(q => q.Contains('*')))
+            return FormatAndTruncate(results);
 
-        var exactMatches = results.Where(r => IsExactMatch(r, query)).ToList();
-        var partialMatches = results.Where(r => !IsExactMatch(r, query)).ToList();
+        var exactMatches = results.Where(r => IsExactMatch(r, resultQuery)).ToList();
+        var partialMatches = results.Where(r => !IsExactMatch(r, resultQuery)).ToList();
 
-        return FormatAndTruncate(exactMatches, partialMatches, query);
+        return FormatAndTruncate(exactMatches, partialMatches);
     }
 
     // ── Exact match detection ─────────────────────────────────────────────────
+
+    static bool IsExactMatch(SymbolResult result, IReadOnlyList<string> queries) =>
+        queries.Any(q => IsExactMatch(result, q));
 
     static bool IsExactMatch(SymbolResult result, string query)
     {
@@ -39,19 +58,27 @@ public class SymbolQueryService(
         return result.Name.Equals(query, StringComparison.OrdinalIgnoreCase);
     }
 
+    static string DescribeQuery(IReadOnlyList<string>? typeQuery, IReadOnlyList<string>? memberQuery)
+    {
+        var typeText = typeQuery is { Count: > 0 } ? $"typeQuery [{string.Join(", ", typeQuery)}]" : null;
+        var memberText = memberQuery is { Count: > 0 } ? $"memberQuery [{string.Join(", ", memberQuery)}]" : null;
+        string?[] parts = [typeText, memberText];
+        var presentParts = parts.OfType<string>();
+        return string.Join(" and ", presentParts);
+    }
+
     // ── Formatting ────────────────────────────────────────────────────────────
 
-    string FormatAndTruncate(IReadOnlyList<SymbolResult> all, string query)
+    string FormatAndTruncate(IReadOnlyList<SymbolResult> all)
     {
         var sb = new StringBuilder();
         AppendGroup(sb, all);
-        return Truncate(sb, query);
+        return Truncate(sb);
     }
 
     string FormatAndTruncate(
         IReadOnlyList<SymbolResult> exact,
-        IReadOnlyList<SymbolResult> partial,
-        string query)
+        IReadOnlyList<SymbolResult> partial)
     {
         var sb = new StringBuilder();
 
@@ -65,7 +92,7 @@ public class SymbolQueryService(
             AppendGroup(sb, partial);
         }
 
-        return Truncate(sb, query);
+        return Truncate(sb);
     }
 
     /// <summary>
@@ -120,7 +147,7 @@ public class SymbolQueryService(
             ? $"    {r.FullName}  (line {r.DefinitionLine})"
             : $"    {r.FullName}";
 
-    string Truncate(StringBuilder sb, string query)
+    string Truncate(StringBuilder sb)
     {
         var text = sb.ToString();
         var lines = text.Split('\n');
@@ -131,6 +158,6 @@ public class SymbolQueryService(
         var truncated = string.Join('\n', lines.Take(_options.QueryOutputLineLimit));
         return truncated.TrimEnd() +
                $"\n\n<<... Output truncated (total {lines.Length} lines). " +
-               $"Please narrow your query — e.g. '*.Namespace.*Foo*Bar*'>>";
+               "Please narrow your query — e.g. typeQuery ['*.Namespace.*Foo*'], memberQuery ['*Bar*'] or typeExclude ['*.Tests.*']>>";
     }
 }

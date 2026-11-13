@@ -14,7 +14,7 @@
     <PackageReference Include="NSubstitute" Version="5.*" />
     <PackageReference Include="NUnit" Version="4.*" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.*" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.3.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.9.0" />
     <PackageReference Include="Microsoft.Build.Locator" Version="1.*" />
     <PackageReference Include="Microsoft.Build.Framework" Version="*" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.StringTools" Version="*" ExcludeAssets="runtime" PrivateAssets="all" />
